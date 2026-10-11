@@ -1,45 +1,50 @@
 # Creative Marketing Workstation
 
-Requirements and architecture for a shared marketing and creative workstation covering social media content, organic distribution and paid advertising.
+Requirements and architecture for GML's internal workstation, where the Marketing Team and the Creative Team take a Creative from Brief to a live Post or Ad, read its Meta results, and plan what to make next.
 
 ## Start here
 
 | Document | Purpose |
 |---|---|
-| [Product Requirements Document](docs/requirements/creative-workstation-prd.md) | Team responsibilities, six-step workflow, scope, screens, functional requirements and acceptance criteria |
-| [Technical Requirements Document](docs/requirements/creative-workstation-trd.md) | Architecture, database keys and relationships, API contracts, review/versioning rules, Meta ingestion, security and verification |
-| [Workstation design](docs/superpowers/specs/2026-10-10-marketing-creative-workstation-design.md) | Shared creative card, handoffs, review loop and example record |
-| [Database architecture](docs/superpowers/specs/2026-10-10-creative-marketing-performance-design.md) | Detailed logical data model, performance measurement rules and reporting structure |
+| [Glossary (CONTEXT.md)](CONTEXT.md) | Canonical vocabulary (Brief, Creative, Variant, Version, Launch, Combination, …) and the terms to avoid |
+| [Interview decisions](docs/requirements/2026-10-11-interview-decisions.md) | Owner-confirmed decisions D-01…D-62 (including the confirmed defaults D-49–D-62) and the remaining open item O-02. The log wins when documents conflict |
+| [Architecture decision records](docs/adr/) | Hard-to-reverse decisions: Supabase, meaning-free codes, separation from the Video Orchestrator, lightweight Launch tracking, single company, commands as Postgres functions |
+| [Product Requirements Document (1.1)](docs/requirements/creative-workstation-prd.md) | Teams and roles, the six-step workflow, scope, screens, functional requirements, acceptance criteria and proposed defaults |
+| [Technical Requirements Document (1.1)](docs/requirements/creative-workstation-trd.md) | Supabase architecture, data model, RPC command contract, Meta sync and matching, security, notifications and verification |
 
-The PRD and TRD are the requirements baseline. They supersede the supporting exploratory designs where details differ. Deployment choices and operating targets are explicitly marked as proposed.
+The two exploratory designs from 2026-10-10 are superseded by PRD/TRD 1.1 and kept for history only: [Workstation design](docs/superpowers/specs/2026-10-10-marketing-creative-workstation-design.md) and [Database architecture](docs/superpowers/specs/2026-10-10-creative-marketing-performance-design.md).
 
 ## Workflow
 
 ```mermaid
 flowchart TD
-    A[Marketing: avatar, angle and initial draft] --> B[Creative: storytelling, editing and fine edit]
-    B --> C[Marketing review]
-    C -->|Changes requested| D[Creative revision and new version]
+    A["Marketing Team: Brief (Product, Avatar, Angle, Funnel Stage)"] --> B["Creative Team: Creatives and Variants (Narrative Style, rough cut, fine cut)"]
+    B --> C["Marketing Team reviews a Version"]
+    C -->|Request Changes| D["Creative Team: new Version"]
     D --> C
-    C -->|Approved exact version| E[Marketing: posting and advertising plans]
-    E --> F[Meta reporting linked to creative code and version]
-    F --> G[Both teams review performance]
-    G --> H[Refinement and optimization plan]
+    C -->|"Approver approves the exact Version"| E["Marketing Team plans Launches: Posts and Ads"]
+    E --> F["Meta results matched by Variant code"]
+    F --> G["Both teams read the Combination and Label views"]
+    G --> H["Optimization Plan, then Verdict"]
     H --> A
 ```
 
-Every creative has a stable code such as `CR-000123`. Draft revisions have separate versions, and each launch is mapped to the exact approved version. Organic and paid reporting retain their distinct scopes. Findings preserve the evidence used to create follow-up work.
+Every Creative has a code such as `GML-0007`, and each Variant adds a letter, as in `GML-0007-B`. The system writes the Variant code into the ad name (`[GML-0007-B] avatar · angle · narrative`), so Meta results match automatically, and a Meta video ID check catches mismatches. Versions are the numbered revisions of a Variant, and an approval names one exact Version. Organic and paid results keep separate scopes. An Optimization Plan freezes the Evidence it cites.
 
 ## Repository status
 
-This repository contains documentation only. It does not contain a running workstation, database migrations, authenticated connections or live Meta data. Example creative records and performance figures are illustrative.
+This repository contains documentation only. It has no running workstation, database migrations, Supabase project, authenticated connections or live Meta data. Example records and figures are illustrative.
 
-V1 includes team workflow, external launch registration, read-only reporting and the optimization loop. Direct publishing, ad creation and automated budget changes are later scope.
+V1 covers the team workflow, Launch records, read-only Meta reporting, WhatsApp notifications and the optimization loop. Publishing, ad creation and budget changes are later scope.
 
-## Related foundation
+## Related project
 
-The documents were developed alongside the existing [ContentAI video-production foundation](https://github.com/garyyap13/ContentAI/tree/985d914e3caf125e0d344c1c22caf57063409977). References to the existing React/Fastify/SQLite application concern that separate repository, not an implementation included here.
+The Video Orchestrator ([ContentAI](https://github.com/garyyap13/ContentAI)) is a separate, related project; the workstation does not depend on it ([ADR 0003](docs/adr/0003-workstation-is-separate-from-the-orchestrator.md)).
 
 ## Working with the requirements
 
-Preserve requirement identifiers (`FR-*`, `AC-*`, `T-*`) when refining the documents. Keep the product-to-technical traceability current, identify changed assumptions explicitly, and distinguish implemented capabilities from design proposals.
+- Use the CONTEXT.md vocabulary.
+- Preserve requirement IDs (`FR-*`, `AC-*`, `T-*`). Mark a requirement that no longer applies as removed instead of renumbering.
+- Record newly confirmed decisions in the decision log, and add an ADR when a decision is hard to reverse.
+- Keep the PRD-to-TRD traceability current.
+- Label anything not yet confirmed as a proposed default.
