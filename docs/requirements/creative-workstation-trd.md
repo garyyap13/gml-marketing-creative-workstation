@@ -134,7 +134,7 @@ Unless stated otherwise, the primary key is a UUID `id`.
 
 | Table | Fields / relationships | Constraints |
 |---|---|---|
-| `core.members` | → `auth.users`; display name; team (`marketing`/`creative`); `is_approver`; `is_admin` (held by the workstation owner, D-49); WhatsApp number; WhatsApp opt-in time; active; archived time | Unique auth user. `is_approver` only for Marketing. Only the Admin changes flags |
+| `core.members` | → `auth.users`, set when the invitation is accepted; email (unique, case-insensitive); display name; team (`marketing`/`creative`); `is_approver`; `is_admin` (held by the workstation owner, D-49); WhatsApp number; WhatsApp opt-in time; active; archived time | Unique auth user. `is_approver` only for Marketing. Only the Admin changes flags |
 | `core.settings` | brand prefix (`GML`), default time zone, reporting currency | Single row |
 | `core.code_counters` | prefix, last issued number | Row-locked while issuing (T-01) |
 | `core.breakdown_settings` | breakdown set (e.g. age + gender, placement), enabled, changed by and time | On by default: age × gender and placement (D-35) |
@@ -342,7 +342,9 @@ The states are:
 | `record_verdict` | Approver | On or after the check date | Verdict recorded |
 | `archive_record` | Per D-61: a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; any record by the Admin | Record not already archived | `archived_at` set; the record is hidden, but its history, Launches and results are kept and no state changes (D-46, D-61) |
 | `mark_task_read` | Recipient (any Marketing Team member for a team task) | Task addressed to the caller or the caller's team | `work.task_reads` row |
-| `manage_member`, `update_settings`, `request_sync` | Admin (D-49) | | Member, settings or sync job updated |
+| `invite_member`, `update_member` | Admin (D-49) | Valid email, name and team; only Marketing Team members can be Approvers; an invited email is not already a member or invited; `update_member` takes the expected lock version | Member invited, or name, team, flags or active state changed |
+| `accept_invitation` | Any signed-in user | An active, unaccepted invitation for the email address in the verified sign-in token (D-70) | Sign-in linked to the member |
+| `update_settings`, `request_sync` | Admin (D-49) | | Settings or sync job updated |
 
 Worker-only functions, never executable by browser roles:
 - `match_ads`: runs after each published sync generation (T-14). It is exempt from the approval check and flags instead (D-54).
@@ -360,6 +362,8 @@ The never-attached file purge (`purge_unattached_files`) is an Edge Function run
 
 This is the only hard delete in the system (D-59).
 
+Operator-only: `bootstrap_admin` creates the first Admin (D-49). It is run once with the secret key from an operations script and is refused once any Admin exists.
+
 General rules:
 - No transition happens through silence or a missing Comment.
 - Every cancellation is explicit and records a reason.
@@ -369,7 +373,7 @@ General rules:
 
 **T-03.** Each command function runs in the single transaction of its RPC call and performs these steps in order (D-47, D-48):
 
-1. **Identify the caller.** Read `auth.uid()` from the verified Supabase Auth JWT and load the active `core.members` row. Identity, team and flags never come from arguments.
+1. **Identify the caller.** Read the user ID from the verified Supabase Auth JWT, as `auth.uid()` does, and load the active `core.members` row. The command functions read the request claims directly, so they need no grants on the `auth` schema. Identity, team and flags never come from arguments.
 2. **Authorise.** Check the caller's team and flags for this command.
 3. **Validate** the arguments.
 4. **Check idempotency.** The same key with the same request hash returns the stored result. The same key with a different request returns `conflict`. Results are kept for at least 30 days; after that, domain uniqueness still prevents duplicates.
@@ -439,7 +443,7 @@ api.archive_record(p_entity_type text, p_entity_id uuid, p_reason text, p_expect
 
 **Reads.** The browser reads business tables and `reporting` views directly through the Supabase client, under RLS that allows SELECT for active members (D-02). Lists use keyset pagination: the default page is 50 rows and the Data API's maximum is set to 200. Nothing outside `reporting` and the business schemas is readable, and `ingest` never is.
 
-**Errors.** Each function raises an error with a stable `code` as the message, and a JSON detail holding `{fieldErrors?, correlationId, currentLockVersion?}`. The SQLSTATE uses the `PTnnn` form so that the Data API returns HTTP status `nnn`; verify this mechanism against the pinned Supabase version. The client maps the error to `{code, message, fieldErrors?, correlationId, currentLockVersion?}`.
+**Errors.** Each function raises an error with a stable `code` as the message, and a JSON detail holding `{fieldErrors?, correlationId, currentLockVersion?}`. The SQLSTATE uses the `PTnnn` form so that the Data API returns HTTP status `nnn`; verify this mechanism against the pinned Supabase version. The client maps the error to `{code, message, fieldErrors?, correlationId, currentLockVersion?}`. A signed-out caller is refused by the API before any command runs, with HTTP 401 and no correlation ID; the client treats any 401 as `unauthenticated`.
 
 | Code | SQLSTATE | Meaning |
 |---|---|---|
@@ -677,7 +681,7 @@ Every comparison shows its evidence class. Only a Meta A/B test yields a Control
 ## 9. Security, audit, notifications and reliability
 
 **T-09.** Sign-in and membership (D-04):
-- Sign-in uses Supabase Auth with Google. The team uses personal Gmail accounts, so no email domain can be restricted; instead only email addresses the Admin has invited can sign in, whether through Google or an email magic link, which remains a backup (D-04, D-70). The exact Auth mechanism is verified against Supabase's current documentation when sign-in is built.
+- Sign-in uses Supabase Auth with Google. The team uses personal Gmail accounts, so no email domain can be restricted; instead only email addresses the Admin has invited can sign in, whether through Google or an email magic link, which remains a backup (D-04, D-70). The exact Auth mechanism is verified against Supabase's current documentation when sign-in is built. `accept_invitation` trusts the email in the sign-in token, so the hosted project keeps public sign-up off, email confirmation on and secure email change on; the last stops a signed-in user from switching to an invited address without confirming it.
 - Public sign-up is off. A user can act only with an active `core.members` row created by the Admin (D-49).
 - If session cookies are used, they are secure, HttpOnly and SameSite, with restricted origins.
 

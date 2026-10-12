@@ -1,0 +1,17 @@
+{
+  "name": "creative-marketing-workstation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "test:db": "vitest run --dir tests/db"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

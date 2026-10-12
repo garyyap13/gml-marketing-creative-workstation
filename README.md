@@ -33,9 +33,22 @@ Every Creative has a code such as `GML-0007`, and each Variant adds a letter, as
 
 ## Repository status
 
-This repository contains documentation only. It has no running workstation, database migrations, Supabase project, authenticated connections or live Meta data. Example records and figures are illustrative.
+This repository contains the requirements, the UI concept and the first build step (A0): local Supabase migrations for members, the activity log and the shared command pattern, with database tests. It has no web app, hosted Supabase project, authenticated connections or live Meta data yet. Example records and figures are illustrative.
 
 V1 covers the team workflow, Launch records, read-only Meta reporting, WhatsApp notifications and the optimization loop. Publishing, ad creation and budget changes are later scope.
+
+## Local development
+
+Needs Node, pnpm, the Supabase CLI and a container runtime. This Mac uses Colima.
+
+```bash
+colima start
+supabase start
+pnpm install
+pnpm test:db
+```
+
+`pnpm test:db` resets the local database, sets up a first Admin and runs the database tests in `tests/db`. Stop the stack with `supabase stop` and the VM with `colima stop`. The local stack's ports are reachable from the local network, so stop it on untrusted networks.
 
 ## Related project
 

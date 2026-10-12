@@ -1,0 +1,1 @@
+-- Demo seed data for local development. Intentionally empty in A0: tests create their own members.

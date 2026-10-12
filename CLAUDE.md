@@ -4,7 +4,7 @@ Start with `docs/handoff/claude-handoff.md`, then read `CONTEXT.md`, the decisio
 
 ## Project state
 
-This repository contains requirements and a UI concept. It does not yet contain a working application, database migrations or provisioned project integrations. The mockup's sample records and simulated actions are not production functionality.
+This repository contains requirements, a UI concept and the A0 database foundations: local Supabase migrations in `supabase/migrations` with database tests in `tests/db` (run `pnpm test:db`). It does not yet contain the web app or any provisioned project integrations. The mockup's sample records and simulated actions are not production functionality.
 
 ## Working agreement
 
