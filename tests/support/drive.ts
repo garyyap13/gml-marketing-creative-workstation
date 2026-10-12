@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { operatorClient } from './stack'
+import { operatorClient } from './local'
 
 // Stand-in for the Drive registration worker (TRD T-19): tests report file details with the same field
 // names as the Google Drive API's files.get response. The real worker replaces this in step B2.

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
-import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from './support/drive'
+import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../support/drive'
 import {
   command,
   fieldErrors,

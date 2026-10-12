@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { driveLink, fakeDriveFileId, imageDetails, reportDriveDetails, videoDetails } from './support/drive'
+import { driveLink, fakeDriveFileId, imageDetails, reportDriveDetails, videoDetails } from '../support/drive'
 import { fieldErrors, invitedMember, labelItem, newBrief, newCreative, newVariant, registerDriveFile } from './support/stack'
 import { handedOffCreative, must } from './support/workflow'
 

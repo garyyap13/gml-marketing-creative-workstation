@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-70). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
+Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-71). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
 
 Audience: Engineering, database, integration, QA and operations.
 
@@ -40,7 +40,7 @@ Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md]
 - **Fourth pass.**
   - Creative Retrospective / 复盘 extends Optimization Plans (D-63; new T-18, confirmed as D-68), with the command `append_retrospective_finding`.
   - Version files stay in Google Drive (D-64, D-65, ADR 0007; new T-19, details confirmed in D-69 apart from the check timing, PD-25). The `review` and `final` file kinds merge into `version_media`, registered by `register_drive_media` and checked by a scheduled Drive check. Storage keeps Brief attachments, Launch thumbnails and CSV imports.
-  - The web client is a Vite + React + TypeScript single-page app (D-66). Brief versions gain an optional hypothesis (D-67). Transcripts can be imported from SRT or WebVTT (D-68). Sign-in uses Google with personal Gmail for invited members, with a magic-link backup (D-70).
+  - The web client is a Vite + React + TypeScript single-page app (D-66). Brief versions gain an optional hypothesis (D-67). Transcripts can be imported from SRT or WebVTT (D-68). Sign-in uses Google with personal Gmail for invited members, with a magic-link backup (D-70). Footage with `RAW-` codes, linked to Variants (D-71; new T-20).
 - **Tasks model.** My Tasks and notifications derive from activity-log events inside the command transaction. The outbox is only the WhatsApp delivery queue (D-45).
 - **Repository boundary.** The ContentAI import bridge and the plan to add modules to the existing API are removed (D-05, ADR 0003), and T-11 is rewritten.
 - **Sizing.** Pilot and NFR numbers are rescaled to one company of about seven people and stay proposed (D-58).
@@ -87,14 +87,14 @@ flowchart LR
 
 | Component | Responsibilities |
 |---|---|
-| Web client | Vite + React + TypeScript single-page app (D-66): My Tasks, boards, Creative detail, previews, anchored Comments, lock-conflict UX and results views. Reads tables and views through the Supabase client under RLS. Writes only by calling RPC command functions |
+| Web client | Vite + React + TypeScript single-page app (D-66) in `web/`, using React Router and TanStack Query; only the publishable key reaches the browser: My Tasks, boards, Creative detail, previews, anchored Comments, lock-conflict UX and results views. Reads tables and views through the Supabase client under RLS. Writes only by calling RPC command functions |
 | Supabase Auth | Google sign-in with personal Gmail, limited to invited members, with a magic-link backup. Issues the JWT that every command checks (D-04, D-70) |
 | Postgres command functions (`api.*`) | Each domain command runs the full T-03 sequence in one transaction: caller identity from the JWT, idempotency, row lock, `lock_version`, validation, then the writes, the activity-log event, the My Tasks rows derived from it and any outbox rows (D-48, ADR 0006) |
 | Postgres | Business tables, constraints, RLS, activity log, My Tasks, WhatsApp outbox, jobs, measurement, normalisation and matching SQL, reporting views |
 | Storage | Private buckets for Brief attachments and Launch thumbnails, plus a separate private import area for CSV files (D-52, D-59, D-62). Access is by signed URL. Version files are not stored here (D-65) |
 | Google Drive | The team's existing folder holds every Version file, drafts and completed (D-64, D-65). The workstation has read-only access and never moves, shares or deletes a file; members view files under Drive's own sharing (T-19) |
 | Supabase scheduled jobs | SQL jobs for due-date and check-date events, automatic Verdicts, idempotency expiry and lease recovery. They also trigger the Edge Functions, including the daily never-attached file purge |
-| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook; Drive registration and the scheduled Drive check (T-19). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
+| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook; Drive registration and the scheduled Drive check (T-19); `invite-member`, which creates an invited person's sign-in account through the Auth admin API (T-09). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
 | Reporting views | Curated, compatible aggregates for the browser. They are the only surface Claude's role can read (D-08) |
 
 There is no separate API server (D-48). Each environment is its own Supabase project, with staging and production kept separate; that operations default stays proposed (D-58). No warehouse or microservice split is needed, and Postgres-backed jobs and outbox are sufficient.
@@ -108,7 +108,7 @@ Creative Codes are `<brand prefix>-<sequence>`, zero-padded to four digits and a
 - Codes are never reused, and gaps are allowed.
 - Idempotency (T-03) stops a retried create from consuming a second code.
 
-A Variant code is the Creative Code plus `-` and the Creative's next letter, e.g. `GML-0007-B`; after `Z` come `AA`, `AB` and so on (D-58). Codes carry no other meaning (ADR 0002). Each code is unique across Creatives, Variants and Legacy Codes. Legacy Codes such as `GML-TESTI-0007` are kept as aliases in `creative.legacy_codes`, and the ad-name parser accepts them (D-12).
+A Variant code is the Creative Code plus `-` and the Creative's next letter, e.g. `GML-0007-B`; after `Z` come `AA`, `AB` and so on (D-58). Codes carry no other meaning (ADR 0002). Footage Codes are a separate sequence, `RAW-0001` and so on, with no brand prefix, so the brand prefix may never be `RAW` (D-71). Each code is unique across Creatives, Variants and Legacy Codes. Legacy Codes such as `GML-TESTI-0007` are kept as aliases in `creative.legacy_codes`, and the ad-name parser accepts them (D-12).
 
 Data types:
 - Platform IDs are text, unique per platform, account and object type.
@@ -199,6 +199,17 @@ Proposed `save_video_annotations` RPC: Creative Team only; uses T-03 identity, i
 SRT and WebVTT subtitle files exported from the editing tool are parsed in the browser into cues and saved through `save_video_annotations` with source `import`. The source reference records the subtitle file's name and SHA-256; the subtitle file itself is not stored. Imported cues start as a `draft` transcript, because editing-tool captions can include on-screen text that is not speech. No automatic transcription runs in V1 (D-68).
 
 Reads follow member RLS. Search indexes spoken text and section types; the transcript view derives full text from ordered cues. Optimization Evidence records the annotation revision ID alongside the existing metric snapshot. File previews must support authorized seeking before promising clickable playback. Missing annotations do not create a new approval gate (D-68). Automatic analysis is not provisioned by this design, and ad-level performance is never presented as measured section-level performance.
+
+### 4.2.2 Footage (T-20)
+
+D-71 tracks raw footage as Footage, linked to the Variants that use it.
+
+| Table | Fields / relationships | Constraints |
+|---|---|---|
+| `creative.footage` | Footage Code; title; source (`own_shoot`/`creator`/`stock`/`product_shots`); shot or received date; → presenter (`label.items`, kind `presenter`); Drive folder link; optional usable-until date; added by; archived time; `lock_version` | Unique code, issued from the `RAW` counter in the same transaction (T-01). The folder link is never checked (D-62) |
+| `creative.variant_footage` | UUID `id`; → variant; → footage; added at; removed at | One current link per (variant, footage) (partial unique index where not removed). A removed link is marked removed, never deleted (D-46). Changed only before the Creative's first go-live (T-13) |
+
+Commands: `add_footage` and `update_footage` for either team; `set_variant_footage` for the Creative Team, replacing a Variant's Footage list before go-live. A Launch planned for a Variant whose Footage is past its usable-until date returns a warning, not an error (M2). The Label view and 复盘 can pool results by Footage (T-15, T-18).
 
 ### 4.3 Review and approval
 
@@ -317,6 +328,8 @@ The states are:
 | `create_variant` | Creative | Creative active; labels valid | Letter and code issued; `in_production` |
 | `set_variant_labels` | Creative | Variant's Creative not locked (`first_live_at` null); hook type only for video Formats | Hook type, length and aspect ratio set or changed (D-13, D-14); required before the first submission (D-51) |
 | `set_production_stage` | Creative | Variant `in_production` or `changes_requested`; any stage on the Format's track, not only the next one (proposed default) | Stage updated |
+| `add_footage`, `update_footage` | Marketing or Creative (D-71) | Title, source and Drive folder link valid; presenter, if given, is a `presenter` label item | Footage added with the next `RAW-` code, or updated |
+| `set_variant_footage` | Creative | Variant's Creative never live; every Footage item active | The Variant's Footage list replaced (D-71) |
 | `set_working_file_link` | Creative | An `https://` link; never checked and never a Version file (D-62) | Working-file link set |
 | `register_drive_media` | Creative | Variant never live; a Drive link or file ID for a file that is not a folder, shortcut or Google Docs editor file and is not attached to another Version (T-19) | `version_media` file row `pending`; Drive registration job queued (T-19) |
 | `create_upload_intent`, `complete_upload` | Marketing for Brief attachments (Brief version `editing`), Launch thumbnails (Launch not cancelled or ended, even while the Variant is live, D-62) and CSV files | Declared size within the kind's limit | Signed upload path in the kind's bucket; verification job queued (T-05) |
@@ -675,6 +688,7 @@ The **Label view** pools each label item's Variant results across ad sets:
 - Rows are pooled only when their result indicator, currency and attribution setting match; other groups are shown separately.
 - Reach is not pooled.
 - Labels resolve through merges (T-13), and Legacy Creatives with empty labels show as unlabelled.
+- Footage is a dimension too (D-71), so results can be read by shoot, creator or presenter. A Variant using several Footage items counts in each, so Footage rows are not added together.
 
 **Breakdowns** appear per Ad and are pooled only where compatible. The enabled set comes from `core.breakdown_settings`.
 
@@ -683,8 +697,8 @@ Every comparison shows its evidence class. Only a Meta A/B test yields a Control
 ## 9. Security, audit, notifications and reliability
 
 **T-09.** Sign-in and membership (D-04):
-- Sign-in uses Supabase Auth with Google. The team uses personal Gmail accounts, so no email domain can be restricted; instead only email addresses the Admin has invited can sign in, whether through Google or an email magic link, which remains a backup (D-04, D-70). The exact Auth mechanism is verified against Supabase's current documentation when sign-in is built. `accept_invitation` trusts the email in the sign-in token, so the hosted project keeps public sign-up off, email confirmation on and secure email change on; the last stops a signed-in user from switching to an invited address without confirming it.
-- Public sign-up is off. A user can act only with an active `core.members` row created by the Admin (D-49).
+- Sign-in uses Supabase Auth with Google. The team uses personal Gmail accounts, so no email domain can be restricted; instead only email addresses the Admin has invited can sign in, whether through Google or an email magic link, which remains a backup (D-04, D-70). Public sign-up is off. When the Admin invites someone, the `invite-member` Edge Function runs `invite_member` as the Admin (so every T-03 check happens in Postgres) and then creates that person's sign-in account, confirmed and without a password, with the secret key. Google sign-in links to that existing account by its verified email, and magic links never create accounts (`shouldCreateUser: false`), so nobody can create an account for an invited address before its owner. Supabase Auth's before-user-created hook (`app.before_user_created`) is a second line of defence that refuses any email without an active membership should sign-up ever be switched on. After sign-in the web client calls `accept_invitation` to link the sign-in to its invitation. `accept_invitation` trusts the email in the sign-in token, so the hosted project also keeps email confirmation and secure email change on. The sign-in email carries the link and a 6-digit code, so people can sign in on a different device from the one that asked.
+- Public sign-up is off; the `invite-member` Edge Function creates each invited person's account (above). A user can act only with an active `core.members` row created by the Admin (D-49).
 - If session cookies are used, they are secure, HttpOnly and SameSite, with restricted origins.
 
 Database access rules:
@@ -784,6 +798,8 @@ Retention (D-46, D-59; durations stay proposed, D-58):
 Deployment prerequisites:
 - A new Supabase project for each environment; the plan is re-evaluated now that Version files stay in Drive (D-06, D-65). It is not the unrelated `socialflow` project.
 - A Google OAuth client for sign-in with personal Gmail accounts (D-70); membership, not the email domain, limits access.
+- Supabase Auth settings: public sign-up off, the `app.before_user_created` hook enabled, email confirmation and secure email change on, the sign-in email template with the link and the 6-digit code, and the web client's `/auth/callback` URL in the redirect allowlist.
+- The `invite-member` Edge Function deployed with JWT verification on.
 - Storage buckets and their policies: Brief attachments, Launch thumbnails, and the private CSV import area.
 - A Google Cloud project and read-only service account, given Viewer access to the Drive folder only after the owner authorises it (T-19, D-69).
 - Static hosting for the web client, chosen before deployment (D-66).
@@ -861,6 +877,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | FR-14 Ad matching | T-07, T-14 |
 | FR-15 Combination and Label views | T-08, T-15 |
 | FR-16 Video content metadata | T-17; measured duration, annotation revisions, transcript cues, Content Sections, provenance and frozen Evidence references; AC-29, AC-30 |
+| FR-18 Footage | T-20; Footage Codes, Variant links, lock at go-live, usable-until warning; AC-33 |
 | FR-17 Creative Retrospective / 复盘 | T-18; frozen baseline, section findings, action links, comparison validity, existing Verdict lifecycle; AC-31 |
 
 ## 14. Decisions, open items and references
@@ -899,6 +916,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | Optional Brief hypothesis | D-67 |
 | Video annotation and retrospective details (formerly PD-23 and PD-24), with SRT/WebVTT import | D-68 |
 | Drive Version file rules (most of the former PD-25) | D-69 |
+| Footage library with `RAW-` codes | D-71 |
 
 The D-58 technical defaults are:
 - image hashes stand in for the video ID on statics and carousels;

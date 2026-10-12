@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { driveLink, fakeDriveFileId, imageDetails, reportDriveDetails, videoDetails } from './drive'
+import { driveLink, fakeDriveFileId, imageDetails, reportDriveDetails, videoDetails } from '../../support/drive'
 import {
   command,
   fillBrief,

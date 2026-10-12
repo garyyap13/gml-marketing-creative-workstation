@@ -192,6 +192,13 @@ The owner accepted the recommended answers on 2026-10-12.
   - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step.
   - The change check's timing and scope remain proposed under PD-25.
 - **D-70** The team uses personal Gmail accounts, not Google Workspace. People sign in with Google using their personal Gmail, and email magic links remain as a backup. Only email addresses the Admin has invited can sign in, whichever method they use. Members view Version files in Drive with the same Google login.
+- **D-71** Raw footage gets its own code. The owner accepted the recommended answers on 2026-10-12:
+  - **Footage** is one batch of raw material, a shoot session or one creator's delivery, kept in one Drive folder.
+  - Its **Footage Code** is a separate meaningless sequence: `RAW-0001`, `RAW-0002` and so on. It has no brand prefix, so it can never be mistaken for a Creative, Variant or Legacy Code in ad names (ADR 0002). The brand prefix may not be `RAW`.
+  - A Variant can use several Footage items, and Footage can be reused across Variants and Creatives. A Variant's Footage locks at go-live, like its labels (D-14).
+  - Either team adds Footage, recording a title, the source (own shoot, creator, stock or product shots), the date, the on-screen presenter (D-15) and the Drive folder link. The folder is only a link and is never checked (D-62).
+  - Creator footage may carry an optional usable-until date. Planning a Launch past it shows a warning (M2).
+  - Results and 复盘 can later be read by Footage, like the other labels.
 
 ## Open
 

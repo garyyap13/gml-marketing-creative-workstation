@@ -61,8 +61,15 @@ The exact exported video or image submitted as a Version: the file Marketing rev
 _Avoid_: Final file, master, completed file, deliverable
 
 **Working file**:
-A file the Creative Team edits from, such as an editing project or raw footage, linked from a Variant but never reviewed or approved.
+A file the Creative Team edits from, such as an editing project, linked from a Variant but never reviewed or approved.
 _Avoid_: Source file
+
+**Footage**:
+A batch of unedited material from one shoot session or one creator's delivery, kept in one Drive folder and reusable across Variants.
+_Avoid_: Raw files, rushes, assets, 初稿 (the rough material attached to a Brief)
+
+**Footage Code**:
+The permanent, never-reused identifier of Footage, e.g. `RAW-0012`.
 
 **Production Stage**:
 Where a Variant's next Version is in production: for video 叙述方式, rough cut (粗剪), fine cut (精剪) and ready; for statics concept, layout, refinement and ready.
