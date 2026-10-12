@@ -7,13 +7,13 @@ Outcome of the `/grill-with-docs` interview with the workstation owner (2026-10-
 - **D-01** Internal tool for one company: one brand (GML), about seven people across the Marketing Team and the Creative Team. No multi-tenancy, no workspace or brand memberships, no viewer role ([ADR 0005](../adr/0005-single-company-no-multi-tenancy.md)). Brand is a plain field on each Creative.
 - **D-02** Everyone signed in can see everything: briefs, files, comments, performance.
 - **D-03** Roles: each person is Marketing or Creative. One or more marketers carry an **Approver** flag; only an Approver can approve. *Proposed default, not interviewed:* an Admin flag for managing members, the Meta connection, WhatsApp settings and Breakdown settings.
-- **D-04** Sign-in with company Google accounts; fall back to email magic links if the company does not use Google Workspace.
+- **D-04** Sign-in with company Google accounts; fall back to email magic links if the company does not use Google Workspace. *Amended by D-70: the team uses personal Gmail, so Google sign-in is limited to invited members, with magic links as a backup.*
 - **D-05** The workstation is a separate system from the Video Orchestrator, in its own repository, with no import bridge in V1 ([ADR 0003](../adr/0003-workstation-is-separate-from-the-orchestrator.md)). If they are linked later, the link is the Creative Code.
 
 ## Platform
 
-- **D-06** Hosted on a new Supabase project: Postgres, Auth, Storage and scheduled jobs ([ADR 0001](../adr/0001-supabase-hosts-the-creative-workstation.md)). Not the unrelated `socialflow` project. The paid plan is expected, since the free plan's per-file limit is too small for video.
-- **D-07** Storage holds only what Marketing reviews and approves (review and final files). The Creative Team's working files stay wherever they edit and are linked from the Variant. Follow-up on 2026-10-11: the owner confirmed the team already uses Google Drive. Use the existing Drive location for working-file links; whether it is a Shared Drive or a shared My Drive folder remains to be confirmed. This does not change the review/final-file storage decision.
+- **D-06** Hosted on a new Supabase project: Postgres, Auth, Storage and scheduled jobs ([ADR 0001](../adr/0001-supabase-hosts-the-creative-workstation.md)). Not the unrelated `socialflow` project. The paid plan is expected, since the free plan's per-file limit is too small for video. *Amended by D-65: Version files no longer go in Storage, so this reason for the paid plan no longer applies, and the plan is re-evaluated before provisioning.*
+- **D-07** Storage holds only what Marketing reviews and approves (review and final files). The Creative Team's working files stay wherever they edit and are linked from the Variant. Follow-up on 2026-10-11: the owner confirmed the team already uses Google Drive. Use the existing Drive location for working-file links; whether it is a Shared Drive or a shared My Drive folder remains to be confirmed. This does not change the review/final-file storage decision. *Superseded for review and final files by D-64 and D-65: every Version file stays in Google Drive.*
 - **D-08** Claude gets a read-only database role limited to curated reporting views, not raw tables. The `content-ads-monitor` skill moves from its JSON ledger to these views.
 
 ## Creative structure and codes
@@ -121,7 +121,7 @@ The PRD 1.1 revision introduced proposed defaults PD-01…PD-18. The owner confi
   - Either team may add Creatives later, but only the Marketing Team sets or confirms a Creative's Format, and it must be confirmed before the first submission.
   - Narrative Style and the Variant labels are required before a Variant's first submission.
   - After a Rebrief, a never-live Creative may move to the new Brief version; a Creative that has been live keeps its version.
-- **D-52** (PD-05, changed) Brief attachments may be uploaded (with a size limit) or linked. This amends D-07: Storage holds review and final files, Brief attachments and CSV import files; the Creative Team's working files are still only linked.
+- **D-52** (PD-05, changed) Brief attachments may be uploaded (with a size limit) or linked. This amends D-07: Storage holds review and final files, Brief attachments and CSV import files; the Creative Team's working files are still only linked. *Amended by D-65: review and final files leave Storage.*
 - **D-53** (PD-06) Starting a new Version of an approved, never-live Variant supersedes that approval. An Approval Withdrawal before go-live returns the Variant to in production; after go-live the Variant stays live and no new Launch may use that Version.
 - **D-54** (PD-07, PD-08, plus additions) Launch and Variant lifecycle:
   - A Post goes live when its link is pasted; the post ID is resolved in the background, and a failure is flagged on data health.
@@ -158,9 +158,40 @@ The PRD 1.1 revision introduced proposed defaults PD-01…PD-18. The owner confi
   - **PD-22, manual results.** The Marketing Team enters results for TikTok, Xiaohongshu and YouTube by hand.
 
 - **D-62** Clarifications confirmed by the owner on 2026-10-11:
-  - **Google Drive.** V1 only stores pasted Drive links for working files; there is no Drive file picker and no Drive API connection. Access is governed by Drive's own sharing, so whether the folder is a Shared Drive or a shared My Drive folder does not need answering for V1. This closes the open point in the D-07 follow-up.
+  - **Google Drive.** V1 only stores pasted Drive links for working files; there is no Drive file picker and no Drive API connection. Access is governed by Drive's own sharing, so whether the folder is a Shared Drive or a shared My Drive folder does not need answering for V1. This closes the open point in the D-07 follow-up. *D-65 adds read-only Drive access for Version files only; working files stay link-only.*
   - **Deleting never-attached uploads (D-59).** This runs in an Edge Function, because Supabase Storage files are deleted through the Storage API, not by SQL. It is a narrow extension of D-48, like file verification.
   - **Launch thumbnails.** Thumbnails uploaded for a Launch are stored files, extending D-52's list. They may be added while the Variant is live.
+
+## Creative retrospective follow-up
+
+- **D-63** Make video duration, transcript and Content Sections usable for joint Marketing and Creative retrospective analysis (复盘). Bring the exact content together with its performance, record what to keep and improve, and turn findings into an Optimization Plan with follow-up actions and a later Verdict. Extend the existing learning loop (D-42–D-43), rather than introducing a second approval or plan lifecycle. FR-17 captures the requirement; T-18 / PD-24 propose the implementation details.
+
+## Creative media storage
+
+- **D-64** Completed creative files stay in Google Drive. The owner stated this and confirmed it on 2026-10-12. The team already keeps them in a shared folder in one member's My Drive. The workstation does not move them, change their sharing or make them public. This supersedes the review/final-file part of D-07 and D-52, and of [ADR 0001](../adr/0001-supabase-hosts-the-creative-workstation.md).
+- **D-65** The owner chose option A on 2026-10-12 ([ADR 0007](../adr/0007-version-files-stay-in-google-drive.md)):
+  - Every submitted Version's file, drafts and completed alike, for video, static image and carousel, is a specific file in the team's Drive folder. Supabase Storage holds no Version files; it keeps Brief attachments, Launch thumbnails and CSV import files (D-52, D-59, D-62).
+  - The workstation reads each Version file through read-only Drive API access and records its identity: Drive file ID, revision, checksum, size, type, dimensions and duration. Submitting the Version freezes that record. A pasted link alone is not accepted as a Version file.
+  - A scheduled check re-reads recorded files and flags any that changed, were trashed or can no longer be read. Approval never carries over to changed content; the existing new-Version or new-Variant path applies (D-25, D-53).
+  - D-25 now means the recorded file is frozen: the workstation detects changes in Drive but cannot prevent them.
+  - Working files stay paste-only links with no API access (D-62).
+  - The access mechanism, naming, check timing and playback details were proposed under PD-25; D-69 confirms all but the check timing.
+
+## Confirmed defaults (fourth pass)
+
+The owner accepted the recommended answers on 2026-10-12.
+
+- **D-66** The web client is a Vite + React + TypeScript single-page app. It calls the Supabase client directly, writing through RPC commands and reading under RLS with no server (D-48, ADR 0006), and is styled from the mockup's colour and spacing tokens. Hosting is chosen before deployment. Local development and tests use the Supabase CLI's local stack, which needs Docker Desktop; the owner installs it.
+- **D-67** A Brief version may record an optional hypothesis: what the team wants to learn. It is never required for hand-off. A retrospective shows it, plus the hypothesis of the Optimization Plan whose action produced the Brief or Variant; with neither, it shows that none was recorded.
+- **D-68** PD-23 (video annotations, FR-16 / T-17) and PD-24 (retrospective, FR-17 / T-18) are confirmed as written. In V1, transcripts are typed or imported from SRT or WebVTT subtitle files exported by the editing tool. There is no automatic transcription, retention-data acquisition or AI diagnosis.
+- **D-69** Most of PD-25 is confirmed (T-19):
+  - Read-only Drive access is through a Google Cloud service account given Viewer access to the folder. If a Google Workspace policy blocks that sharing, it is raised as a new decision.
+  - Each Version has its own Drive file, named `<variant code>_v<number>` (e.g. `GML-0007-B_v2.mp4`). Nobody uploads new content over an older Version's file, and a Drive file backs at most one Version.
+  - While a file is flagged as changed, trashed or unreadable, its Version cannot be submitted, approved or used for a new Launch.
+  - V1 stays read-only, so the workstation does not keep old Drive revisions from Drive's purge; the flag and recorded identity remain.
+  - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step.
+  - The change check's timing and scope remain proposed under PD-25.
+- **D-70** The team uses personal Gmail accounts, not Google Workspace. People sign in with Google using their personal Gmail, and email magic links remain as a backup. Only email addresses the Admin has invited can sign in, whichever method they use. Members view Version files in Drive with the same Google login.
 
 ## Open
 
@@ -168,3 +199,6 @@ The PRD 1.1 revision introduced proposed defaults PD-01…PD-18. The owner confi
   - the dedicated WhatsApp number
   - the Business Manager admin
   - the list of ad accounts, pages and Instagram accounts
+  - the Google Drive folder for Version files and the account that owns it
+
+*Answered 2026-10-12:* the team uses personal Gmail accounts, not Google Workspace. No Workspace policy limits sharing the Drive folder with a service account (D-69). D-70 settles sign-in.

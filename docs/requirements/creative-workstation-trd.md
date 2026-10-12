@@ -4,11 +4,11 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-62). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
+Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-70). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
 
 Audience: Engineering, database, integration, QA and operations.
 
-Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md](../../CONTEXT.md) · Decisions: [ADRs](../adr/), [decision log](2026-10-11-interview-decisions.md). The one remaining unconfirmed default (PD-23, video annotation details) is listed in PRD §11.3.
+Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md](../../CONTEXT.md) · Decisions: [ADRs](../adr/), [decision log](2026-10-11-interview-decisions.md). The one remaining unconfirmed default, PD-25's Drive check timing, is listed in PRD §11.3.
 
 ## Changes in 1.1
 
@@ -37,6 +37,10 @@ Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md]
   - The former PD-19–PD-22 are confirmed (D-61).
   - Drive links only; the never-attached purge runs in an Edge Function; Launch thumbnails are stored files (D-62).
   - New commands: `set_variant_labels`, `set_launch_thumbnail` and `save_video_annotations`.
+- **Fourth pass.**
+  - Creative Retrospective / 复盘 extends Optimization Plans (D-63; new T-18, confirmed as D-68), with the command `append_retrospective_finding`.
+  - Version files stay in Google Drive (D-64, D-65, ADR 0007; new T-19, details confirmed in D-69 apart from the check timing, PD-25). The `review` and `final` file kinds merge into `version_media`, registered by `register_drive_media` and checked by a scheduled Drive check. Storage keeps Brief attachments, Launch thumbnails and CSV imports.
+  - The web client is a Vite + React + TypeScript single-page app (D-66). Brief versions gain an optional hypothesis (D-67). Transcripts can be imported from SRT or WebVTT (D-68). Sign-in uses Google with personal Gmail for invited members, with a magic-link backup (D-70).
 - **Tasks model.** My Tasks and notifications derive from activity-log events inside the command transaction. The outbox is only the WhatsApp delivery queue (D-45).
 - **Repository boundary.** The ContentAI import bridge and the plan to add modules to the existing API are removed (D-05, ADR 0003), and T-11 is rewritten.
 - **Sizing.** Pilot and NFR numbers are rescaled to one company of about seven people and stay proposed (D-58).
@@ -59,7 +63,7 @@ flowchart LR
   UI["Web client<br/>(Supabase JS client)"] -->|sign-in| AUTH["Supabase Auth<br/>Google / magic link"]
   UI -->|"RPC: domain commands"| CMD["Postgres functions api.*<br/>one transaction each"]
   UI -->|"reads under RLS"| DB[("Postgres<br/>business tables, activity log, My Tasks")]
-  UI -->|"signed upload / download"| ST["Storage<br/>review + final files, Brief attachments,<br/>Launch thumbnails, private CSV import area"]
+  UI -->|"signed upload / download"| ST["Storage<br/>Brief attachments, Launch thumbnails,<br/>private CSV import area"]
   CMD -->|"writes + activity-log event + derived tasks"| DB
   CMD --> OUT[("outbox<br/>WhatsApp delivery queue")]
   CRON["Supabase scheduled jobs"] --> SQLJ["SQL jobs<br/>due-date events, auto Verdicts, leases"]
@@ -68,6 +72,8 @@ flowchart LR
   CRON --> EF["Edge Functions (TypeScript)"]
   OUT --> EF
   ST <-->|"verify uploads, purge never-attached files"| EF
+  EF -->|"read-only metadata: register, check"| DRIVE["Google Drive team folder<br/>Version files"]
+  UI -.->|"preview under Drive sharing (D-69)"| DRIVE
   EF -->|"read-only system user"| META["Meta Marketing API<br/>Page + Instagram insights"]
   EF --> RAW[("ingest schema<br/>raw responses, not exposed")]
   RAW --> NORM["SQL: validate, normalise, match"]
@@ -81,13 +87,14 @@ flowchart LR
 
 | Component | Responsibilities |
 |---|---|
-| Web client | My Tasks, boards, Creative detail, previews, anchored Comments, lock-conflict UX and results views. Reads tables and views through the Supabase client under RLS. Writes only by calling RPC command functions |
-| Supabase Auth | Google sign-in restricted to the company domain, with a magic-link fallback. Issues the JWT that every command checks (D-04) |
+| Web client | Vite + React + TypeScript single-page app (D-66): My Tasks, boards, Creative detail, previews, anchored Comments, lock-conflict UX and results views. Reads tables and views through the Supabase client under RLS. Writes only by calling RPC command functions |
+| Supabase Auth | Google sign-in with personal Gmail, limited to invited members, with a magic-link backup. Issues the JWT that every command checks (D-04, D-70) |
 | Postgres command functions (`api.*`) | Each domain command runs the full T-03 sequence in one transaction: caller identity from the JWT, idempotency, row lock, `lock_version`, validation, then the writes, the activity-log event, the My Tasks rows derived from it and any outbox rows (D-48, ADR 0006) |
 | Postgres | Business tables, constraints, RLS, activity log, My Tasks, WhatsApp outbox, jobs, measurement, normalisation and matching SQL, reporting views |
-| Storage | Private buckets for review and final files, Brief attachments and Launch thumbnails, plus a separate private import area for CSV files (D-07, D-52, D-59, D-62). Access is by signed URL |
+| Storage | Private buckets for Brief attachments and Launch thumbnails, plus a separate private import area for CSV files (D-52, D-59, D-62). Access is by signed URL. Version files are not stored here (D-65) |
+| Google Drive | The team's existing folder holds every Version file, drafts and completed (D-64, D-65). The workstation has read-only access and never moves, shares or deletes a file; members view files under Drive's own sharing (T-19) |
 | Supabase scheduled jobs | SQL jobs for due-date and check-date events, automatic Verdicts, idempotency expiry and lease recovery. They also trigger the Edge Functions, including the daily never-attached file purge |
-| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook. Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
+| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook; Drive registration and the scheduled Drive check (T-19). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
 | Reporting views | Curated, compatible aggregates for the browser. They are the only surface Claude's role can read (D-08) |
 
 There is no separate API server (D-48). Each environment is its own Supabase project, with staging and production kept separate; that operations default stays proposed (D-58). No warehouse or microservice split is needed, and Postgres-backed jobs and outbox are sufficient.
@@ -131,7 +138,8 @@ Unless stated otherwise, the primary key is a UUID `id`.
 | `core.settings` | brand prefix (`GML`), default time zone, reporting currency | Single row |
 | `core.code_counters` | prefix, last issued number | Row-locked while issuing (T-01) |
 | `core.breakdown_settings` | breakdown set (e.g. age + gender, placement), enabled, changed by and time | On by default: age × gender and placement (D-35) |
-| `core.files` | kind (`review`, `final`, `brief_attachment`, `launch_thumbnail`, `csv_import`); Storage bucket and path; SHA-256; MIME; bytes; width, height and duration (media only); verification state; uploaded by and at; attached at | Ready only after verification (T-05). `launch_thumbnail` files may be attached to a Launch while the Variant is live (D-62). `csv_import` files live in the private import bucket (D-59). A row is hard-deleted only by the D-59 purge, and only if it was never attached |
+| `core.files` | kind (`version_media`, `brief_attachment`, `launch_thumbnail`, `csv_import`); provider (`google_drive` for `version_media`, `supabase_storage` otherwise); Storage bucket and path, or Drive file ID, head revision ID and Drive version; checksum and its algorithm (SHA-256, or Drive's MD5 when Drive reports no SHA-256); MIME; bytes; width, height and duration (media only); verification state; drift state (`unchanged`/`changed`/`trashed`/`inaccessible`) and last checked time (Drive only); registered or uploaded by and at; attached at | Ready only after verification (T-05, T-19). The kind fixes the provider. A Drive file ID backs at most one attached `version_media` row (T-19). `launch_thumbnail` files may be attached to a Launch while the Variant is live (D-62). `csv_import` files live in the private import bucket (D-59). A row is hard-deleted only by the D-59 purge, only if it was never attached, and never for a Drive file |
+| `core.file_checks` | → file; checked at; observed revision ID, Drive version, checksum, bytes, trashed and access result; outcome | Append-only. Written by the Drive check (T-19) |
 | `label.items` | kind; owning team; name; media kind (Format only: video, image, carousel); start and end dates (Initiative only); `merged_into_id`; archived time | Unique active (kind, name). The kind fixes the owning team |
 | `label.item_events` | → item; action (add, rename, merge, archive); old and new name; merged into; actor; time | Append-only |
 
@@ -161,13 +169,13 @@ Legacy Variants start live (D-54). On a Legacy Creative, therefore, each empty l
 | Table | Fields / relationships | Constraints |
 |---|---|---|
 | `brief.briefs` | Marketing Owner (→ member), title, current version, archived time, `lock_version` | |
-| `brief.brief_versions` | → brief; version number; → Product, Avatar, Angle, Funnel Stage, optional Initiative; key message; CTA or explicit none; state (`editing`/`handed_off`); handed off by and at; Rebrief reason; checksum | Unique (brief, version). One `editing` version per Brief. Immutable once handed off (D-16) |
+| `brief.brief_versions` | → brief; version number; → Product, Avatar, Angle, Funnel Stage, optional Initiative; key message; CTA or explicit none; optional hypothesis (D-67); state (`editing`/`handed_off`); handed off by and at; Rebrief reason; checksum | Unique (brief, version). One `editing` version per Brief. Immutable once handed off (D-16) |
 | `brief.attachments` | → brief version; either a link URL or → `core.files` (`brief_attachment`); label; role (script, reference, rough material 初稿) | Exactly one of link or file (D-52). Frozen with the version |
 | `creative.creatives` | Creative Code; brand; title; → Brief version followed; `is_legacy`; → Format; Format confirmed by and at; → Narrative Style; Creative Owner; due date; Brief-level labels (Legacy Creatives only); `first_live_at`; archived time; `lock_version` | Unique code. Brief version required unless `is_legacy` (D-34). Format confirmed only by Marketing (D-51). Label changes rejected after `first_live_at` (T-13) |
 | `creative.legacy_codes` | Legacy Code, → creative, → variant | Unique code (D-12, D-58) |
 | `creative.variants` | → creative; letter; Variant code; → hook type, length, aspect ratio; state (§5); Production Stage; working-file link (D-07); Meta media ID (video ID, or image hashes per D-58); → derived-from Variant; `live_at`; retired and cancelled times; cancel reason; live-without-approval flag; `lock_version` | Unique (creative, letter) and unique code. No new Versions once live (D-25) |
 | `creative.versions` | → variant; version number; → Brief version at submission; submitted by and at; notes; checksum | Unique (variant, number). Immutable |
-| `creative.version_files` | → version, → `core.files` (`review`/`final`), card position | PK (version, card position). Only carousels have more than one card |
+| `creative.version_files` | → version, → `core.files` (`version_media`, D-65), card position | PK (version, card position). Only carousels have more than one card |
 
 Production Stages follow D-18:
 - video: `narrative` (叙述方式), `rough_cut` (粗剪), `fine_cut` (精剪), `ready`;
@@ -175,11 +183,11 @@ Production Stages follow D-18:
 
 ### 4.2.1 Video content annotations (T-17)
 
-D-60 requires duration, transcript and Content Sections per exact video Version. The following physical design is proposed under PD-23; it is not an applied migration. Metadata is independent of the file storage provider.
+D-60 requires duration, transcript and Content Sections per exact video Version. The owner confirmed this design as D-68; it is not an applied migration. Metadata is independent of the file storage provider.
 
 | Record | Proposed fields | Identity and rules |
 |---|---|---|
-| `core.files` video metadata | `duration_ms` (bigint), verification time, existing SHA-256 and media metadata | Measured from the actual file, positive for a verified video; null before verification. Display seconds from this value. The Variant's length label remains a separate planning/classification field |
+| `core.files` video metadata | `duration_ms` (bigint), verification time, existing SHA-256 and media metadata | Taken from the duration Drive reports for the registered revision (T-19), positive for a verified video; null before verification. Display seconds from this value. The Variant's length label remains a separate planning/classification field |
 | `creative.annotation_revisions` | UUID `id`; `version_id`; `file_id`; revision number; prior revision ID; source (`manual`/`import`/`automatic`); source reference; language; transcript state (`not_started`/`draft`/`reviewed`/`no_speech`); section state (`not_started`/`draft`/`reviewed`); created by and at | FK to the exact Version and a file attached to that Version. Unique (version, file, revision). Published revisions and their child rows are append-only; source/provenance is retained |
 | `creative.transcript_cues` | UUID `id`; annotation revision FK; sequence; `start_ms`; `end_ms`; text; optional speaker label | Unique (annotation revision, sequence). Actual spoken words; never silently substitute a script. Overlapping speech cues are allowed for different speakers |
 | `creative.content_sections` | UUID `id`; annotation revision FK; sequence; section type (`hook`/`body`/`cta`/`other`); optional detail label; `start_ms`; `end_ms`; optional on-screen text and notes | Unique (annotation revision, sequence). Section types may repeat. Detail labels initially include problem, solution, demo, benefit, proof/testimonial, objection handling and offer |
@@ -188,7 +196,9 @@ Use half-open intervals `[start_ms, end_ms)`, with `0 <= start_ms < end_ms <= du
 
 Proposed `save_video_annotations` RPC: Creative Team only; uses T-03 identity, idempotency, locking, validation, audit and outbox rules. Validate the referenced file belongs to the Version and has verified duration; insert the complete next annotation revision and children atomically. Use an expected prior revision ID so concurrent edits return a conflict. An annotation correction may occur after approval or go-live because it does not replace media; old annotations and approval history remain intact. A changed media checksum requires the existing new-Version/new-Variant workflow, never reuse of old timestamps without verification.
 
-Reads follow member RLS. Search indexes spoken text and section types; the transcript view derives full text from ordered cues. Optimization Evidence records the annotation revision ID alongside the existing metric snapshot. File previews must support authorized seeking before promising clickable playback. Missing annotations do not create a new approval gate under PD-23. Automatic analysis is not provisioned by this design, and ad-level performance is never presented as measured section-level performance.
+SRT and WebVTT subtitle files exported from the editing tool are parsed in the browser into cues and saved through `save_video_annotations` with source `import`. The source reference records the subtitle file's name and SHA-256; the subtitle file itself is not stored. Imported cues start as a `draft` transcript, because editing-tool captions can include on-screen text that is not speech. No automatic transcription runs in V1 (D-68).
+
+Reads follow member RLS. Search indexes spoken text and section types; the transcript view derives full text from ordered cues. Optimization Evidence records the annotation revision ID alongside the existing metric snapshot. File previews must support authorized seeking before promising clickable playback. Missing annotations do not create a new approval gate (D-68). Automatic analysis is not provisioned by this design, and ad-level performance is never presented as measured section-level performance.
 
 ### 4.3 Review and approval
 
@@ -255,6 +265,27 @@ The following v1.0 tables are removed (D-27, ADR 0004): `distribution.package_ve
 | `work.jobs` | type, payload, state, lease, attempts, next attempt, last error | At-least-once delivery; idempotent handlers |
 | `work.idempotency_keys` | actor, command, key, request hash, result, expiry | Unique (actor, command, key) |
 
+### 4.7 Creative Retrospective / 复盘 (T-18)
+
+D-63 extends the existing Optimization Plan, Evidence and action records. The owner confirmed this design as D-68; it is not an applied migration.
+
+| Record | Proposed additions / fields | Integrity |
+|---|---|---|
+| `learning.plan_evidence` | Baseline role; exact Variant, Version and file IDs plus checksum; annotation revision IDs; selected Launch IDs; comparator identity; existing frozen metrics, filters, source revisions and scope; missing-data reasons | Freeze at plan creation. Referenced annotations and files belong to the cited Version. Unknown live Version stays unknown; never default to the latest Version |
+| `learning.retrospective_findings` | UUID `id` PK; `plan_id` FK; `evidence_id` FK; target (`whole_video`/`section`/`time_range`); optional section ID or start/end milliseconds; observed fact; interpretation/hypothesis; disposition (`keep`/`change`/`test`); author; created at; optional superseded finding ID | Append-only. A correction preserves the prior entry. Evidence belongs to this plan; section belongs to its frozen annotation revision; time range stays inside the cited video's duration. A no-data finding describes content or missing evidence, not invented performance |
+| `learning.action_findings` | `action_id`, `finding_id` | Composite PK; both records belong to the same plan. Many findings may motivate one action |
+| `learning.plan_actions` | Action owner FK; due date; intended change; success criterion; baseline Evidence FK, alongside existing output Brief/Variant/Launch links | Required for a retrospective follow-up action. Preserve existing plan state and Verdict permissions |
+
+The retrospective's intent shows the Brief version's optional hypothesis and, when the Brief or Variant was produced by a plan action, that plan's hypothesis; with neither, it says none was recorded (D-67).
+
+Extend `write_optimization_plan` to accept retrospective context and initial findings, saving the plan, frozen baseline and findings atomically under T-03. When no measurements exist, store the chosen scope and missing-data reasons, force `insufficient_evidence`, and allow the content analysis to be recorded. Never fabricate zero-valued metrics to satisfy input requirements.
+
+Proposed `append_retrospective_finding` allows either team to add or correct a finding on an active plan with caller identity, expected plan lock version, idempotency and audit in one transaction. Extend `link_plan_action` under existing owner/Approver permissions to attach findings and follow-up details. Corrections do not mutate frozen Evidence. Verdicts continue through `record_verdict`; no second review-state machine or approval flag is introduced.
+
+Reporting joins Plans, frozen Evidence, findings, action outputs and Verdicts under member RLS. Search uses cited section types and the labels attached to the cited Creative. Compare only compatible Result types, currencies, scopes, attribution settings and source metric definitions. Show delivery context and date windows explicitly; date ranges may differ in a before/after comparison but that alone never establishes a Controlled Test.
+
+Whole-ad metrics remain at ad/Variant scope. Optional time-series evidence retains exact media identity, time bucket, unit, denominator, source and scope; do not invent missing retention observations or derive section-level Cost per Result. Retrieval failures do not erase prior Evidence. Automatic transcription, retention acquisition and AI diagnosis are separate integration choices.
+
 ## 5. Workflow state machines and command rules
 
 The states are:
@@ -286,17 +317,18 @@ The states are:
 | `create_variant` | Creative | Creative active; labels valid | Letter and code issued; `in_production` |
 | `set_variant_labels` | Creative | Variant's Creative not locked (`first_live_at` null); hook type only for video Formats | Hook type, length and aspect ratio set or changed (D-13, D-14); required before the first submission (D-51) |
 | `set_production_stage` | Creative | Variant `in_production` or `changes_requested` | Stage updated |
-| `create_upload_intent`, `complete_upload` | Creative for review and final files (Variant never live). Marketing for Brief attachments (Brief version `editing`), Launch thumbnails (Launch not cancelled or ended, even while the Variant is live, D-62) and CSV files | Declared size within the kind's limit | Signed upload path in the kind's bucket; verification job queued (T-05) |
-| `submit_version` | Creative | Variant `in_production`; ready files that fit its Format; Format confirmed; Narrative Style and Variant labels set (D-51); no open Review | Immutable Version and open Review; `awaiting_review`; round number; task |
-| `save_video_annotations` | Creative | The file belongs to the exact video Version and has a verified duration; the expected prior revision matches; cues and sections pass T-17 validation. Allowed after approval or go-live, because the media does not change | Next annotation revision and its cues and sections inserted atomically (D-60; detailed rules PD-23) |
+| `register_drive_media` | Creative | Variant never live; a Drive link or file ID for a file that is not a folder, shortcut or Google Docs editor file and is not attached to another Version (T-19) | `version_media` file row `pending`; Drive registration job queued (T-19) |
+| `create_upload_intent`, `complete_upload` | Marketing for Brief attachments (Brief version `editing`), Launch thumbnails (Launch not cancelled or ended, even while the Variant is live, D-62) and CSV files | Declared size within the kind's limit | Signed upload path in the kind's bucket; verification job queued (T-05) |
+| `submit_version` | Creative | Variant `in_production`; ready `version_media` files that fit its Format and carry no drift flag (T-19); Format confirmed; Narrative Style and Variant labels set (D-51); no open Review | Immutable Version and open Review; `awaiting_review`; round number; task |
+| `save_video_annotations` | Creative | The file belongs to the exact video Version and has a verified duration; the expected prior revision matches; cues and sections pass T-17 validation. Allowed after approval or go-live, because the media does not change | Next annotation revision and its cues and sections inserted atomically (D-60, D-68) |
 | `add_comment` | Marketing (replies: anyone) | Anchor valid for that Version's files | Blocking or suggestion Comment |
 | `resolve_comment` | Creative | Comment open | Resolved, with a note and an optional Version |
 | `request_changes` | Marketing (D-50) | Open Review; matching lock version | Review decided; `changes_requested`; task for the Creative Owner |
-| `approve_version` | Approver (D-50) | Open Review for this exact Version; no unresolved Blocking Comment on any Version of the Variant; matching lock version | Review decided; `approved`; task for the Marketing Owner |
+| `approve_version` | Approver (D-50) | Open Review for this exact Version; no unresolved Blocking Comment on any Version of the Variant; matching lock version; the Version's files carry no drift flag (T-19, D-69) | Review decided; `approved`; task for the Marketing Owner |
 | `start_next_version` | Creative | `changes_requested`, or `approved` and never live, which supersedes the approval (D-53) | `in_production` |
 | `withdraw_approval` | Approver | Approval in effect; reason | Withdrawal recorded; user commands can no longer launch that Version. A never-live Variant returns to `in_production`; a Live Variant stays live (D-53) |
 | `cancel_variant` | Creative Owner or Marketing Owner (D-55) | Variant never live; reason | `cancelled` |
-| `plan_launch` | Marketing | Version approved and not withdrawn or superseded; valid Post or Ad fields; promoted Post Launch exists, if given | Launch `planned`; for an Ad, the ad name and `utm_content` are generated |
+| `plan_launch` | Marketing | Version approved and not withdrawn or superseded; valid Post or Ad fields; promoted Post Launch exists, if given; the Version's files carry no drift flag (T-19, D-69) | Launch `planned`; for an Ad, the ad name and `utm_content` are generated |
 | `confirm_post_live` | Marketing | Post Launch `planned`; approval still in effect; link not already linked to another Launch | Launch `live`; Variant `live` and labels locked on the first go-live; post-ID resolution job queued (D-54) |
 | `set_launch_thumbnail` | Marketing | Launch `planned` or `live`; a ready `launch_thumbnail` file; allowed while the Variant is live (D-62) | Thumbnail set; file marked attached |
 | `end_launch`, `cancel_launch` | Marketing | Launch `live` (end) or `planned` (cancel, with a reason) | `ended` or `cancelled`. The Variant retires once it has no live Ad and no planned Launch; a paused ad stays live (D-54) |
@@ -304,7 +336,8 @@ The states are:
 | `fill_legacy_labels` | Owning team | Legacy Creative; label empty | Label set and locked (D-61) |
 | `import_csv` | Marketing (D-55) | Ready `csv_import` file in the private import area (D-59); platform, account and report context | Import job queued; file marked attached |
 | `enter_manual_results` | Marketing (D-61) | Platform, account, post or ad ID or Variant code, period, metric values and currency are valid (D-36) | `ingest.manual_entries` row and observation revisions with source `manual` |
-| `write_optimization_plan` | Marketing or Creative | Evidence rows selected from reporting views | Plan `proposed`; Evidence frozen |
+| `write_optimization_plan` | Marketing or Creative | Evidence rows selected from reporting views; or explicit missing-data context with insufficient evidence for a retrospective (T-18) | Plan `proposed`; Evidence and any initial retrospective findings frozen |
+| `append_retrospective_finding` | Marketing or Creative | Plan not completed or cancelled; matching plan lock version; target valid under T-18 | Finding appended; a correction supersedes the earlier finding and never edits it (T-18, D-68) |
 | `link_plan_action`, `change_plan_state` | Plan owner or Approver (D-55) | Valid transition. Completing needs linked actions and a summary; cancelling needs a reason | Actions or state updated |
 | `record_verdict` | Approver | On or after the check date | Verdict recorded |
 | `archive_record` | Per D-61: a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; any record by the Admin | Record not already archived | `archived_at` set; the record is hidden, but its history, Launches and results are kept and no state changes (D-46, D-61) |
@@ -313,14 +346,15 @@ The states are:
 
 Worker-only functions, never executable by browser roles:
 - `match_ads`: runs after each published sync generation (T-14). It is exempt from the approval check and flags instead (D-54).
-- `record_file_verification`: called by the file-verifier Edge Function (D-58).
+- `record_file_verification`: called by the file-verifier Edge Function (D-58) and the Drive registration Edge Function (T-19).
+- `record_drive_check`: called only by the Drive check Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19).
 - `record_whatsapp_status`: called by the webhook Edge Function.
 - `emit_due_events`: a scheduled SQL job. It appends activity-log events when a Variant passes its due date or a plan reaches its check date, and routing then creates the tasks (D-56).
 - `auto_verdicts`: a daily SQL job. It records "not enough data" when spend falls below the plan's minimum. Spend counts the Launches linked to the plan's actions between acceptance and the check date (D-43, D-57).
 - `record_file_purge`: called only by the purge Edge Function. It deletes a `core.files` row after its Storage object is gone, and only if the file was never attached and is older than 30 days (D-59).
 
 The never-attached file purge (`purge_unattached_files`) is an Edge Function run daily by a scheduled job, not a SQL-only job. Supabase Storage objects are deleted through the Storage API, not by SQL (D-62).
-- It selects files that were never attached and are older than 30 days.
+- It selects Storage files (`supabase_storage`) that were never attached and are older than 30 days. Drive files are never selected.
 - It deletes each Storage object through the Storage API.
 - It then calls `record_file_purge` for the row.
 
@@ -366,7 +400,7 @@ Cross-row rules run inside the locked transaction, or in deferred triggers, not 
 - `EXECUTE` is revoked from `public` and `anon` and granted to `authenticated`. Worker-only functions are granted only to worker roles.
 - It returns `jsonb` with `{id, state, lock_version, correlation_id}` plus command-specific fields. A decision also returns the Review ID, the exact Version ID and the decision.
 - Mutations of existing aggregates take `p_expected_lock_version int`.
-- These commands take `p_idempotency_key uuid`: create, submit, annotation, comment, resolve, decide, launch, thumbnail, Verdict, import and manual-entry commands.
+- These commands take `p_idempotency_key uuid`: create, Drive registration, submit, annotation, comment, resolve, decide, launch, thumbnail, finding, Verdict, import and manual-entry commands.
 
 Supabase's security advisor flags `SECURITY DEFINER` functions that `authenticated` can run. Each such finding is reviewed and expected for `api.*`.
 
@@ -383,6 +417,7 @@ api.merge_label_items(p_from_item_id uuid, p_into_item_id uuid, p_reason text) r
 api.create_variant(p_creative_id uuid, p_labels jsonb, p_derived_from_variant_id uuid, p_idempotency_key uuid) returns jsonb
 api.set_variant_labels(p_variant_id uuid, p_labels jsonb, p_expected_lock_version int) returns jsonb
 api.create_upload_intent(p_kind text, p_target_id uuid, p_file_name text, p_mime text, p_bytes bigint) returns jsonb
+api.register_drive_media(p_variant_id uuid, p_drive_ref text, p_idempotency_key uuid) returns jsonb
 api.submit_version(p_variant_id uuid, p_file_ids uuid[], p_notes text, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
 api.save_video_annotations(p_version_id uuid, p_file_id uuid, p_expected_prior_revision_id uuid, p_annotations jsonb, p_idempotency_key uuid) returns jsonb
 api.add_comment(p_version_id uuid, p_body text, p_kind text, p_anchor jsonb, p_parent_id uuid, p_idempotency_key uuid) returns jsonb
@@ -397,6 +432,7 @@ api.resolve_ad(p_meta_ad_id uuid, p_variant_id uuid, p_reason text, p_idempotenc
 api.import_csv(p_file_id uuid, p_platform text, p_account_id uuid, p_mapping jsonb, p_idempotency_key uuid) returns jsonb
 api.enter_manual_results(p_platform text, p_account_id uuid, p_entity_ref text, p_period daterange, p_values jsonb, p_currency text, p_idempotency_key uuid) returns jsonb
 api.write_optimization_plan(p_fields jsonb, p_evidence jsonb, p_actions jsonb, p_idempotency_key uuid) returns jsonb
+api.append_retrospective_finding(p_plan_id uuid, p_finding jsonb, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
 api.record_verdict(p_plan_id uuid, p_verdict text, p_note text, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
 api.archive_record(p_entity_type text, p_entity_id uuid, p_reason text, p_expected_lock_version int) returns jsonb
 ```
@@ -418,34 +454,37 @@ A command that queues work returns a job ID. Success is not implied until the jo
 
 ## 7. Files and review implementation
 
-**T-05.** Storage rules:
-- Storage holds review and final files, Brief attachments, Launch thumbnails and CSV import files, all in private buckets (D-52, D-62). CSV files live in a separate private import bucket, not with review files (D-59).
-- Working files are links on the Variant. The owner confirmed the existing working-file location is Google Drive (D-07 follow-up).
-  - V1 stores only the pasted Drive link. There is no Drive file picker and no Drive API connection, and access is governed by Drive's own sharing (D-62).
-  - Review and final files still follow the verified Supabase Storage upload path below.
+**T-05.** File rules:
+- Version files, drafts and completed alike, stay in the team's Google Drive folder and are registered, not uploaded (D-64, D-65; T-19).
+- Storage holds Brief attachments, Launch thumbnails and CSV import files, all in private buckets (D-52, D-62). CSV files live in a separate private import bucket (D-59).
+- Working files are links on the Variant, in the same Drive (D-07 follow-up).
+  - V1 stores only the pasted link. Working files get no Drive picker and no Drive API access, and access is governed by Drive's own sharing (D-62).
   - A working-file link must never be treated as an immutable submitted Version.
-- `create_upload_intent` returns a signed upload path tied to one file kind and target. The targets are a Variant for review and final files, an `editing` Brief version for attachments, a Launch for thumbnails (allowed while the Variant is live, D-62), or the caller for a CSV import. Large video uses resumable upload. The browser cannot write to arbitrary paths.
-- Uploads move from pending to verifying, then to ready or failed. A file becomes attached when a command links it to a record.
+- `create_upload_intent` returns a signed upload path tied to one file kind and target. The targets are an `editing` Brief version for attachments, a Launch for thumbnails (allowed while the Variant is live, D-62), or the caller for a CSV import. The browser cannot write to arbitrary paths.
+- Uploads and Drive registrations move from pending to verifying, then to ready or failed. A file becomes attached when a command links it to a record.
 
-The file-verifier Edge Function (D-58) streams the object and checks:
+For Storage uploads, the file-verifier Edge Function (D-58) streams the object and checks:
 - the actual size, against the kind's limit;
 - the MIME type, sniffed from the content;
 - the SHA-256 checksum;
-- the media metadata (duration, dimensions) for review and final files;
+- the dimensions of images, including Launch thumbnails;
 - UTF-8 text and a parseable header for CSV files.
+
+Drive registrations are verified from Drive's metadata instead (T-19).
 
 It then records the result through `record_file_verification`. A mismatch fails with an actionable error.
 
 Proposed limits (sizing stays proposed, D-58):
-- 1 GiB per video and 50 MiB per image, including Launch thumbnails (D-47);
+- 50 MiB per image, including Launch thumbnails (D-47);
+- 1 GiB per Version video, checked on Drive's metadata as a sanity check rather than a storage limit (D-47, D-65);
 - 25 MiB per Brief attachment (D-52);
 - 20 MiB per CSV file.
 
-The paid Supabase plan's per-file limit must exceed these (D-06). If Edge Function time limits prove too tight for 1 GiB files, that is raised as a new decision.
+The chosen Supabase plan's per-file limit must exceed the Storage limits. Version video no longer passes through Storage (D-65), so the plan is re-evaluated before provisioning (D-06).
 
-Submission requires ready files with a usable preview, and a carousel Version lists its cards in order. Once a file is ready, its identity and metadata freeze; a changed file is a new file, and after submission a new Version. Downloads use short-lived signed URLs issued to members, and there are no public URLs. Filenames are display labels only.
+Submission requires ready files, and a carousel Version lists its cards in order. Once a file is ready, its identity and metadata freeze; changed content is a new file, and after submission a new Version. Storage downloads use short-lived signed URLs issued to members, and there are no public URLs. Version files are viewed under Drive's own sharing, and the preview method is chosen by test (T-19, D-69). Filenames are display labels only.
 
-**Unattached files (D-59).** A file uploaded but never attached to any record is hard-deleted 30 days after upload by the `purge_unattached_files` Edge Function. It deletes the Storage object through the Storage API, then the row through `record_file_purge` (D-62). This is the only exception to D-46. Attached files, and every other record, are never deleted.
+**Unattached files (D-59).** A file uploaded but never attached to any record is hard-deleted 30 days after upload by the `purge_unattached_files` Edge Function. It deletes the Storage object through the Storage API, then the row through `record_file_purge` (D-62). This is the only exception to D-46. Attached files, and every other record, are never deleted. The purge never touches Drive: a never-attached Drive registration keeps its row, and the Drive file is never deleted or trashed.
 
 Comment anchors refer to the original media:
 - video: integer milliseconds, with `0 ≤ start ≤ end ≤ duration`;
@@ -453,6 +492,39 @@ Comment anchors refer to the original media:
 - carousel: the card position, optionally with an image box.
 
 Anchors are validated against the exact Version's files. Preview proxies never change the reviewed source.
+
+### 7.1 Version files in Google Drive (T-19)
+
+D-64 and D-65 keep every Version file in the team's Google Drive folder. The owner confirmed the access mechanism, naming, blocking and playback approach below as D-69; the check timing remains proposed under PD-25. Verify Drive API behaviour against Google's current documentation during integration.
+
+**Access.** The Drive registration and Drive check Edge Functions read Drive metadata with a read-only scope, as a Google Cloud service account given Viewer access to the folder (D-69). If a Google Workspace policy blocks sharing the folder with a service account, that is raised as a new decision. The key lives in Edge Function secrets or Vault. The workstation has no write scope: it never moves, renames, shares, trashes or deletes a Drive file, and never makes one public. Members view files under Drive's own sharing, which the workstation does not grant.
+
+**Registration.** `register_drive_media` stores the pasted link or file ID as a `pending` `version_media` row and queues a job. The registration Edge Function reads the file's metadata: ID, name, MIME type, size, SHA-256 and MD5 checksums, head revision ID, version, modified time, trashed state, and video or image metadata. It rejects:
+- folders, shortcuts and Google Docs editor files;
+- a MIME type that does not fit the Creative's Format;
+- a file already attached to another Version. A Drive file ID backs at most one Version, so new content needs a new Drive file. The name is `<variant code>_v<number>` (D-69), e.g. `GML-0007-B_v2.mp4`, but the name is never trusted for identity.
+
+Drive may report video metadata some time after upload. The file stays `verifying` while the job retries with backoff, and after a bounded wait it fails with an actionable error. On success `record_file_verification` records the identity and media metadata and marks the file ready.
+
+**Identity.** A Version file's identity is its Drive file ID, head revision ID, checksum and size. SHA-256 is preferred; Drive's MD5 is recorded when no SHA-256 is reported, and the algorithm is stored with the checksum. `submit_version` freezes the identity with the Version, and T-17 annotations, T-18 Evidence and Review anchors cite it.
+
+**Change check.** A scheduled Drive check Edge Function runs every 6 hours, and on request from a Version or plan page (PD-25). It re-reads the files of Versions with an open Review, approved Versions in effect, Versions of Live Variants and files cited by Evidence, then calls `record_drive_check`:
+- same revision, checksum and size: `unchanged`;
+- a different revision, checksum or size: `changed`;
+- trashed: `trashed`;
+- not found or permission denied: `inaccessible`.
+
+A new flag appends an activity-log event, appears on the Version and on data health, and routes a task to the Creative Owner. While a file is flagged, `submit_version`, `approve_version` and `plan_launch` reject its Version (D-69). The fix is a new Version before go-live, or a new Variant after (D-25, D-53). A Live Variant's existing Posts and Ads keep being reported honestly, and Meta's copy is checked by its Meta video ID (T-14). A flag clears only when a later check finds the recorded identity again, for example after a restore from Drive's trash. Earlier records, approvals and Evidence are never rewritten.
+
+**Revision retention.** Drive purges a revision that is not kept forever 30 days after newer content is uploaded to the same file, and only write access can keep one. V1 has no write access, so a replaced file's approved revision may disappear from Drive. The workstation keeps the recorded identity and shows the loss; keeping revisions or a protected copy needs a later decision.
+
+**Preview and playback.** The playback method is chosen after a test (D-69):
+- Drive's embedded preview uses the viewer's Google sign-in and Drive sharing. It offers no programmatic seeking and may fail where the browser blocks third-party cookies.
+- An authenticated streaming Edge Function proxies byte ranges through the service account into the workstation's own player, which allows seeking. Edge Function limits and egress must be measured first.
+
+Until then, seeking from a Comment, cue, section or Finding stays conditional (FR-16, FR-17).
+
+**Failures.** Drive errors and rate limits are retried with backoff. Revoked folder access flags files `inaccessible` and raises a task for the Admin, and earlier records stay. The Drive check never deletes a record.
 
 ## 8. Measurement contract, Meta ingestion and matching
 
@@ -605,14 +677,14 @@ Every comparison shows its evidence class. Only a Meta A/B test yields a Control
 ## 9. Security, audit, notifications and reliability
 
 **T-09.** Sign-in and membership (D-04):
-- Sign-in uses Supabase Auth with Google, restricted to the company's Google Workspace domain. Email magic links are the fallback if the company does not use Google Workspace.
+- Sign-in uses Supabase Auth with Google. The team uses personal Gmail accounts, so no email domain can be restricted; instead only email addresses the Admin has invited can sign in, whether through Google or an email magic link, which remains a backup (D-04, D-70). The exact Auth mechanism is verified against Supabase's current documentation when sign-in is built.
 - Public sign-up is off. A user can act only with an active `core.members` row created by the Admin (D-49).
 - If session cookies are used, they are secure, HttpOnly and SameSite, with restricted origins.
 
 Database access rules:
 - **RLS** is enabled on every table in exposed schemas. Policies for `authenticated` allow SELECT to active members (D-02). Browser roles never get INSERT, UPDATE or DELETE on business tables; writes happen only through `api.*` functions (D-48). `anon` has no access.
 - **Raw ingest.** The `ingest` schema is not exposed through the Data API, and `anon`, `authenticated` and Claude's role have no grants on it (D-06, D-08).
-- **Worker roles.** The Meta sync, file verifier, WhatsApp sender and file-purge Edge Functions each have their own database role with the minimum grants they need. Edge Functions use these roles, or the service role server-side. The `service_role` key never reaches the browser.
+- **Worker roles.** The Meta sync, file verifier, Drive registration and check, WhatsApp sender and file-purge Edge Functions each have their own database role with the minimum grants they need. Edge Functions use these roles, or the service role server-side. The `service_role` key never reaches the browser.
 - **Deletion.** Only the purge Edge Function can delete (D-59, D-62):
   - it removes Storage objects through the Storage API;
   - it removes `core.files` rows through `record_file_purge`;
@@ -624,7 +696,7 @@ Database access rules:
   - The views are owned by a non-login owner role, so `reporting_reader` never needs grants on base tables.
 
 Other protections:
-- **Secrets.** The Meta system-user token, the WhatsApp token and the webhook secret live in Supabase Vault or Edge Function secrets. They never appear in tables, the browser or logs, and signed URLs are redacted from logs.
+- **Secrets.** The Meta system-user token, the Google service-account key, the WhatsApp token and the webhook secret live in Supabase Vault or Edge Function secrets. They never appear in tables, the browser or logs, and signed URLs are redacted from logs.
 - **Storage.** All buckets, including the CSV import area, are private. Members read files through short-lived signed URLs, and writes go only through upload intents.
 
 **T-10.** Every command appends its domain event to `audit.activity_log` in the same transaction as its writes (D-45, D-47). The `work.tasks` rows are derived from that event in the same transaction, and so are the `work.outbox` rows that queue WhatsApp messages (T-16). A committed command therefore always has its audit record, its tasks and its delivery-queue entries; a rolled-back command has none of them. The WhatsApp sender delivers at least once and deduplicates by task. Round counts also derive from activity-log events.
@@ -675,7 +747,7 @@ These are engineering targets to validate on a provisioned Supabase environment.
 | Worker recovery | An expired lease is recovered within 5 min, with no duplicated logical effects |
 | Files | Limits as in §7; a metadata mismatch never produces a ready file |
 | Availability | 99.5% monthly target, bounded by the Supabase plan's own availability; monitored before any commitment |
-| Backup and recovery | RPO ≤ 24 h, RTO ≤ 4 h. Supabase database backups do not include Storage objects, so final files, Brief attachments and Launch thumbnails need their own copy, e.g. a periodic copy to a second location. A verified restore drill of both is required before production |
+| Backup and recovery | RPO ≤ 24 h, RTO ≤ 4 h. Supabase database backups do not include Storage objects, so Brief attachments, Launch thumbnails and CSV files need their own copy, e.g. a periodic copy to a second location. Version files stay in Google Drive, outside the workstation's backup, and their durability depends on the Drive account holding the folder (D-65). A verified restore drill of the database and the Storage copy is required before production |
 | Accessibility | Keyboard-complete core flow, labelled controls, text status, a usable 320 px layout |
 
 Indexes cover:
@@ -700,9 +772,11 @@ Retention (D-46, D-59; durations stay proposed, D-58):
 **T-11.** The workstation is built in its own repository, separate from the Video Orchestrator (D-05, ADR 0003). It does not import code, data or contracts from ContentAI. The v1.0 plan to add workstation modules to the ContentAI API and client, and its versioned import bridge, are removed. If the systems are linked later, the link is the Creative Code, with the orchestrator delivering files into a Variant.
 
 Deployment prerequisites:
-- A new Supabase project for each environment, on the paid plan (D-06). It is not the unrelated `socialflow` project.
-- A Google OAuth client restricted to the company domain.
-- Storage buckets and their policies: review and final files, Brief attachments, Launch thumbnails, and the private CSV import area.
+- A new Supabase project for each environment; the plan is re-evaluated now that Version files stay in Drive (D-06, D-65). It is not the unrelated `socialflow` project.
+- A Google OAuth client for sign-in with personal Gmail accounts (D-70); membership, not the email domain, limits access.
+- Storage buckets and their policies: Brief attachments, Launch thumbnails, and the private CSV import area.
+- A Google Cloud project and read-only service account, given Viewer access to the Drive folder only after the owner authorises it (T-19, D-69).
+- Static hosting for the web client, chosen before deployment (D-66).
 - Vault secrets.
 - Supabase scheduled jobs for the SQL jobs and the Edge Function triggers.
 - Deployed Edge Functions.
@@ -736,8 +810,10 @@ Launch and results features stay behind flags until their acceptance tests pass.
 | Authorization | Team and flag checks in every `api.*` function; RLS for `authenticated`; Storage policies. Cross-tenant tests removed in 1.1 (D-01) | AC-13 |
 | Data access | No browser access to `ingest`; Claude's role limited to read-only `reporting` views | AC-27 |
 | Notifications | Tasks derived from activity-log events in the command transaction; one WhatsApp message per personal task; the team task never sends WhatsApp; a failure leaves the task; webhook signature and deduplication | AC-01, AC-18, AC-22 |
-| Files | Brief attachment upload or link and its size limit; Launch thumbnail added while the Variant is live; CSV in the private import area; never-attached purge after 30 days through the Storage API from an Edge Function | AC-06, AC-23, AC-26 |
-| Video annotations | Measured duration; transcript states; non-overlapping primary sections; append-only annotation revisions; a recut gets its own annotations; `save_video_annotations` returns a conflict on a stale prior revision; Evidence keeps the cited annotation revision | AC-29, AC-30 |
+| Files | Brief attachment upload or link and its size limit; Launch thumbnail added while the Variant is live; CSV in the private import area; never-attached purge after 30 days through the Storage API from an Edge Function, never selecting Drive files | AC-06, AC-23, AC-26 |
+| Video annotations | Measured duration; transcript states; SRT/WebVTT import starts as a draft; non-overlapping primary sections; append-only annotation revisions; a recut gets its own annotations; `save_video_annotations` returns a conflict on a stale prior revision; Evidence keeps the cited annotation revision | AC-29, AC-30 |
+| Drive Version files | Registration from a Drive link records identity and duration; the processing delay; working-file links, folders, shortcuts, editor files and files already used by another Version are rejected; change, trash and access-loss flags; a flagged file blocks submission, approval and Launch planning; no Drive writes | AC-32 |
+| Retrospective | Frozen baseline including media identity and annotation revisions; append-only Findings and corrections; Finding-to-action links; insufficient evidence without data; incompatible comparisons rejected; no section-level Results | AC-31 |
 | CSV and manual entry | Validation, quarantine, provenance, manual entry with actor, never labelled as API data | AC-23 |
 | UX / end to end | Both teams complete the six steps and a Verdict; keyboard and mobile review; deep links | AC-11, AC-14 |
 | Lineage | Rebrief, new Version, Approval Withdrawal and data corrections preserve history | AC-03, AC-10, AC-15, AC-16 |
@@ -761,20 +837,21 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 |---|---|
 | FR-01 Identity and ownership | T-01; code counters, Creatives, Variants, Legacy Codes |
 | FR-02 Brief | T-02–T-05, T-13; Brief versions, attachments, hand-off lock, Rebrief |
-| FR-03 Creative production | T-02, T-05, T-13; Format confirmation, Variants, Versions, Production Stages, verified files |
+| FR-03 Creative production | T-02, T-05, T-13, T-19; Format confirmation, Variants, Versions, Production Stages, verified Drive Version files |
 | FR-04 Review and revision | T-02–T-04; Reviews, Comments, carry-forward, concurrency |
-| FR-05 Approval | T-02, T-03, T-14; exact-Version decisions, Approval Withdrawal, observed-live flag |
+| FR-05 Approval | T-02, T-03, T-14, T-19; exact-Version decisions, Approval Withdrawal, observed-live flag |
 | FR-06 Launches | T-02, T-04, T-14; `launch.launches`, generated ad names, post links, unplanned Launches |
 | FR-07 Meta ingestion and data health | T-06, T-07, T-10; sync runs, raw responses, Breakdowns, CSV and manual entry, data health view |
 | FR-08 Reading results | T-06, T-08; scopes, definitions, Cost per Result |
-| FR-09 Optimization Plans | T-08, T-17; frozen Evidence (including cited annotation revisions), actions, Verdicts and automatic Verdicts; AC-30 |
+| FR-09 Optimization Plans | T-08, T-17, T-18; frozen Evidence (including cited annotation revisions), actions, Verdicts and automatic Verdicts; AC-30 |
 | FR-10 Notifications and activity log | T-03, T-10, T-16; activity log, derived My Tasks, team task, WhatsApp outbox |
-| FR-11 Access and files | T-05, T-09, T-11; Supabase Auth, RLS, `SECURITY DEFINER` commands, file kinds, D-59 purge, Storage policies, Claude's role |
+| FR-11 Access and files | T-05, T-09, T-11, T-19; Supabase Auth, RLS, `SECURITY DEFINER` commands, file kinds, Drive registration and change checks, D-59 purge, Storage policies, Claude's role |
 | FR-12 Usability | T-04, T-12; RLS reads, deep links, end-to-end tests |
 | FR-13 Labels and label lock | T-13 |
 | FR-14 Ad matching | T-07, T-14 |
 | FR-15 Combination and Label views | T-08, T-15 |
 | FR-16 Video content metadata | T-17; measured duration, annotation revisions, transcript cues, Content Sections, provenance and frozen Evidence references; AC-29, AC-30 |
+| FR-17 Creative Retrospective / 复盘 | T-18; frozen baseline, section findings, action links, comparison validity, existing Verdict lifecycle; AC-31 |
 
 ## 14. Decisions, open items and references
 
@@ -783,7 +860,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | Topic | Source |
 |---|---|
 | Meaning of Avatar | D-15 |
-| Hosting, identity and storage providers: Supabase, with Google sign-in | D-04, D-06, ADR 0001 |
+| Hosting and identity providers: Supabase, with Google sign-in using personal Gmail for invited members | D-04, D-06, D-70, ADR 0001 |
 | Tenancy | D-01, ADR 0005 |
 | Launch model | D-27, ADR 0004 |
 | Codes | D-11, ADR 0002 |
@@ -805,7 +882,13 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | Never-attached upload purge | D-59 |
 | Video duration, Transcripts and Content Sections | D-60 |
 | Matching details, Ads that go live without approval, archiving rights, manual results (formerly PD-19–PD-22) | D-61 |
-| Drive links only; purge in an Edge Function through the Storage API; Launch thumbnails as stored files | D-62 |
+| Drive links only for working files; purge in an Edge Function through the Storage API; Launch thumbnails as stored files | D-62 |
+| Creative Retrospective / 复盘 inside Optimization Plans | D-63 |
+| Version files stay in Google Drive, registered read-only and checked for changes | D-64, D-65, ADR 0007 |
+| Web client stack: Vite + React + TypeScript single-page app | D-66 |
+| Optional Brief hypothesis | D-67 |
+| Video annotation and retrospective details (formerly PD-23 and PD-24), with SRT/WebVTT import | D-68 |
+| Drive Version file rules (most of the former PD-25) | D-69 |
 
 The D-58 technical defaults are:
 - image hashes stand in for the video ID on statics and carousels;
@@ -819,8 +902,8 @@ The D-58 technical defaults are:
 - sizing and operations numbers, which stay proposed.
 
 **Open:**
-- O-02, the setup facts: the dedicated WhatsApp number, the Business Manager admin, and the list of ad accounts, Pages and Instagram accounts.
-- PD-23, the video annotation details (T-17; defined in PRD §11.3), the only default still proposed.
+- O-02, the setup facts: the dedicated WhatsApp number, the Business Manager admin, the list of ad accounts, Pages and Instagram accounts, and the Drive folder for Version files and its owner account. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70.
+- PD-25, the Drive change-check timing and scope (T-19), defined in PRD §11.3.
 
 Which Meta capabilities each connected account supports is verified during integration; it is not a product decision. The Shared Drive vs My Drive question is closed by D-62.
 
@@ -828,6 +911,7 @@ References (check against current provider documentation during implementation):
 
 - PostgreSQL [constraints](https://www.postgresql.org/docs/current/ddl-constraints.html) and [row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html), including the exemptions for table owners and `BYPASSRLS`.
 - Supabase [row level security](https://supabase.com/docs/guides/database/postgres/row-level-security), [database functions](https://supabase.com/docs/guides/database/functions), [Storage](https://supabase.com/docs/guides/storage), [Cron](https://supabase.com/docs/guides/cron), [Edge Functions](https://supabase.com/docs/guides/functions), [Vault](https://supabase.com/docs/guides/database/vault) and [local development](https://supabase.com/docs/guides/local-development).
+- Google Drive API [files](https://developers.google.com/workspace/drive/api/reference/rest/v3/files) and [revisions](https://developers.google.com/workspace/drive/api/reference/rest/v3/revisions) resources: checksum, revision and video metadata availability, and revision retention.
 - Meta [Marketing API Insights](https://developers.facebook.com/docs/marketing-api/insights) and the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). Field presence in Meta's SDKs does not establish availability for a given account or query.
 
 This TRD and PRD 1.1 supersede the exploratory designs in `docs/superpowers/specs/2026-10-10-*`. Production cost analysis is not a V1 requirement, and recording a Launch does not imply any publishing capability.

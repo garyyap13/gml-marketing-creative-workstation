@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-62), including the defaults confirmed in later passes (D-49–D-59, D-61) and the clarifications in D-60 and D-62. The one default still unconfirmed, PD-23, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
+Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-70), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-70), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
 
 Audience: Marketing Team, Creative Team, product owner, designer, engineering and QA.
 
@@ -37,8 +37,14 @@ Vocabulary follows CONTEXT.md. If this document conflicts with the decision log,
   - Video Versions store measured duration, Transcripts and Content Sections (D-60; new FR-16).
   - PD-19–PD-22 are confirmed as D-61.
   - V1 stores only pasted Google Drive links; the never-attached file purge runs in an Edge Function; Launch thumbnails are stored files (D-62).
+- **Fourth pass.**
+  - Creative Retrospective / 复盘 inside Optimization Plans (D-63; new FR-17).
+  - Every Version file, drafts and completed, stays in Google Drive. The workstation records each file's identity through read-only Drive access and flags later changes; Supabase Storage no longer holds review or final files (D-64, D-65, ADR 0007). This amends the Storage parts of D-06, D-07, D-52 and D-62, and of ADR 0001, for Version files.
+  - PD-23 and PD-24 are confirmed, with SRT/WebVTT transcript import and no automatic transcription (D-68). Most of PD-25 is confirmed as the Drive Version file rules (D-69).
+  - Briefs gain an optional hypothesis (D-67). The web client is a Vite + React + TypeScript single-page app (D-66).
+  - Sign-in uses Google with personal Gmail accounts, limited to invited members, with magic links as a backup (D-70).
 - **Requirement IDs.**
-  - Added FR-13–FR-16 and AC-17–AC-30.
+  - Added FR-13–FR-17 and AC-17–AC-32.
   - AC-30 (the Evidence check on annotation revisions) was split from AC-29.
   - Removed the cross-workspace part of AC-13; its ingest and Claude-role part moved to AC-27.
   - Removed the package part of AC-05.
@@ -76,7 +82,7 @@ The first successful end-to-end use is one Creative completing all six steps. Th
 
 ## 3. Users and permissions
 
-The workstation serves one company with one brand (D-01, ADR 0005). Everyone signed in sees everything: Briefs, files, Comments and results (D-02). People sign in with company Google accounts, or with email magic links if the company does not use Google Workspace (D-04).
+The workstation serves one company with one brand (D-01, ADR 0005). Everyone signed in sees everything: Briefs, files, Comments and results (D-02). People sign in with Google using their personal Gmail accounts, or with an email magic link as a backup; only members the Admin has invited can sign in (D-04, D-70).
 
 Each person is Marketing or Creative. One or more Marketing Team members carry the Approver flag (D-03). The workstation owner holds the Admin flag (D-49).
 
@@ -86,7 +92,7 @@ Each person is Marketing or Creative. One or more Marketing Team members carry t
 | Create, write, hand off and Rebrief a Brief; upload or link its attachments; maintain the Marketing label lists (Product, Initiative, Avatar, Angle, Funnel Stage, Format) | Yes | No | — | — |
 | Create a Creative | Yes (D-51) | Yes; the Format stays unconfirmed (D-51) | — | — |
 | Set or confirm a Creative's Format | Yes (D-51) | No | — | — |
-| Set Narrative Style; create Variants and set their labels before go-live; set Production Stage; submit Versions; save video annotations; resolve Comments; maintain the Creative label lists | No | Yes | — | — |
+| Set Narrative Style; create Variants and set their labels before go-live; set Production Stage; register Version files from Drive; submit Versions; save video annotations; resolve Comments; maintain the Creative label lists | No | Yes | — | — |
 | Comment on a Version | Yes | Replies | — | — |
 | Request Changes | Yes (D-50) | No | — | — |
 | Approve; withdraw an approval; record a Verdict | No | No | Yes | — |
@@ -103,7 +109,7 @@ One Approver's decision approves a Version (D-50); multi-approver chains are lat
 
 - Sign-in, My Tasks and shared boards for Briefs, Creatives and Variants, with bilingual labels where helpful.
 - Briefs with labels, a Marketing Owner, uploaded or linked attachments, the hand-off lock and Rebriefs.
-- Creatives, Variants and Versions for video, static image and carousel (D-19), with Production Stages and linked working files.
+- Creatives, Variants and Versions for video, static image and carousel (D-19), with Production Stages, Version files registered from Google Drive (D-65) and linked working files.
 - Reviews with anchored blocking and suggestion Comments, explicit decisions and Approval Withdrawal.
 - Launch records for Posts and Ads, generated ad names, and matching to Meta by code and video ID.
 - Read-only Meta sync (Marketing API plus Page and Instagram insights) with a 6-month backfill, Breakdowns and a data health page. Manual entry and validated CSV import for other platforms.
@@ -135,8 +141,8 @@ The main navigation is My Tasks, Briefs, Creatives, Results, Optimization, Data 
 | Creative board | Creative Code, title, Format, Narrative Style, Creative Owner, due date, Variants by state, next action |
 | Creative detail | Brief (version followed), Variants and Versions, Review, Launches, Results, Optimization |
 | Results | Combination view (per ad set and period), Label view, Variant results, Breakdowns |
-| Optimization | Plans with Evidence, owner, priority, due date, check date, state and Verdict |
-| Data health | Last sync, coverage, errors, Untracked Ads, Mismatched Ads, Ads live without approval, Legacy Creatives awaiting labels |
+| Optimization | Creative Retrospective (复盘): video, transcript, Content Sections, scoped results, team findings and Plans with Evidence, owner, priority, due date, check date, state and Verdict |
+| Data health | Last sync, coverage, errors, Untracked Ads, Mismatched Ads, Ads live without approval, Legacy Creatives awaiting labels, Version files changed or unreadable in Drive |
 | Settings | Team label lists; members and flags, Meta connection, WhatsApp and Breakdowns (Admin, D-49) |
 
 Records can be found by Creative Code, Variant code, Legacy Code or title, and filtered by label, owner, state and due date. A Creative shows each Variant's state and each Launch's status independently.
@@ -157,6 +163,7 @@ The Marketing Team writes a Brief with these fields:
 - Product, Avatar, Angle, Funnel Stage and an optional Initiative (D-13);
 - the key message;
 - a CTA, or an explicit "none";
+- an optional hypothesis: what the team wants to learn (D-67);
 - optional attachments (script, references, rough material 初稿), each uploaded within a size limit or linked (D-52; the limit is in TRD §7).
 
 An incomplete Brief can be saved, and handing it off lists the missing fields. Hand-off also requires at least one Creative, created by the Marketing Team, with a Format, a Creative Owner and a due date (D-51).
@@ -173,9 +180,9 @@ Each Variant moves through its Production Stages (D-18; carousels follow the sta
 - video: 叙述方式 → rough cut (粗剪) → fine cut (精剪) → ready;
 - static image and carousel: concept → layout → refinement → ready.
 
-Working files stay in the Creative Team's editing tools (Google Drive), and only their pasted links are kept on the Variant (D-07, D-62). Storage holds review and final files, Brief attachments, Launch thumbnails and CSV import files (D-52, D-59, D-62).
+Working files stay in the Creative Team's editing tools (Google Drive), and only their pasted links are kept on the Variant (D-07, D-62). Each Version file, from the first draft to the completed file, is a specific file in the team's Google Drive folder, registered with the workstation (D-64, D-65; FR-11). Storage holds only Brief attachments, Launch thumbnails and CSV import files (D-52, D-59, D-62).
 
-A Version can be submitted only with a verified file (FR-11). A submitted Version is immutable, so any change is a new Version. Once a Variant is live its file is frozen, and any change becomes a new Variant letter (D-25).
+A Version can be submitted only with a verified file (FR-11). A submitted Version is immutable, so any change is a new Version in a new Drive file. Once a Variant is live its file is frozen, and any change becomes a new Variant letter (D-25). The workstation cannot stop someone editing a file in Drive, so it flags a Version file that changes after registration instead (FR-11).
 
 ### FR-04 — Review and revision
 
@@ -291,13 +298,21 @@ Each task links to the exact record and Version, and read and done are tracked s
 
 Only signed-in members can reach records, previews, downloads and exports (D-02, D-04). Team and flag rules are enforced on the server for every command (D-48).
 
-Storage is private. It holds review and final files, Brief attachments, Launch thumbnails and CSV import files, and the CSV files sit in a separate private import area (D-52, D-59, D-62). The team already uses Google Drive; working files remain there and are linked from the Variant. V1 stores only pasted Drive links: there is no Drive file picker and no Drive API connection, and access follows Drive's own sharing (D-62). Pasting a Drive link does not itself submit or approve a review Version.
+**Version files in Google Drive** (D-64, D-65). Every Version file, review drafts and completed files alike, for video, static image and carousel, stays in the team's Google Drive folder. The workstation never moves these files, changes their sharing or makes them public, and members view them under Drive's own sharing.
+- The Creative Team registers a Version file by pasting its Drive link. Through read-only Drive access, the workstation records the file's identity: Drive file ID, revision, checksum, size, type, dimensions and, for video, duration. A file stays unverified until Drive reports this metadata, and an unverified file cannot be submitted.
+- Submitting a Version freezes that record. Each Version uses its own Drive file; replacing a file's content in Drive does not make a new Version.
+- A scheduled check re-reads recorded files. A file that has changed, been trashed or can no longer be read is flagged on the Version and on data health. Approval never carries over to changed content: the existing new-Version or new-Variant path applies (D-25, D-53).
+- Working files remain paste-only links with no Drive access (D-62). A working-file link is never accepted as a Version file, and pasting any Drive link does not itself submit or approve a Version.
+- Each Version's file is named `<variant code>_v<number>`, e.g. `GML-0007-B_v2.mp4`. A Drive file backs at most one Version, and nobody uploads new content over an older Version's file. Access is a read-only Google service account with Viewer access to the folder. While a file is flagged, its Version cannot be submitted, approved or used for a new Launch. V1 has no write access, so Drive may purge a replaced revision; the flag and recorded identity remain. In-app playback is chosen after testing Drive's embedded preview against a streaming player (D-69).
+- The check timing is proposed under PD-25.
 
-Every upload is verified for type, size and checksum, and media files also for their metadata (D-47, D-58). Proposed limits are 1 GiB per video and 50 MiB per image (D-47), plus a size limit for Brief attachments (D-52; TRD §7). A failed or incomplete upload cannot be submitted.
+**Storage** is private. It holds Brief attachments, Launch thumbnails and CSV import files, and the CSV files sit in a separate private import area (D-52, D-59, D-62).
+
+Every upload to Storage is verified for type, size and checksum, and images also for their dimensions (D-47, D-58). Proposed limits are 50 MiB per image, including Launch thumbnails, plus a size limit for Brief attachments (D-52; TRD §7). The proposed 1 GiB video limit (D-47) applies to registered Drive video as a sanity check. A failed or incomplete upload cannot be attached.
 
 Claude gets a read-only database role that sees only curated reporting views, never raw tables. The `content-ads-monitor` skill moves from its JSON ledger to these views (D-08). Raw Meta responses are never exposed to the browser.
 
-Nothing is hard-deleted (D-46), with one exception: a file uploaded but never attached to any record is hard-deleted after 30 days (D-59). The deletion runs in an Edge Function through the Storage API (D-62).
+Nothing is hard-deleted (D-46), with one exception: a file uploaded but never attached to any record is hard-deleted after 30 days (D-59). The deletion runs in an Edge Function through the Storage API (D-62). It applies only to Storage uploads: the workstation never deletes, trashes or edits a Drive file.
 
 The v1.0 clause on importing files from the video-production foundation is removed in 1.1: there is no import bridge in V1 (D-05, ADR 0003).
 
@@ -359,13 +374,27 @@ Low spend share reads as "Meta didn't pick it", not "it lost". Only a Meta A/B t
 
 ### FR-16 — Video duration, transcript and content sections
 
-Store and display the actual duration, transcript and Content Sections of each exact video Version (D-60). Actual duration comes from the verified media; it is separate from the Variant's planned length label. Keep this searchable metadata in the database alongside the file reference, regardless of where the video itself is stored.
+Store and display the actual duration, transcript and Content Sections of each exact video Version (D-60). Actual duration comes from the verified media, as Drive reports it for the registered file (D-65); it is separate from the Variant's planned length label. Keep this searchable metadata in the database alongside the file reference, regardless of where the video itself is stored.
 
-The proposed annotation model (PD-23) uses timestamped speech cues with a language, plus a separate Content Section timeline. Main section types are Hook, Body, CTA and Other; optional detail labels include problem, solution, demo, benefit, proof/testimonial, objection handling and offer. Sections may repeat, and a video need not contain every type. Silence is not a missing transcript error, and absent/unprocessed speech is distinguishable from confirmed no speech. On-screen copy is separate from spoken words.
+The annotation model (D-68) uses timestamped speech cues with a language, plus a separate Content Section timeline. Main section types are Hook, Body, CTA and Other; optional detail labels include problem, solution, demo, benefit, proof/testimonial, objection handling and offer. Sections may repeat, and a video need not contain every type. Silence is not a missing transcript error, and absent/unprocessed speech is distinguishable from confirmed no speech. On-screen copy is separate from spoken words.
 
-Both teams can read the transcript and timeline. The Creative Team can enter or import annotations, correct words and adjust section boundaries. Each published correction creates an annotation revision while preserving previous revisions; it does not change the approved media or require a fake video Version. A recut is a new video Version and gets its own annotations. Automatic transcription or section detection is optional future integration work until its provider, costs and permissions are selected.
+Both teams can read the transcript and timeline. The Creative Team can enter or import annotations, correct words and adjust section boundaries. Import accepts SRT and WebVTT subtitle files exported from the editing tool, and imported cues start as a draft transcript for the Creative Team to review (D-68). Each published correction creates an annotation revision while preserving previous revisions; it does not change the approved media or require a fake video Version. A recut is a new video Version and gets its own annotations. Automatic transcription or section detection is optional future integration work until its provider, costs and permissions are selected.
 
 The proposed interface shows duration and a clickable section timeline beside the transcript; selecting a cue or section seeks to its start when the selected file preview supports seeking. Optimization Plan Evidence records the exact annotation revision it cites. Do not infer section-level Results or Cost per Result from whole-ad metrics.
+
+### FR-17 — Creative Retrospective / 复盘
+
+Both teams can start a retrospective from a Creative, Variant or Results selection (D-63). It is the analysis within an Optimization Plan (FR-09), not the pre-launch approval Review. The workspace (D-68) follows this sequence:
+
+1. **Recall the intent.** Show the Brief version, Avatar, Angle, Narrative Style, the Result type of the selected Launches and the hypothesis alongside the exact live Version. The hypothesis comes from the Brief version's optional hypothesis and, when the Brief or Variant came from an Optimization Plan action, from that plan; with neither, the workspace says none was recorded (D-67). Display any unknown or mismatched Version explicitly rather than substituting the latest edit.
+2. **Inspect the content.** Show the video, measured duration, transcript and Hook/Body/CTA timeline. Each finding can cite an exact section or time range, or the whole video. Authorized playback may seek to the cited time; inaccessible media or missing annotations remain visible as limitations.
+3. **Read the evidence.** Show selected Launches, paid/organic scope, dates, Result type, spend and spend share where applicable, Results, Cost per Result and available funnel metrics. Keep comparison scopes compatible under FR-08. An optional comparison identifies a baseline Variant or earlier Optimization Plan. Missing metrics remain unavailable; low delivery is not a failed creative.
+4. **Record the team's interpretation.** Separate measured observations from hypotheses. Marketing contributes notes on audience, angle, offer and delivery context; Creative contributes notes on hook, pacing, narrative, proof and CTA. Record what to keep, change or test, with an author and evidence reference. These prompts are guidance, not mandatory role-specific forms.
+5. **Plan and return.** Link each next action to its finding, owner, due date and intended change. Use the existing new-Brief, new-Variant and ad-side action types. At the check date, compare the resulting work with the frozen baseline and record the existing Verdict, including not enough data when appropriate. Keep the chain from finding to action to outcome searchable.
+
+A section diagnosis is a hypothesis unless the cited data actually measures that interval. Never spread whole-ad Results across sections, invent a retention curve, or label the first three seconds as the performance of a five-second Hook. A valid audience-retention series, if available for the exact video and scope, may be aligned with the timeline with its source and time buckets visible; acquiring it is not a V1 dependency. Only a Controlled Test supports experiment-supported conclusions (D-41).
+
+Saving the plan freezes the cited metric data, comparison scopes, media identity and annotation revisions. Subsequent transcript corrections or Meta updates do not rewrite that baseline. A retrospective may be recorded without performance data but must then be labelled insufficient evidence. Search past findings and Verdicts by Creative/Variant code, section type and existing labels to inform later Briefs.
 
 ## 7. Workflow states and rules
 
@@ -478,6 +507,8 @@ The Meta sync runs every 6 hours (D-33). Meta's availability and rate limits are
 | AC-28 | A Creative Team member creates a Creative. Its first Version cannot be submitted until a Marketing Team member sets or confirms the Format, and the Creative Team cannot set the Format | FR-03, FR-13 |
 | AC-29 | A 30-second Version has its measured duration, transcript and timed Hook/Body/CTA sections. Out-of-bounds or overlapping primary sections are rejected. Silent and not-yet-transcribed states differ. Correcting a transcript keeps the previous annotation revision, and a recut has separate annotations | FR-16 |
 | AC-30 | Write an Optimization Plan whose Evidence cites a Version's annotations, then correct that transcript. The Evidence still cites the original annotation revision *(split from AC-29 in 1.1)* | FR-09, FR-16 |
+| AC-31 | Start a retrospective for an exact live Version; cite a Hook, record an observed metric separately from a hypothesis, and link the finding to a new-Variant action. After data/transcript corrections, the baseline still shows its original Evidence. At the check date the action's outcome and Verdict are reachable from the finding. Missing data stays insufficient, incompatible comparisons are rejected and no section-level Results are fabricated | FR-09, FR-16, FR-17 |
+| AC-32 | Register a Drive video for a Version. Its file ID, revision, checksum, size and duration are recorded, and it cannot be submitted while Drive is still processing it. A working-file link, a folder or a file already used by another Version is rejected. After the file's content is replaced in Drive, the scheduled check flags it on the Version and on data health, and no new Launch can be planned from that Version. The workstation never moves, shares or deletes the Drive file | FR-03, FR-05, FR-11 |
 
 ## 10. Delivery milestones and dependencies
 
@@ -485,11 +516,11 @@ No milestone's exit condition depends on a capability from a later milestone.
 
 | Milestone | Scope | Exit condition |
 |---|---|---|
-| M1: Team workflow | Sign-in, roles, labels, Briefs and attachments, Creatives/Variants/Versions, Review loop, My Tasks and WhatsApp | AC-01–04, AC-12, AC-13, AC-22, AC-26, AC-28 and AC-29 pass |
+| M1: Team workflow | Sign-in, roles, labels, Briefs and attachments, Creatives/Variants/Versions with Version files registered from Drive, Review loop, My Tasks and WhatsApp | AC-01–04, AC-12, AC-13, AC-22, AC-26, AC-28, AC-29 and AC-32 pass; Version files verified on the real Drive folder |
 | M2: Launches and results | Approval integrity, Launches and the observed-live path, Meta sync and matching, Legacy backfill, CSV and manual entry, Combination and Label views, data health, archiving | AC-05–09, AC-14–21 and AC-23–25 pass; system-user access verified on real accounts |
-| M3: Learning loop and release | Optimization Plans, frozen Evidence and Verdicts, Claude's reporting role, restore and load checks | AC-10, AC-11, AC-27, AC-30 and all regression and operational checks pass; both teams finish the full pilot |
+| M3: Learning loop and release | Optimization Plans, frozen Evidence and Verdicts, Claude's reporting role, restore and load checks | AC-10, AC-11, AC-27, AC-30, AC-31 and all regression and operational checks pass; both teams finish the full pilot |
 
-No duration or cost estimate is committed until staffing, the Supabase plan (a paid plan is expected, D-06) and the O-02 setup facts are known. Automatic Meta feedback cannot be accepted on mock data or CSV fixtures alone.
+No duration or cost estimate is committed until staffing, the Supabase plan (re-evaluated now that Version files stay in Drive, D-06, D-65) and the O-02 setup facts are known. Automatic Meta feedback cannot be accepted on mock data or CSV fixtures alone.
 
 ## 11. Decisions, open items and remaining proposed defaults
 
@@ -498,12 +529,12 @@ No duration or cost estimate is committed until staffing, the Supabase plan (a p
 | Topic | Decision | Source |
 |---|---|---|
 | Users and tenancy | One company, one brand, about seven people; no multi-tenancy; everyone sees everything | D-01, D-02, ADR 0005 |
-| Roles and sign-in | Marketing or Creative plus an Approver flag; company Google sign-in with magic-link fallback | D-03, D-04 |
+| Roles and sign-in | Marketing or Creative plus an Approver flag; Google sign-in with personal Gmail for invited members, with a magic-link backup | D-03, D-04, D-70 |
 | Admin | The workstation owner holds the Admin flag, which manages members and flags, the Meta connection, WhatsApp settings and Breakdown settings | D-49 |
 | System boundary | Separate from the Video Orchestrator; no import bridge in V1 | D-05, ADR 0003 |
-| Platform | New Supabase project (Postgres, Auth, Storage, scheduled jobs); paid plan expected | D-06, ADR 0001 |
+| Platform | New Supabase project (Postgres, Auth, Storage, scheduled jobs). The paid-plan expectation rested on video size and is re-evaluated, since Version files stay in Drive | D-06, D-65, ADR 0001 |
 | Where commands run | Postgres functions called through Supabase RPC; Edge Functions only for external calls; no API server | D-48, ADR 0006 |
-| Files | Storage holds review and final files, Brief attachments (uploaded within a size limit, or linked), Launch thumbnails and CSV import files, with CSV in a separate private import area. Working files are kept only as pasted Google Drive links, with no Drive picker or API, and access follows Drive sharing | D-07, D-52, D-59, D-62, ADR 0001 |
+| Files | Every Version file stays in Google Drive and is registered through read-only Drive access, frozen at submission and checked for later changes. Storage holds Brief attachments (uploaded within a size limit, or linked), Launch thumbnails and CSV import files, with CSV in a separate private import area. Working files are kept only as pasted Google Drive links, with no Drive picker or API, and access follows Drive sharing | D-07, D-52, D-59, D-62, D-64, D-65, ADR 0007 |
 | Claude access | Read-only role on curated reporting views | D-08 |
 | Structure and codes | Brief → Creative → Variant → Version; `GML-0007` / `GML-0007-B`; Legacy Codes | D-09–D-12, ADR 0002 |
 | Labels | Fixed per-level lists; lock at go-live; Avatar is not a presenter | D-13–D-15 |
@@ -520,9 +551,13 @@ No duration or cost estimate is committed until staffing, the Supabase plan (a p
 | Learning | Optimization Plan with frozen Evidence and a Verdict; the minimum spend counts linked Launches between acceptance and the check date | D-42, D-43, D-57 |
 | Notifications and history | One-to-one WhatsApp plus My Tasks, routed as below; Untracked Ads form one Marketing Team task; activity log; archive only | D-44–D-46, D-56 |
 | Deletion exception | Files never attached to any record are hard-deleted after 30 days by an Edge Function through the Storage API. This is the only exception to D-46 | D-59, D-62 |
-| Video content metadata | Each video Version stores its measured duration, Transcript and Content Sections; the detailed annotation defaults remain PD-23 | D-60 |
+| Video content metadata | Each video Version stores its measured duration, Transcript and Content Sections; the annotation model is confirmed, with SRT/WebVTT import | D-60, D-68 |
+| Creative Retrospective | 复盘 inside Optimization Plans, extending the existing learning loop; the FR-17 / T-18 design is confirmed | D-63, D-68 |
+| Version files in Google Drive | Drafts and completed files for every format stay in Drive, with read-only registration, a frozen identity and change flags; the D-69 rules apply, and only the check timing remains PD-25 | D-64, D-65, D-69, ADR 0007 |
+| Frontend stack | Vite + React + TypeScript single-page app using the Supabase client directly, styled from the mockup's tokens; hosting chosen before deployment | D-66 |
+| Brief hypothesis | Optional "what we want to learn" on the Brief version, shown in the retrospective with any source plan's hypothesis | D-67 |
 | Matching, observed-live, archiving and manual-entry details | See below | D-61 |
-| Drive and thumbnails | Drive links only; Launch thumbnails are stored files and may be added while the Variant is live | D-62 |
+| Drive and thumbnails | Working files are Drive links only; Launch thumbnails are stored files and may be added while the Variant is live | D-62 |
 | Technical defaults | See below | D-58 |
 | Engineering rules | Idempotency, optimistic locking, audit and outbox together, file verification, backup and performance targets | D-47 |
 
@@ -564,18 +599,18 @@ Notification routing (D-56):
 
 | ID | Question | Needed by |
 |---|---|---|
-| O-02 | Setup facts: the dedicated WhatsApp number; the Business Manager admin; the list of ad accounts, Pages and Instagram accounts | Before integration (the WhatsApp number in M1, Meta access in M2) |
-| PD-23 | Video annotation details (see §11.3) | Before the annotation work in M1 is finalised |
+| O-02 | Setup facts: the dedicated WhatsApp number; the Business Manager admin; the list of ad accounts, Pages and Instagram accounts; the Google Drive folder for Version files and the account that owns it. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70 | Before integration (the WhatsApp number and Drive folder in M1, Meta access in M2) |
+| PD-25 | Drive change-check timing and scope (see §11.3) | Before the Drive integration in M1 is finalised |
 
 The former O-01 (where domain commands run) is decided as D-48 / ADR 0006. The Shared Drive vs My Drive question is closed by D-62.
 
 ### 11.3 Remaining proposed defaults
 
-PD-01…PD-18 are now decisions D-49–D-59, and PD-19…PD-22 are D-61 (see §11.1). Only the item below remains unconfirmed. Sizing and operations numbers stay proposed by decision (D-58) and are not listed here.
+PD-01…PD-18 are now decisions D-49–D-59, PD-19…PD-22 are D-61, PD-23 and PD-24 are D-68, and PD-25 is D-69 apart from the item below (see §11.1). The item below remains unconfirmed. Sizing and operations numbers stay proposed by decision (D-58) and are not listed here.
 
 | ID | Proposed default | Where used |
 |---|---|---|
-| PD-23 | Video annotations: timestamped speech cues and separate primary sections; Hook/Body/CTA/Other with optional detail labels; manual entry or import by Creative; append-only published annotation revisions; no new approval gate for missing annotations. Detailed field and validation rules are proposed in T-17. Automatic processing provider and costs remain unselected | FR-16, AC-29, AC-30 |
+| PD-25 | Drive change check: runs every 6 hours and on request from a Version or plan page, covering the files of Versions under review, approved Versions in effect, Versions of Live Variants and files cited as Evidence. The rest of the former PD-25 is D-69 | FR-11, AC-32 |
 
 ## 12. Document precedence
 

@@ -28,7 +28,7 @@ _Avoid_: Assignee, editor
 ### Making a creative
 
 **Brief**:
-The Marketing Team's starting point for one or more Creatives: its Product, Avatar, Angle, Funnel Stage, optional Initiative, key message and CTA, with optional attachments such as a script, references or a rough cut.
+The Marketing Team's starting point for one or more Creatives: its Product, Avatar, Angle, Funnel Stage, optional Initiative, key message and CTA, an optional hypothesis of what the team wants to learn, and optional attachments such as a script, references or a rough cut.
 _Avoid_: 初稿 (the rough material attached to a Brief), request, ticket
 
 **Rebrief**:
@@ -55,6 +55,14 @@ _Avoid_: Version, cut, edit, deliverable variant
 **Version**:
 One numbered revision of a Variant, made by the Creative Team for review.
 _Avoid_: Draft, iteration
+
+**Version file**:
+The exact exported video or image submitted as a Version: the file Marketing reviews and approves and that Launches use.
+_Avoid_: Final file, master, completed file, deliverable
+
+**Working file**:
+A file the Creative Team edits from, such as an editing project or raw footage, linked from a Variant but never reviewed or approved.
+_Avoid_: Source file
 
 **Production Stage**:
 Where a Variant's next Version is in production: for video 叙述方式, rough cut (粗剪), fine cut (精剪) and ready; for statics concept, layout, refinement and ready.
@@ -103,7 +111,7 @@ The saved way a Creative is told (叙述方式), such as testimonial, Q&A, story
 _Avoid_: Format, template, storytelling
 
 **Hook**:
-The opening Content Section of a video Variant, chosen by the Creative Team and labelled with a hook type.
+The opening Content Section of a video, chosen by the Creative Team and labelled with a hook type; a different Hook makes a different Variant.
 
 ### Review
 
@@ -164,12 +172,19 @@ _Avoid_: A/B test (for two ads that merely share an ad set)
 
 ### Learning
 
+**Creative Retrospective (复盘)**:
+The two teams' review of what a Creative tried to achieve, its exact video and sections, what the results show, and what to change next. It is the analysis inside an Optimization Plan, separate from the pre-launch approval Review.
+
+**Finding**:
+One observation or hypothesis recorded in a Creative Retrospective, about the whole video, a Content Section or a time range, and marked keep, change or test.
+_Avoid_: Note, insight, learning
+
 **Optimization Plan**:
 A plan both teams write after reviewing results, made of Evidence, a hypothesis and actions, which later receives a Verdict.
 _Avoid_: Learning record, experiment, report, performance review
 
 **Evidence**:
-The numbers an Optimization Plan cites, frozen when the plan is written so later data corrections cannot change it.
+The numbers, exact Version file and annotations an Optimization Plan cites, frozen when the plan is written so later corrections cannot change them.
 
 **Verdict**:
 The conclusion recorded on an Optimization Plan at its check date: confirmed, not confirmed, or not enough data.
