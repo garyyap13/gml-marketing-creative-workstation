@@ -184,15 +184,21 @@ create function app.record_event(
   p_payload jsonb,
   p_correlation_id uuid,
   p_reason text default null
-) returns void
-language sql
+) returns uuid
+language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_id uuid := gen_random_uuid();
+begin
   insert into audit.activity_log
-    (actor_member_id, actor_kind, entity_type, entity_id, entity_version, action, reason, payload, correlation_id)
+    (id, actor_member_id, actor_kind, entity_type, entity_id, entity_version, action, reason, payload, correlation_id)
   values
-    (p_actor_member_id, p_actor_kind, p_entity_type, p_entity_id, p_entity_version, p_action, p_reason, p_payload, p_correlation_id);
+    (v_id, p_actor_member_id, p_actor_kind, p_entity_type, p_entity_id, p_entity_version, p_action, p_reason, p_payload,
+     p_correlation_id);
+  return v_id; -- generated here, so the role needs no SELECT on the log for RETURNING
+end;
 $$;
 alter function app.record_event(uuid, text, text, uuid, integer, text, jsonb, uuid, text) owner to api_owner;
 
@@ -424,10 +430,17 @@ begin
     v_errors := v_errors || jsonb_build_object('changes', 'Provide at least one change');
   else
     for v_key in select jsonb_object_keys(p_changes) loop
-      if v_key not in ('display_name', 'team', 'is_approver', 'is_admin', 'active') then
+      if v_key not in ('display_name', 'team', 'is_approver', 'is_admin', 'active', 'whatsapp_number', 'whatsapp_opt_in') then
         v_errors := v_errors || jsonb_build_object(v_key, 'Cannot be changed');
       end if;
     end loop;
+  end if;
+  if p_changes ? 'whatsapp_number' and p_changes ->> 'whatsapp_number' is not null
+     and p_changes ->> 'whatsapp_number' !~ '^\+[1-9][0-9]{6,14}$' then
+    v_errors := v_errors || jsonb_build_object('whatsapp_number', 'Use international format, e.g. +60123456789');
+  end if;
+  if p_changes ? 'whatsapp_opt_in' and jsonb_typeof(p_changes -> 'whatsapp_opt_in') <> 'boolean' then
+    v_errors := v_errors || jsonb_build_object('whatsapp_opt_in', 'Must be true or false');
   end if;
   if v_errors <> '{}'::jsonb then
     perform app.fail('invalid', jsonb_build_object('fieldErrors', v_errors));
@@ -461,6 +474,11 @@ begin
       is_approver = v_is_approver,
       is_admin = coalesce((p_changes ->> 'is_admin')::boolean, is_admin),
       active = coalesce((p_changes ->> 'active')::boolean, active),
+      whatsapp_number = case when p_changes ? 'whatsapp_number' then p_changes ->> 'whatsapp_number' else whatsapp_number end,
+      whatsapp_opt_in_at = case
+        when not p_changes ? 'whatsapp_opt_in' then whatsapp_opt_in_at
+        when (p_changes ->> 'whatsapp_opt_in')::boolean then coalesce(whatsapp_opt_in_at, now())
+      end,
       lock_version = lock_version + 1
   where id = p_member_id
   returning * into v_member;

@@ -141,7 +141,7 @@ Unless stated otherwise, the primary key is a UUID `id`.
 | `core.files` | kind (`version_media`, `brief_attachment`, `launch_thumbnail`, `csv_import`); provider (`google_drive` for `version_media`, `supabase_storage` otherwise); Storage bucket and path, or Drive file ID, head revision ID and Drive version; checksum and its algorithm (SHA-256, or Drive's MD5 when Drive reports no SHA-256); MIME; bytes; width, height and duration (media only); verification state; drift state (`unchanged`/`changed`/`trashed`/`inaccessible`) and last checked time (Drive only); registered or uploaded by and at; attached at | Ready only after verification (T-05, T-19). The kind fixes the provider. A Drive file ID backs at most one attached `version_media` row (T-19). `launch_thumbnail` files may be attached to a Launch while the Variant is live (D-62). `csv_import` files live in the private import bucket (D-59). A row is hard-deleted only by the D-59 purge, only if it was never attached, and never for a Drive file |
 | `core.file_checks` | → file; checked at; observed revision ID, Drive version, checksum, bytes, trashed and access result; outcome | Append-only. Written by the Drive check (T-19) |
 | `label.items` | kind; owning team; name; media kind (Format only: video, image, carousel); start and end dates (Initiative only); `merged_into_id`; archived time | Unique active (kind, name). The kind fixes the owning team |
-| `label.item_events` | → item; action (add, rename, merge, archive); old and new name; merged into; actor; time | Append-only |
+| `label.item_events` | *Not built:* add, rename, merge and archive history is kept in `audit.activity_log` (event payload holds the old and new name) | — |
 
 **T-13. Labels and label lock.** Label kinds and their owning teams follow D-13:
 - Brief: `product`, `avatar`, `angle`, `funnel_stage` and `initiative` (Marketing).
@@ -204,7 +204,7 @@ Reads follow member RLS. Search indexes spoken text and section types; the trans
 
 | Table | Fields / relationships | Constraints |
 |---|---|---|
-| `review.reviews` | → version (exact); round number; opened at; decision (`approve`/`request_changes`); decided by and at; `lock_version` | One open Review per Variant (partial unique index). One immutable decision per Review. `approve` only by an Approver (D-50) |
+| `review.reviews` | → version (exact); round number; opened at; decision (`approve`/`request_changes`); decided by and at; approval ended at and why (`withdrawn`/`superseded`); `lock_version` | One open Review per Variant (partial unique index). One immutable decision per Review. `approve` only by an Approver (D-50). An approval is in effect until it is withdrawn or superseded (D-53) |
 | `review.comments` | → version; → review; author; → parent (reply); body; kind (`blocking`/`suggestion`); anchor (video ms range, normalised image box, carousel card); resolved by, at and note; → resolving Version | Anchor validated against that Version's files. Resolved only by the Creative Team |
 | `review.approval_withdrawals` | → approving review, → version, Approver, reason, time | At most one per approval. The original decision is kept |
 
@@ -307,21 +307,22 @@ The states are:
 |---|---|---|---|
 | `create_brief` | Marketing | — | Brief with an `editing` version and a Marketing Owner |
 | `save_brief` | Marketing | Brief version `editing`; matching lock version; each attachment is a link or a ready `brief_attachment` file (D-52) | Version updated; attached files marked attached |
-| `hand_off_brief` | Marketing | Required labels and fields; at least one Creative with a confirmed Format, a Creative Owner and a due date (D-51) | Brief version immutable; tasks for the Creative Owners |
+| `hand_off_brief` | Marketing | Required labels and fields, listed when missing; at least one Creative with a confirmed Format, a Creative Owner and a due date on any version of the Brief, so a Rebrief can be handed off before Creatives move up (D-51) | Brief version immutable; one task per Creative Owner of the Brief's Creatives |
 | `rebrief` | Marketing | Brief handed off; reason | New `editing` version. Existing Creatives keep their version |
-| `create_creative` | Marketing or Creative | Brief version exists | Creative Code issued; Creative Owner and due date set. The Format counts as confirmed only when the caller is Marketing; from the Creative Team it stays unconfirmed (D-51) |
-| `confirm_format` | Marketing | Creative never live | Format set or confirmed (D-51) |
-| `adopt_brief_version` | Marketing or Creative | Creative never live; target is a newer handed-off version (D-51) | Creative follows the new version |
+| `create_creative` | Marketing or Creative | The Brief's latest version | Creative Code issued; Creative Owner and due date set. The Format counts as confirmed only when the caller is Marketing; from the Creative Team it stays unconfirmed (D-51) |
+| `confirm_format` | Marketing | Creative never live; once any Version exists only the same Format can be confirmed (D-10); a non-video Format is refused while a Variant has a Hook type | Format set or confirmed (D-51); Variants not on the new Format's stage track move to its first stage |
+| `adopt_brief_version` | Marketing or Creative | Creative never live; target is a newer handed-off version (D-51) | Creative follows the new version; the Creative Owner's hand-off task for the Brief closes |
 | `set_creative_labels` | Creative (Narrative Style) | Creative never live | Narrative Style updated |
 | `add_label_item`, `rename_label_item`, `merge_label_items` | Owning team (D-13) | Item kind owned by the caller's team; a merge target has the same kind | Item added, renamed or merged; `label.item_events` row |
 | `create_variant` | Creative | Creative active; labels valid | Letter and code issued; `in_production` |
 | `set_variant_labels` | Creative | Variant's Creative not locked (`first_live_at` null); hook type only for video Formats | Hook type, length and aspect ratio set or changed (D-13, D-14); required before the first submission (D-51) |
-| `set_production_stage` | Creative | Variant `in_production` or `changes_requested` | Stage updated |
+| `set_production_stage` | Creative | Variant `in_production` or `changes_requested`; any stage on the Format's track, not only the next one (proposed default) | Stage updated |
+| `set_working_file_link` | Creative | An `https://` link; never checked and never a Version file (D-62) | Working-file link set |
 | `register_drive_media` | Creative | Variant never live; a Drive link or file ID for a file that is not a folder, shortcut or Google Docs editor file and is not attached to another Version (T-19) | `version_media` file row `pending`; Drive registration job queued (T-19) |
 | `create_upload_intent`, `complete_upload` | Marketing for Brief attachments (Brief version `editing`), Launch thumbnails (Launch not cancelled or ended, even while the Variant is live, D-62) and CSV files | Declared size within the kind's limit | Signed upload path in the kind's bucket; verification job queued (T-05) |
-| `submit_version` | Creative | Variant `in_production`; ready `version_media` files that fit its Format and carry no drift flag (T-19); Format confirmed; Narrative Style and Variant labels set (D-51); no open Review | Immutable Version and open Review; `awaiting_review`; round number; task |
+| `submit_version` | Creative | Variant `in_production`; the Creative's Brief version handed off (D-16); ready `version_media` files registered for this Variant that fit its Format, carry no drift flag, are different Drive files and are not used by any other Version (D-69, T-19); Format confirmed; Narrative Style and Variant labels set (D-51); no open Review. Missing items are listed as field errors | Immutable Version and open Review; `awaiting_review`; round number; tasks for the Marketing Owner, plus the Approvers if that owner is not one (D-56); the hand-off and changes-requested tasks it completes close |
 | `save_video_annotations` | Creative | The file belongs to the exact video Version and has a verified duration; the expected prior revision matches; cues and sections pass T-17 validation. Allowed after approval or go-live, because the media does not change | Next annotation revision and its cues and sections inserted atomically (D-60, D-68) |
-| `add_comment` | Marketing (replies: anyone) | Anchor valid for that Version's files | Blocking or suggestion Comment |
+| `add_comment` | Marketing (replies: anyone) | Anchor valid for that Version's files; a Blocking Comment is refused while an approval of the Variant is in effect, so the Approver withdraws it first (D-23, D-24) | Blocking or suggestion Comment |
 | `resolve_comment` | Creative | Comment open | Resolved, with a note and an optional Version |
 | `request_changes` | Marketing (D-50) | Open Review; matching lock version | Review decided; `changes_requested`; task for the Creative Owner |
 | `approve_version` | Approver (D-50) | Open Review for this exact Version; no unresolved Blocking Comment on any Version of the Variant; matching lock version; the Version's files carry no drift flag (T-19, D-69) | Review decided; `approved`; task for the Marketing Owner |
@@ -342,13 +343,14 @@ The states are:
 | `record_verdict` | Approver | On or after the check date | Verdict recorded |
 | `archive_record` | Per D-61: a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; any record by the Admin | Record not already archived | `archived_at` set; the record is hidden, but its history, Launches and results are kept and no state changes (D-46, D-61) |
 | `mark_task_read` | Recipient (any Marketing Team member for a team task) | Task addressed to the caller or the caller's team | `work.task_reads` row |
-| `invite_member`, `update_member` | Admin (D-49) | Valid email, name and team; only Marketing Team members can be Approvers; an invited email is not already a member or invited; `update_member` takes the expected lock version | Member invited, or name, team, flags or active state changed |
+| `invite_member`, `update_member` | Admin (D-49) | Valid email, name and team; only Marketing Team members can be Approvers; an invited email is not already a member or invited; `update_member` takes the expected lock version | Member invited, or name, team, flags, active state, WhatsApp number or WhatsApp opt-in changed |
 | `accept_invitation` | Any signed-in user | An active, unaccepted invitation for the email address in the verified sign-in token (D-70) | Sign-in linked to the member |
 | `update_settings`, `request_sync` | Admin (D-49) | | Settings or sync job updated |
 
 Worker-only functions, never executable by browser roles:
 - `match_ads`: runs after each published sync generation (T-14). It is exempt from the approval check and flags instead (D-54).
-- `record_file_verification`: called by the file-verifier Edge Function (D-58) and the Drive registration Edge Function (T-19).
+- `record_file_verification`: called by the file-verifier Edge Function for Storage uploads (D-58).
+- `worker.record_drive_metadata`: called by the Drive registration Edge Function with the Drive API's file metadata (T-19). Exposed only to the worker role; tests stand in for the worker until B2.
 - `record_drive_check`: called only by the Drive check Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19).
 - `record_whatsapp_status`: called by the webhook Edge Function.
 - `emit_due_events`: a scheduled SQL job. It appends activity-log events when a Variant passes its due date or a plan reaches its check date, and routing then creates the tasks (D-56).
@@ -395,7 +397,7 @@ Database-level guards:
 - exactly one recipient kind per task;
 - one open team task per kind.
 
-Cross-row rules run inside the locked transaction, or in deferred triggers, not in cross-table CHECKs. When two decisions race, the second transaction waits on the row lock, then sees the new `lock_version` and gets `conflict`.
+Commands that touch several aggregates lock rows in one order: Brief, Creative, Variant, then Review. This prevents deadlocks between, for example, a withdrawal and a new Version. Cross-row rules run inside the locked transaction, or in deferred triggers, not in cross-table CHECKs. When two decisions race, the second transaction waits on the row lock, then sees the new `lock_version` and gets `conflict`.
 
 ## 6. Command contract (RPC)
 
@@ -508,7 +510,7 @@ D-64 and D-65 keep every Version file in the team's Google Drive folder. The own
 - a MIME type that does not fit the Creative's Format;
 - a file already attached to another Version. A Drive file ID backs at most one Version, so new content needs a new Drive file. The name is `<variant code>_v<number>` (D-69), e.g. `GML-0007-B_v2.mp4`, but the name is never trusted for identity.
 
-Drive may report video metadata some time after upload. The file stays `verifying` while the job retries with backoff, and after a bounded wait it fails with an actionable error. On success `record_file_verification` records the identity and media metadata and marks the file ready.
+Drive may report video metadata some time after upload. The file stays `verifying` while the job retries with backoff, and after a bounded wait it fails with an actionable error. On success `worker.record_drive_metadata` records the identity and media metadata and marks the file ready. A file that is not media of the Creative's Format, is trashed, has no checksum or exceeds the proposed size limits (1 GiB video, 50 MiB image) fails with a reason.
 
 **Identity.** A Version file's identity is its Drive file ID, head revision ID, checksum and size. SHA-256 is preferred; Drive's MD5 is recorded when no SHA-256 is reported, and the algorithm is stored with the checksum. `submit_version` freezes the identity with the Version, and T-17 annotations, T-18 Evidence and Review anchors cite it.
 
@@ -726,7 +728,11 @@ A job failure is reported separately from a Meta permission or rate-limit condit
   - It appears in every Marketing Team member's My Tasks.
   - It is done when no Untracked Ad remains.
   - It never sends WhatsApp.
-- **Read and done.** Read is tracked per person in `work.task_reads`. Done is set when the required action commits; for example, a Review decision closes "review this Version".
+- **Read and done.** Read is tracked per person in `work.task_reads`. Done is set when the required action commits (proposed defaults):
+  - a Review decision closes "review this Version";
+  - the next submission closes "make the requested changes";
+  - a Creative Owner's hand-off task closes when they submit a Version for that Brief or move a Creative up to its new version.
+  Approval and withdrawal notices stay open until a later step defines their action.
 - **WhatsApp.** Routing enqueues one `work.outbox` row for each personal task that needs a message. The sender Edge Function sends it, triggered by outbox inserts or a scheduled job, through the official WhatsApp Cloud API from the dedicated business number (O-02).
   - Messages use Meta-approved WhatsApp templates with a deep link.
   - Messages go only to members with a verified number and a recorded opt-in.

@@ -48,7 +48,7 @@ pnpm install
 pnpm test:db
 ```
 
-`pnpm test:db` resets the local database, sets up a first Admin and runs the database tests in `tests/db`. Stop the stack with `supabase stop` and the VM with `colima stop`. The local stack's ports are reachable from the local network, so stop it on untrusted networks.
+`pnpm test:db` resets the local database, sets up a first Admin and runs the database tests in `tests/db`. When a migration adds a schema that `supabase/config.toml` exposes, apply it (`supabase migration up`) before restarting the stack, because the API refuses to start without the schema. Stop the stack with `supabase stop` and the VM with `colima stop`. The local stack's ports are reachable from the local network, so stop it on untrusted networks.
 
 ## Related project
 
