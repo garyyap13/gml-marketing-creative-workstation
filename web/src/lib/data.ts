@@ -334,6 +334,68 @@ export function useReview(id: string) {
   })
 }
 
+export type TranscriptState = 'not_started' | 'draft' | 'reviewed' | 'no_speech'
+export type SectionState = 'not_started' | 'draft' | 'reviewed'
+export type AnnotationRevision = {
+  id: string
+  revision_number: number
+  source: 'manual' | 'import' | 'automatic'
+  language: string | null
+  transcript_state: TranscriptState
+  section_state: SectionState
+  created_by: string
+  created_at: string
+}
+export type TranscriptCue = { start_ms: number; end_ms: number; text: string; speaker: string | null }
+export type ContentSection = {
+  section_type: 'hook' | 'body' | 'cta' | 'other'
+  detail_label: string | null
+  start_ms: number
+  end_ms: number
+  on_screen_text: string | null
+  notes: string | null
+}
+
+// A Version's video with its latest annotation revision: the timed transcript and Content Sections (TRD T-17).
+export function useVideoContent(versionId: string) {
+  return useQuery({
+    queryKey: ['video-content', versionId],
+    queryFn: async () => {
+      const version = await supabase.schema('creative').from('versions').select('id, variant_id, version_number, submitted_at').eq('id', versionId).single()
+      if (version.error) throw version.error
+      const [variant, versionFiles, reviews] = await Promise.all([
+        supabase.schema('creative').from('variants').select('id, code').eq('id', version.data.variant_id).single(),
+        supabase.schema('creative').from('version_files').select('file_id').eq('version_id', versionId),
+        supabase.schema('review').from('reviews').select('id').eq('version_id', versionId).order('round_number', { ascending: false }).limit(1),
+      ])
+      for (const result of [variant, versionFiles, reviews]) if (result.error) throw result.error
+      const files = await supabase.schema('core').from('files').select(fileColumns).in('id', (versionFiles.data ?? []).map((vf) => vf.file_id))
+      if (files.error) throw files.error
+      const video = (files.data as FileRow[]).find((f) => f.mime?.startsWith('video/') && f.duration_ms) ?? null
+      const base = {
+        version: version.data as Version,
+        variant: variant.data as { id: string; code: string },
+        reviewId: (reviews.data?.[0]?.id as string | undefined) ?? null,
+        video,
+      }
+      if (!video) return { ...base, revision: null, cues: [] as TranscriptCue[], sections: [] as ContentSection[] }
+      const revision = await supabase.schema('creative').from('annotation_revisions')
+        .select('id, revision_number, source, language, transcript_state, section_state, created_by, created_at')
+        .eq('version_id', versionId).eq('file_id', video.id).order('revision_number', { ascending: false }).limit(1).maybeSingle()
+      if (revision.error) throw revision.error
+      if (!revision.data) return { ...base, revision: null, cues: [] as TranscriptCue[], sections: [] as ContentSection[] }
+      const revisionId = revision.data.id as string
+      const [cues, sections] = await Promise.all([
+        selectAll<TranscriptCue>((from, to) => supabase.schema('creative').from('transcript_cues')
+          .select('start_ms, end_ms, text, speaker').eq('revision_id', revisionId).order('sequence').range(from, to)),
+        selectAll<ContentSection>((from, to) => supabase.schema('creative').from('content_sections')
+          .select('section_type, detail_label, start_ms, end_ms, on_screen_text, notes').eq('revision_id', revisionId).order('sequence').range(from, to)),
+      ])
+      return { ...base, revision: revision.data as AnnotationRevision, cues, sections }
+    },
+  })
+}
+
 // Every active Variant with its Creative, for the board.
 export function useBoard() {
   return useQuery({

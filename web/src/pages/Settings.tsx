@@ -78,6 +78,7 @@ function Members() {
           <button type="submit" className="primary" disabled={invite.isPending}>Invite member</button>
         </form>
       )}
+      {me.is_admin && <p className="small muted">For a Gmail address, enter it exactly as it appears in the person's Google account, so Google sign-in recognises them.</p>}
       {invite.error && !fieldError(invite.error, 'email') && !fieldError(invite.error, 'display_name') && (
         <p className="error" role="alert">{fieldError(invite.error, 'is_approver') ?? explain(invite.error)}</p>
       )}

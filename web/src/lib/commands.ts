@@ -9,6 +9,7 @@ export class CommandError extends Error {
     readonly correlationId?: string,
     readonly currentLockVersion?: number,
     readonly reason?: string,
+    readonly currentRevisionId?: string,
   ) {
     super(code)
   }
@@ -37,7 +38,7 @@ export function explain(error: unknown): string {
 }
 
 function toCommandError(message: string, status: number, details: string | null | undefined): CommandError {
-  let detail: { fieldErrors?: Record<string, string>; correlationId?: string; currentLockVersion?: number; reason?: string } = {}
+  let detail: { fieldErrors?: Record<string, string>; correlationId?: string; currentLockVersion?: number; reason?: string; currentRevisionId?: string } = {}
   try {
     detail = JSON.parse(details ?? '{}')
   } catch {
@@ -45,7 +46,7 @@ function toCommandError(message: string, status: number, details: string | null 
   }
   // A signed-out caller is refused before any command runs, without a code (TRD T-04).
   const code = status === 401 ? 'unauthenticated' : message
-  return new CommandError(code, status, detail.fieldErrors, detail.correlationId, detail.currentLockVersion, detail.reason)
+  return new CommandError(code, status, detail.fieldErrors, detail.correlationId, detail.currentLockVersion, detail.reason, detail.currentRevisionId)
 }
 
 export async function run<T = Record<string, unknown>>(name: string, args: Record<string, unknown> = {}): Promise<T> {

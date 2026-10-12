@@ -183,7 +183,7 @@ Production Stages follow D-18:
 
 ### 4.2.1 Video content annotations (T-17)
 
-D-60 requires duration, transcript and Content Sections per exact video Version. The owner confirmed this design as D-68; it is not an applied migration. Metadata is independent of the file storage provider.
+D-60 requires duration, transcript and Content Sections per exact video Version. The owner confirmed this design as D-68; the local migration `20261012090000_video_annotations.sql` implements it (milestone A2). Metadata is independent of the file storage provider.
 
 | Record | Proposed fields | Identity and rules |
 |---|---|---|
@@ -194,9 +194,20 @@ D-60 requires duration, transcript and Content Sections per exact video Version.
 
 Use half-open intervals `[start_ms, end_ms)`, with `0 <= start_ms < end_ms <= duration_ms`, for cues and sections. Primary sections cannot overlap within one annotation revision. Unlabelled gaps are shown honestly; no section type or full coverage is universally mandatory. Speech cues map to sections by time overlap, so a cue may span a boundary. Section duration is derived as `end_ms - start_ms`.
 
-Proposed `save_video_annotations` RPC: Creative Team only; uses T-03 identity, idempotency, locking, validation, audit and outbox rules. Validate the referenced file belongs to the Version and has verified duration; insert the complete next annotation revision and children atomically. Use an expected prior revision ID so concurrent edits return a conflict. An annotation correction may occur after approval or go-live because it does not replace media; old annotations and approval history remain intact. A changed media checksum requires the existing new-Version/new-Variant workflow, never reuse of old timestamps without verification.
+`save_video_annotations` RPC: Creative Team only; uses T-03 identity, idempotency, locking, validation, audit and outbox rules. Validate the referenced file belongs to the Version and has verified duration; insert the complete next annotation revision and children atomically. Use an expected prior revision ID so concurrent edits return a conflict. An annotation correction may occur after approval or go-live because it does not replace media; old annotations and approval history remain intact. A changed media checksum requires the existing new-Version/new-Variant workflow, never reuse of old timestamps without verification.
 
-SRT and WebVTT subtitle files exported from the editing tool are parsed in the browser into cues and saved through `save_video_annotations` with source `import`. The source reference records the subtitle file's name and SHA-256; the subtitle file itself is not stored. Imported cues start as a `draft` transcript, because editing-tool captions can include on-screen text that is not speech. No automatic transcription runs in V1 (D-68).
+Validation details as built:
+- Each message names the first cue or section at fault by its position in the list as sent (for example "Cue 3 ends at 00:30.04, after the video ends at 00:30"), so a long imported transcript can be fixed without searching.
+- Transcript states: `not_started` and `no_speech` have no cues; `reviewed` has cues; an `import` revision is a `draft` and carries a source reference. V1 accepts only `manual` and `import` sources. A Content Section state of `not_started` has no sections.
+- Limits: cue text up to 2,000 characters, speaker up to 100, on-screen text up to 1,000, notes up to 2,000; at most 3,000 cues and 200 sections. Times are whole milliseconds. A cue with no speaker counts as one unnamed speaker for the overlap rule.
+- Cues and sections are stored in time order, whatever order they were entered in.
+- A stale expected prior revision returns `conflict` with `currentRevisionId`. Because saved revisions never change, the editor offers to keep the person's changes and save them as the next revision, or discard them and load the latest.
+- A file flagged by the Drive check (T-19) is refused with reason `file_changed_in_drive`.
+- A later save of an imported transcript is recorded as `manual`; the prior-revision chain keeps the import's provenance.
+
+The editor lives on the Version's video content page; the Review shows a read-only Content timeline where picking a section shows the words spoken during it and its on-screen text.
+
+SRT and WebVTT subtitle files exported from the editing tool are parsed in the browser into cues and saved through `save_video_annotations` with source `import`. The source reference records the subtitle file's name and SHA-256; the subtitle file itself is not stored. Imported cues start as a `draft` transcript, because editing-tool captions can include on-screen text that is not speech. A cue that ends up to one second after the measured duration, as editing tools often export, is trimmed to the duration at import and the person is told. No automatic transcription runs in V1 (D-68).
 
 Reads follow member RLS. Search indexes spoken text and section types; the transcript view derives full text from ordered cues. Optimization Evidence records the annotation revision ID alongside the existing metric snapshot. File previews must support authorized seeking before promising clickable playback. Missing annotations do not create a new approval gate (D-68). Automatic analysis is not provisioned by this design, and ad-level performance is never presented as measured section-level performance.
 
@@ -334,7 +345,7 @@ The states are:
 | `register_drive_media` | Creative | Variant never live; a Drive link or file ID for a file that is not a folder, shortcut or Google Docs editor file and is not attached to another Version (T-19) | `version_media` file row `pending`; Drive registration job queued (T-19) |
 | `create_upload_intent`, `complete_upload` | Marketing for Brief attachments (Brief version `editing`), Launch thumbnails (Launch not cancelled or ended, even while the Variant is live, D-62) and CSV files | Declared size within the kind's limit | Signed upload path in the kind's bucket; verification job queued (T-05) |
 | `submit_version` | Creative | Variant `in_production`; the Creative's Brief version handed off (D-16); ready `version_media` files registered for this Variant that fit its Format, carry no drift flag, are different Drive files and are not used by any other Version (D-69, T-19); Format confirmed; Narrative Style and Variant labels set (D-51); no open Review. Missing items are listed as field errors | Immutable Version and open Review; `awaiting_review`; round number; tasks for the Marketing Owner, plus the Approvers if that owner is not one (D-56); the hand-off and changes-requested tasks it completes close |
-| `save_video_annotations` | Creative | The file belongs to the exact video Version and has a verified duration; the expected prior revision matches; cues and sections pass T-17 validation. Allowed after approval or go-live, because the media does not change | Next annotation revision and its cues and sections inserted atomically (D-60, D-68) |
+| `save_video_annotations` | Creative | The file belongs to the exact video Version and has a verified duration; the file carries no drift flag (T-19); the expected prior revision matches; cues and sections pass T-17 validation. Allowed after approval or go-live, because the media does not change | Next annotation revision and its cues and sections inserted atomically (D-60, D-68) |
 | `add_comment` | Marketing (replies: anyone) | Anchor valid for that Version's files; a Blocking Comment is refused while an approval of the Variant is in effect, so the Approver withdraws it first (D-23, D-24) | Blocking or suggestion Comment |
 | `resolve_comment` | Creative | Comment open | Resolved, with a note and an optional Version |
 | `request_changes` | Marketing (D-50) | Open Review; matching lock version | Review decided; `changes_requested`; task for the Creative Owner |

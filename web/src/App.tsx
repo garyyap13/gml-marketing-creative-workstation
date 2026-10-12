@@ -7,6 +7,7 @@ import { Briefs } from './pages/Briefs'
 import { CreativePage } from './pages/CreativePage'
 import { FootagePage } from './pages/FootagePage'
 import { VariantPage } from './pages/VariantPage'
+import { VideoContentPage } from './pages/VideoContentPage'
 import { MyTasks } from './pages/MyTasks'
 import { ReviewPage } from './pages/ReviewPage'
 import { Settings } from './pages/Settings'
@@ -53,6 +54,7 @@ export function App() {
         <Route path="/creatives/:id" element={<CreativePage />} />
         <Route path="/variants/:id" element={<VariantPage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
+        <Route path="/versions/:id/content" element={<VideoContentPage />} />
         <Route path="/footage" element={<FootagePage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

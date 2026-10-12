@@ -152,10 +152,10 @@ export async function verifiedDriveVideo(creativeApi: SupabaseClient, variantId:
   return registered.id as string
 }
 
-// Plays the Drive worker for a file the page just registered: waits until the page shows the registration,
-// then reports the file's details as the Drive API would.
+// Plays the Drive worker for a file the page just registered: waits until the page lists this registration
+// (not just any file still being checked), then reports the file's details as the Drive API would.
 export async function driveReportsVideo(page: Page, creativeApi: SupabaseClient, driveId: string, name?: string) {
-  await expect(page.getByText('Checking with Drive…')).toBeVisible()
+  await expect(page.getByText(`Drive file ${driveId.slice(0, 8)}…`)).toBeVisible()
   const { data, error } = await creativeApi.schema('core').from('files').select('id').eq('drive_file_id', driveId).single()
   if (error) throw error
   const reported = await reportDriveDetails(data.id, videoDetails(driveId, name ? { name } : {}))

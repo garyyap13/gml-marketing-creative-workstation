@@ -132,4 +132,51 @@ describe('managing members', () => {
     expect([status, error?.message]).toEqual([422, 'invalid'])
     expect(fieldErrors(error)).toEqual(['is_approver'])
   })
+
+  test('one Gmail address cannot be invited twice under another spelling', async () => {
+    const admin = await firstAdmin()
+    const name = `jun.tan.${randomUUID().slice(0, 6)}`
+    const invite = (email: string) =>
+      admin.client.schema('api').rpc('invite_member', {
+        p_email: email,
+        p_display_name: 'Jun',
+        p_team: 'creative',
+        p_is_approver: false,
+        p_idempotency_key: randomUUID(),
+      })
+
+    const first = await invite(`${name}@gmail.com`)
+    const withoutDots = await invite(`${name.replaceAll('.', '')}@gmail.com`)
+    const withTag = await invite(`${name}+ads@googlemail.com`)
+
+    expect(first.error).toBeNull()
+    for (const variant of [withoutDots, withTag]) {
+      expect([variant.status, variant.error?.message]).toEqual([409, 'conflict'])
+      expect(fieldErrors(variant.error)).toEqual(['email'])
+    }
+  })
+
+  test('an invited Gmail address signs in under another spelling; dots still matter outside Gmail', async () => {
+    const admin = await firstAdmin()
+    const name = `jun.tan.${randomUUID().slice(0, 6)}`
+    const invite = (email: string) =>
+      admin.client.schema('api').rpc('invite_member', {
+        p_email: email,
+        p_display_name: 'Jun',
+        p_team: 'creative',
+        p_is_approver: false,
+        p_idempotency_key: randomUUID(),
+      })
+
+    const invited = await invite(`${name}@gmail.com`)
+    const { client } = await signedInClient(`${name.replaceAll('.', '')}+work@googlemail.com`)
+    const accepted = await client.schema('api').rpc('accept_invitation')
+    const dotted = await invite(`${name}@example.com`)
+    const undotted = await invite(`${name.replaceAll('.', '')}@example.com`)
+
+    expect(invited.error).toBeNull()
+    expect(accepted.error).toBeNull()
+    expect(accepted.data?.id).toBe(invited.data?.id)
+    expect([dotted.error, undotted.error]).toEqual([null, null])
+  })
 })

@@ -144,3 +144,44 @@ export async function withdrawApproval(approver: Member, reviewId: string, reaso
     p_idempotency_key: randomUUID(),
   })
 }
+
+// The first file of a Version (the video for a video Version).
+export async function versionFileId(member: Member, versionId: string): Promise<string> {
+  const { data, error } = await member.client.schema('creative').from('version_files').select('file_id').eq('version_id', versionId).single()
+  if (error) throw error
+  return data.file_id
+}
+
+export const morningRoutineAnnotations = {
+  language: 'en',
+  source: 'manual',
+  transcript_state: 'draft',
+  section_state: 'draft',
+  cues: [
+    { start_ms: 0, end_ms: 2500, text: 'Only five minutes to get ready?', speaker: 'Presenter' },
+    { start_ms: 8000, end_ms: 12000, text: "Here's the step I keep in my everyday routine.", speaker: 'Presenter' },
+    { start_ms: 25500, end_ms: 29500, text: 'Message us to find out more.', speaker: 'Presenter' },
+  ],
+  sections: [
+    { type: 'hook', detail: null, start_ms: 0, end_ms: 3000, on_screen_text: 'Your morning, simplified.' },
+    { type: 'body', detail: 'problem', start_ms: 3000, end_ms: 8000, on_screen_text: 'Too many steps?' },
+    { type: 'body', detail: 'demo', start_ms: 8000, end_ms: 25000, on_screen_text: 'One everyday step.' },
+    { type: 'cta', detail: 'offer', start_ms: 25000, end_ms: 30000, on_screen_text: 'Ask us about your routine.' },
+  ],
+}
+
+export function saveAnnotations(
+  member: Member,
+  versionId: string,
+  fileId: string,
+  priorRevisionId: string | null,
+  annotations: Record<string, unknown> = morningRoutineAnnotations,
+) {
+  return command(member.client, 'save_video_annotations', {
+    p_version_id: versionId,
+    p_file_id: fileId,
+    p_expected_prior_revision_id: priorRevisionId,
+    p_annotations: annotations,
+    p_idempotency_key: randomUUID(),
+  })
+}

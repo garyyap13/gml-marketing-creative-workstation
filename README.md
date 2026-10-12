@@ -33,7 +33,7 @@ Every Creative has a code such as `GML-0007`, and each Variant adds a letter, as
 
 ## Repository status
 
-This repository contains the requirements, the UI concept, the local Supabase database (members, Briefs, Creatives, Variants, Footage, Drive-registered Versions, Reviews and My Tasks) and the web app, with database tests and browser journeys. It has no hosted Supabase project, authenticated Google, Drive, Meta or WhatsApp connections, or live Meta data yet. Example records and figures are illustrative.
+This repository contains the requirements, the UI concept, the local Supabase database (members, Briefs, Creatives, Variants, Footage, Drive-registered Versions, Reviews, video transcripts and Content Sections, and My Tasks) and the web app, with database tests and browser journeys. It has no hosted Supabase project, authenticated Google, Drive, Meta or WhatsApp connections, or live Meta data yet. Example records and figures are illustrative.
 
 V1 covers the team workflow, Launch records, read-only Meta reporting, WhatsApp notifications and the optimization loop. Publishing, ad creation and budget changes are later scope.
 

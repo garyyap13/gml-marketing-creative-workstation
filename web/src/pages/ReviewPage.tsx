@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
+import { ContentTimeline } from '../components/ContentTimeline'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { useFormKey } from '../lib/forms'
 import { useMembers, useReview, type Comment } from '../lib/data'
@@ -113,6 +114,7 @@ export function ReviewPage() {
       </div>
 
       <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'start' }}>
+        <div className="stack" style={{ gap: 16 }}>
         <section className="panel stack">
           <h2>File</h2>
           {files.map((f, index) => (
@@ -136,6 +138,8 @@ export function ReviewPage() {
           )}
           {isVideo && <div className="row spread small muted"><span>00:00</span><span>{formatTime(duration)}</span></div>}
         </section>
+        {isVideo && <ContentTimeline versionId={review.version_id} canEdit={me.team === 'creative'} />}
+        </div>
 
         <section className="panel stack" aria-labelledby={commentsId}>
           <h2 id={commentsId}>Comments</h2>
