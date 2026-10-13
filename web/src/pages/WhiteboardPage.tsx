@@ -366,9 +366,9 @@ function Whiteboard({ id }: { id: string }) {
                         onClick={() => { if (note.colour !== c) void save(base.id, { colour: c }) }} />
                     ))}
                     <button onClick={() => setLinking({ itemId: note.id, type: note.link_type ?? '', target: note.link_id ?? '' })}>Link</button>
-                    <button className="bd-x" aria-label="Remove note" title="Remove note" onClick={() => void archive(base)}>×</button>
                   </div>
                 )}
+                {!archived && <button className="bd-x" aria-label="Remove note" title="Remove note" onClick={() => void archive(base)}>×</button>}
               </div>
             )
           })}

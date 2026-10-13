@@ -179,14 +179,15 @@ svg.canvas:active { cursor: grabbing; }
 .bd-note.green { background: var(--soft); }
 .bd-note.blue { background: light-dark(#e6f0fa, #1f3347); }
 .bd-note.purple { background: light-dark(#efedfc, #302a4d); }
-.bd-grip { display: block; height: 14px; margin: 0 -8px; cursor: grab; }
+.bd-grip { display: block; height: 22px; margin: 0 -8px; cursor: grab; }
+.bd-note .bd-x { position: absolute; top: 0; right: 0; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; font-size: 15px; line-height: 1; color: var(--muted); }
+.bd-note .bd-x:hover { color: var(--ink); }
 .bd-note textarea { background: transparent; border: 0; padding: 0; resize: none; font-size: 13px; line-height: 1.4; cursor: text; }
 .bd-note textarea:focus { outline: none; }
 .bd-foot { font-size: 11px; color: var(--muted); }
 .bd-link { justify-self: start; font-size: 11px; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .bd-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; border-top: 1px solid var(--line); padding-top: 4px; }
 .bd-actions button { padding: 2px 6px; font-size: 11px; min-height: 24px; }
-.bd-actions .bd-x { margin-left: auto; min-width: 24px; padding: 0 6px; font-size: 14px; }
 /* 20px swatches 4px apart, so each one's 24px target area stays clear of its neighbours'. */
 .bd-swatch { width: 20px; height: 20px; min-height: 20px !important; padding: 0 !important; border-radius: 4px; }
 .bd-swatch.yellow { background: var(--wash); } .bd-swatch.green { background: var(--soft); }
