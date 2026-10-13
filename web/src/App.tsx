@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { Layout } from './components/Layout'
 import { rememberReturnPath, returnPath, useSession } from './lib/session'
 import { Board } from './pages/Board'
+import { BoardsPage } from './pages/BoardsPage'
 import { BriefPage } from './pages/BriefPage'
 import { Briefs } from './pages/Briefs'
 import { CreativeCanvasPage } from './pages/CreativeCanvasPage'
@@ -10,6 +11,7 @@ import { FootagePage } from './pages/FootagePage'
 import { VariantPage } from './pages/VariantPage'
 import { VideoContentPage } from './pages/VideoContentPage'
 import { WallPage } from './pages/WallPage'
+import { WhiteboardPage } from './pages/WhiteboardPage'
 import { MyTasks } from './pages/MyTasks'
 import { PlanPage } from './pages/PlanPage'
 import { PlansPage } from './pages/PlansPage'
@@ -65,6 +67,8 @@ export function App() {
         <Route path="/footage" element={<FootagePage />} />
         <Route path="/plans" element={<PlansPage />} />
         <Route path="/plans/:id" element={<PlanPage />} />
+        <Route path="/boards" element={<BoardsPage />} />
+        <Route path="/boards/:id" element={<WhiteboardPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

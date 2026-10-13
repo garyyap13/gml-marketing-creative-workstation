@@ -42,6 +42,8 @@ const reasons: Record<string, string> = {
   verdict_needed: 'Record the Verdict before completing the plan.',
   invalid_transition: 'The plan has moved on. Reload to see where it is.',
   comparator_incompatible: 'Compare with results in the same currency, time zone, attribution and result type.',
+  board_archived: 'This board is archived, so nothing on it can change.',
+  item_archived: 'That was removed from the board.',
 }
 
 export function explain(error: unknown): string {

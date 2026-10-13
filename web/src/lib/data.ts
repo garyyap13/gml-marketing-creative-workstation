@@ -707,6 +707,70 @@ export function useVariantWall(from: string, to: string) {
   })
 }
 
+export type Whiteboard = {
+  id: string; title: string; brief_id: string | null; creative_id: string | null; created_by: string; created_at: string; archived_at: string | null; lock_version: number
+}
+export type BoardItem = {
+  id: string
+  board_id: string
+  kind: 'note' | 'frame'
+  text: string
+  colour: 'yellow' | 'green' | 'blue' | 'purple' | null
+  x: number
+  y: number
+  width: number | null
+  height: number | null
+  link_type: 'brief' | 'creative' | 'variant' | 'footage' | 'finding' | null
+  link_id: string | null
+  created_by: string
+  updated_by: string | null
+  lock_version: number
+}
+
+// Every board, newest first; archived ones stay readable (D-75).
+export function useWhiteboards() {
+  return useQuery({
+    queryKey: ['whiteboards'],
+    queryFn: () => selectAll<Whiteboard>((from, to) =>
+      supabase.schema('board').from('boards').select('id, title, brief_id, creative_id, created_by, created_at, archived_at, lock_version')
+        .order('created_at', { ascending: false }).order('id').range(from, to)),
+  })
+}
+
+// One board and its notes and frames, refreshed every few seconds so both teams see each other's changes (D-75).
+export function useWhiteboard(id: string) {
+  return useQuery({
+    queryKey: ['whiteboard', id],
+    refetchInterval: 4000,
+    queryFn: async () => {
+      const board = await supabase.schema('board').from('boards').select('id, title, brief_id, creative_id, created_by, created_at, lock_version, archived_at').eq('id', id).single()
+      if (board.error) throw board.error
+      const items = await selectAll<BoardItem>((from, to) =>
+        supabase.schema('board').from('items').select('id, board_id, kind, text, colour, x, y, width, height, link_type, link_id, created_by, updated_by, lock_version')
+          .eq('board_id', id).is('archived_at', null).order('created_at').order('id').range(from, to))
+      return { board: board.data as Whiteboard, items: items.map((i) => ({ ...i, x: Number(i.x), y: Number(i.y), width: i.width === null ? null : Number(i.width), height: i.height === null ? null : Number(i.height) })) }
+    },
+  })
+}
+
+// What a note or a board can link to or sit on: Briefs, Creatives, Variants, Footage and Findings.
+export function useLinkTargets() {
+  return useQuery({
+    queryKey: ['link-targets'],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [briefs, creatives, variants, footage, findings] = await Promise.all([
+        selectAll<{ id: string; title: string }>((f, t2) => supabase.schema('brief').from('briefs').select('id, title').order('title').order('id').range(f, t2)),
+        selectAll<{ id: string; code: string; title: string }>((f, t2) => supabase.schema('creative').from('creatives').select('id, code, title').is('archived_at', null).order('code').range(f, t2)),
+        selectAll<{ id: string; code: string }>((f, t2) => supabase.schema('creative').from('variants').select('id, code').order('code').range(f, t2)),
+        selectAll<{ id: string; code: string; title: string }>((f, t2) => supabase.schema('creative').from('footage').select('id, code, title').order('code').range(f, t2)),
+        selectAll<{ id: string; body: string; plan_id: string }>((f, t2) => supabase.schema('learning').from('retrospective_findings').select('id, body, plan_id').order('created_at', { ascending: false }).order('id').range(f, t2)),
+      ])
+      return { briefs, creatives, variants, footage, findings }
+    },
+  })
+}
+
 // Every active Variant with its Creative, for the board.
 export function useBoard() {
   return useQuery({

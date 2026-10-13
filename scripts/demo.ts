@@ -245,6 +245,18 @@ async function main() {
     },
   })
 
+  // A whiteboard on the Brief, where both teams gather ideas around what the 复盘 found.
+  const board = await call(mei, 'create_board', { p_title: 'Morning routine ideas (demo)', p_attach: { brief_id: brief.id }, p_idempotency_key: key() })
+  const item = (client: SupabaseClient, fields: Record<string, unknown>) => call(client, 'add_board_item', { p_board_id: board.id, p_item: fields, p_idempotency_key: key() })
+  await item(mei, { kind: 'frame', text: 'Hook ideas', x: 40, y: 60, width: 600, height: 230 })
+  await item(jun, { kind: 'note', text: '"Only five minutes to get ready?" as the first line.', colour: 'yellow', x: 64, y: 100 })
+  await item(mei, { kind: 'note', text: 'Product in hand within three seconds.', colour: 'green', x: 256, y: 100, link_type: 'finding', link_id: hypothesis.id })
+  await item(jun, { kind: 'note', text: 'Try a bold claim: "The only step you need."', colour: 'blue', x: 448, y: 100, link_type: 'variant', link_id: variantB.id })
+  await item(mei, { kind: 'frame', text: 'From the 复盘', x: 40, y: 340, width: 420, height: 230 })
+  await item(jun, { kind: 'note', text: 'Test: show the product inside the opening three seconds.', colour: 'purple', x: 64, y: 380, link_type: 'variant', link_id: action.variant_id })
+  await item(mei, { kind: 'note', text: 'Keep the convenience angle.', colour: 'yellow', x: 256, y: 380 })
+  await item(jun, { kind: 'note', text: 'Footage idea: the bag-by-the-door shot.', colour: 'yellow', x: 700, y: 120, link_type: 'footage', link_id: footage.id })
+
   const { MAILPIT_URL } = stack()
   console.log(`
 Demo loaded: ${creative.code} "The 5-minute routine (demo)".
@@ -256,6 +268,12 @@ Demo loaded: ${creative.code} "The 5-minute routine (demo)".
   5 Results     ${appUrl}/variants/${variantB.id}  (Paid results: RM1,200 spend, 40 leads, RM30 a lead)
   6 复盘         ${appUrl}/plans/${plan.id}
     Follow-up   ${appUrl}/variants/${action.variant_id}  (${action.code}, "From 复盘" on the board)
+
+Canvas views:
+    Creative canvas  ${appUrl}/creatives/${creative.id}/canvas
+    Variant wall     ${appUrl}/creatives/wall
+    Review canvas    ${appUrl}/reviews/${a2.review_id}/canvas
+    Whiteboard       ${appUrl}/boards/${board.id}
 
 Sign in at ${appUrl}/sign-in as one of the demo people, then open the local mail catcher at
 ${MAILPIT_URL} and use the link or the 6-digit code from the newest email:
