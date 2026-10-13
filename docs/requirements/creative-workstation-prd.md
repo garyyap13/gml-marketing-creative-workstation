@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-71), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-71), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
+Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-73), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-73), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
 
 Audience: Marketing Team, Creative Team, product owner, designer, engineering and QA.
 
@@ -432,7 +432,7 @@ stateDiagram-v2
   awaiting_review --> live: Ad observed running (flagged)
   changes_requested --> live: Ad observed running (flagged)
   cancelled --> live: Ad observed running (flagged, D-61)
-  live --> retired: No live Ad, no planned Launch (D-54)
+  live --> retired: No live or planned Launch (D-54, D-72)
   retired --> live: New Launch planned or Ad observed running
   in_production --> cancelled: Cancel with reason
   awaiting_review --> cancelled: Cancel with reason
@@ -461,7 +461,7 @@ Rules:
   - Cancelling is possible only while a Variant has never been live, and needs a reason; a Retired Variant has been live and cannot be cancelled.
   - A Live Variant takes no new Versions (D-25).
   - After an Approval Withdrawal a Live Variant stays live, but no new Launch may use that Version (D-53).
-- **Retired.** A Live Variant becomes Retired automatically when it has no live Ad and no planned Launch (D-54). A paused ad stays live, so it keeps the Variant live.
+- **Retired.** A Live Variant becomes Retired automatically once none of its Launches, Post or Ad, is live or planned (D-54, D-72). A paused ad stays live, so it keeps the Variant live.
 - **Optimization Plans.** States run proposed → accepted → in progress → completed, or cancelled. Completing needs linked actions and a summary; cancelling needs a reason. The Verdict is recorded at or after the check date.
 - **Results** are not a workflow state.
 

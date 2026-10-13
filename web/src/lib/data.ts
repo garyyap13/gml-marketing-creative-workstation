@@ -396,6 +396,77 @@ export function useVideoContent(versionId: string) {
   })
 }
 
+export type LaunchAccount = { id: string; platform: string; name: string; currency: string | null; time_zone: string | null; source: 'api' | 'manual' | 'stand_in' }
+export type Launch = {
+  id: string
+  kind: 'post' | 'ad'
+  version_id: string | null
+  status: 'planned' | 'live' | 'ended' | 'cancelled'
+  origin: 'planned' | 'unplanned'
+  approval_flag: 'never_approved' | 'withdrawn' | 'superseded' | null
+  account_id: string
+  planned_on: string | null
+  caption: string | null
+  post_link: string | null
+  campaign_name: string | null
+  ad_set_name: string | null
+  planned_budget: number | null
+  budget_currency: string | null
+  ad_name: string | null
+  utm_content: string | null
+  cancel_reason: string | null
+  created_at: string
+  lock_version: number
+}
+
+// A Variant's Launches, and the accounts Launches can use.
+export function useLaunches(variantId: string) {
+  return useQuery({
+    queryKey: ['launches', variantId],
+    queryFn: async () => {
+      const [launches, accounts] = await Promise.all([
+        supabase.schema('launch').from('launches')
+          .select('id, kind, version_id, status, origin, approval_flag, account_id, planned_on, caption, post_link, campaign_name, ad_set_name, planned_budget, budget_currency, ad_name, utm_content, cancel_reason, created_at, lock_version')
+          .eq('variant_id', variantId).order('created_at'),
+        selectAll<LaunchAccount>((from, to) =>
+          supabase.schema('launch').from('accounts').select('id, platform, name, currency, time_zone, source').order('name').order('id').range(from, to)),
+      ])
+      if (launches.error) throw launches.error
+      return { launches: launches.data as Launch[], accounts }
+    },
+  })
+}
+
+export type ResultRow = {
+  launch_id: string
+  meta_ad_id: string
+  day: string
+  channel_scope: string
+  time_zone: string
+  currency: string
+  attribution_setting: string
+  result_indicator: string
+  spend: number | null
+  impressions: number | null
+  reach: number | null
+  link_clicks: number | null
+  results: number | null
+  unavailable: Record<string, string>
+  revision_id: string
+}
+
+// A Variant's current daily paid results, read page by page (T-08).
+export function useVariantResults(variantId: string) {
+  return useQuery({
+    queryKey: ['results', variantId],
+    queryFn: () =>
+      selectAll<ResultRow>((from, to) =>
+        supabase.schema('reporting').from('variant_daily_results')
+          .select('launch_id, meta_ad_id, day, channel_scope, time_zone, currency, attribution_setting, result_indicator, spend, impressions, reach, link_clicks, results, unavailable, revision_id')
+          .eq('variant_id', variantId).order('day').order('meta_ad_id').order('revision_id').range(from, to)),
+  })
+}
+
 // Every active Variant with its Creative, for the board.
 export function useBoard() {
   return useQuery({

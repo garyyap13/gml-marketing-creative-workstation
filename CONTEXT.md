@@ -85,7 +85,7 @@ The words spoken in an exact video Version, stored with timestamps and language.
 A Variant that has been posted or advertised; its file can no longer change, so any further change is a new Variant.
 
 **Retired Variant**:
-A Live Variant with no live Ad and no planned Launch.
+A Variant that has been live and now has no live or planned Launch, Post or Ad; a paused ad still counts as live (D-72).
 
 **Cancelled Variant**:
 A Variant abandoned before it went live.

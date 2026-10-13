@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-71). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
+Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-73). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
 
 Audience: Engineering, database, integration, QA and operations.
 
@@ -241,7 +241,7 @@ Review rules:
 | Table | Fields / relationships | Constraints |
 |---|---|---|
 | `launch.accounts` | platform (`facebook_page`, `instagram`, `meta_ad_account`, `tiktok`, `xiaohongshu`, `youtube`); external ID; name; time zone; currency; source (`api`/`manual`) | Unique (platform, external ID) |
-| `launch.launches` | kind (`post`/`ad`); → variant; → version (null only for sync-created Launches with no submitted Version, D-61); status; owner; planned date; origin (`planned`/`unplanned`, D-54); approval flag (`never_approved`, `withdrawn`, `superseded` or none); thumbnail (→ `core.files` `launch_thumbnail`, settable while the Variant is live, D-62).<br/>Post: → account, caption, post link, → `meta.posts`.<br/>Ad: → ad account, Meta campaign and ad set (ID or name), ad copy, planned budget and currency, generated ad name, `utm_content`, → promoted Post Launch, `is_dynamic`, → `meta.ads`.<br/>Cancel reason; `lock_version` | CHECKs per kind. A Meta post or ad backs at most one Launch.<br/>The approval rules are below the table |
+| `launch.launches` | kind (`post`/`ad`); → variant; → version (null only for sync-created Launches with no submitted Version, D-61); status; planned by (null for a sync-created Launch); planned date; origin (`planned`/`unplanned`, D-54); approval flag (`never_approved`, `withdrawn`, `superseded` or none); thumbnail (→ `core.files` `launch_thumbnail`, settable while the Variant is live, D-62).<br/>Post: → account, caption, post link and its normalised key, → `meta.posts`.<br/>Ad: → ad account, Meta campaign and ad set (ID or name), ad copy, planned budget and currency, generated ad name, `utm_content`, → promoted Post Launch, `is_dynamic`, → `meta.ads`.<br/>Cancel reason; `lock_version` | CHECKs per kind. A Meta post or ad backs at most one Launch.<br/>The approval rules are below the table |
 | `launch.dynamic_ad_variants` | → launch, → variant | PK (launch, variant). Only when `is_dynamic` (D-58) |
 | `meta.campaigns` | → ad account, external ID, name, objective | Unique (account, external ID) |
 | `meta.ad_sets` | → campaign, external ID, name, optimisation goal, result indicator, attribution setting | Unique (account, external ID) |
@@ -319,7 +319,7 @@ The states are:
   - `approved` → `in_production` when a new Version is started or the approval is withdrawn, before go-live (D-53).
   - **Observed live:** an Ad observed running moves a never-live Variant to `live` and flags it (D-54). This includes a cancelled Variant (D-61).
   - **Legacy:** Legacy Variants are created `live` (D-54).
-  - `live` → `retired` when there is no live Ad and no planned Launch; a paused ad stays live. `retired` → `live` when a Launch is planned or an Ad is observed running (D-54).
+  - `live` → `retired` when none of its Launches, Post or Ad, is live or planned; a paused ad stays live. `retired` → `live` when a Launch is planned or an Ad is observed running (D-54, D-72).
 - **Launch** (D-27, D-54): `planned` → `live` → `ended`, or `planned` → `cancelled`. For a matched Ad with no planned Launch, the sync creates a `live` Launch marked `unplanned`.
 - **Optimization Plan** (D-42): `proposed` → `accepted` → `in_progress` → `completed`, or `cancelled` from any state that is not terminal. The Verdict is set on or after the check date.
 
@@ -353,10 +353,10 @@ The states are:
 | `start_next_version` | Creative | `changes_requested`, or `approved` and never live, which supersedes the approval (D-53) | `in_production` |
 | `withdraw_approval` | Approver | Approval in effect; reason | Withdrawal recorded; user commands can no longer launch that Version. A never-live Variant returns to `in_production`; a Live Variant stays live (D-53) |
 | `cancel_variant` | Creative Owner or Marketing Owner (D-55) | Variant never live; reason | `cancelled` |
-| `plan_launch` | Marketing | Version approved and not withdrawn or superseded; valid Post or Ad fields; promoted Post Launch exists, if given; the Version's files carry no drift flag (T-19, D-69) | Launch `planned`; for an Ad, the ad name and `utm_content` are generated |
+| `plan_launch` | Marketing | Version approved and not withdrawn or superseded; valid Post or Ad fields; promoted Post Launch exists, if given; the Version's files carry no drift flag (T-19, D-69) | Launch `planned`; for an Ad, the ad name and `utm_content` are generated. Footage past its usable-until date returns a warning (D-71); a retired Variant returns to live (D-54) |
 | `confirm_post_live` | Marketing | Post Launch `planned`; approval still in effect; link not already linked to another Launch | Launch `live`; Variant `live` and labels locked on the first go-live; post-ID resolution job queued (D-54) |
 | `set_launch_thumbnail` | Marketing | Launch `planned` or `live`; a ready `launch_thumbnail` file; allowed while the Variant is live (D-62) | Thumbnail set; file marked attached |
-| `end_launch`, `cancel_launch` | Marketing | Launch `live` (end) or `planned` (cancel, with a reason) | `ended` or `cancelled`. The Variant retires once it has no live Ad and no planned Launch; a paused ad stays live (D-54) |
+| `end_launch`, `cancel_launch` | Marketing | Launch `live` (end) or `planned` (cancel, with a reason) | `ended` or `cancelled`. The Variant retires once none of its Launches is live or planned; a paused ad stays live (D-54, D-72) |
 | `resolve_ad` | Marketing (D-55) | Ad is Mismatched or Untracked | Linked to a Variant, or kept out with a reason; logged; the team task closes when no Untracked Ad remains |
 | `fill_legacy_labels` | Owning team | Legacy Creative; label empty | Label set and locked (D-61) |
 | `import_csv` | Marketing (D-55) | Ready `csv_import` file in the private import area (D-59); platform, account and report context | Import job queued; file marked attached |
@@ -373,6 +373,7 @@ The states are:
 
 Worker-only functions, never executable by browser roles:
 - `match_ads`: runs after each published sync generation (T-14). It is exempt from the approval check and flags instead (D-54).
+- `worker.record_launch_accounts` and `worker.record_meta_sync`: stand-ins for the Meta connection until B3. They take Graph API-shaped accounts and one generation's campaigns, ad sets, ads and insights, then normalise, match and publish. Exposed only to the worker role.
 - `record_file_verification`: called by the file-verifier Edge Function for Storage uploads (D-58).
 - `worker.record_drive_metadata`: called by the Drive registration Edge Function with the Drive API's file metadata (T-19). Exposed only to the worker role; tests stand in for the worker until B2.
 - `record_drive_check`: called only by the Drive check Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19).
@@ -457,6 +458,8 @@ api.approve_version(p_review_id uuid, p_version_id uuid, p_expected_lock_version
 api.withdraw_approval(p_review_id uuid, p_reason text, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
 api.plan_launch(p_version_id uuid, p_kind text, p_fields jsonb, p_idempotency_key uuid) returns jsonb
 api.confirm_post_live(p_launch_id uuid, p_post_link text, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
+api.end_launch(p_launch_id uuid, p_expected_lock_version int) returns jsonb
+api.cancel_launch(p_launch_id uuid, p_reason text, p_expected_lock_version int) returns jsonb
 api.set_launch_thumbnail(p_launch_id uuid, p_file_id uuid, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
 api.resolve_ad(p_meta_ad_id uuid, p_variant_id uuid, p_reason text, p_idempotency_key uuid) returns jsonb
 api.import_csv(p_file_id uuid, p_platform text, p_account_id uuid, p_mapping jsonb, p_idempotency_key uuid) returns jsonb
@@ -637,7 +640,7 @@ If a CSV overlaps API data for the same scope, one authoritative dataset is sele
 - `data_health`
 - `optimization_backlog`
 
-They expose curated columns only and never raw payloads. Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
+They expose curated columns only and never raw payloads. Built so far (A3): `variant_daily_results` (each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons) and `revision_values` (the values of any published revision, for frozen Evidence). Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
 
 Formulas follow D-37, D-39 and D-58. Every ratio uses summed numerators and denominators from compatible rows:
 - Cost per Result = Σ spend ÷ Σ Results, for one result indicator.
@@ -683,6 +686,15 @@ Other matching rules:
 - **Posts.** `confirm_post_live` stores the pasted link (D-29). A Meta worker job then resolves the post ID through Page or Instagram insights on a connected account. It rejects a post that is already linked and flags any failure on data health (D-54). For other platforms, the link and ID are stored and results come from manual entry or CSV.
 - **Dynamic Ads.** They are reported at ad level only and excluded from single-Variant ranking. In the Combination view their spend is its own slice (T-15, D-31).
 - **Later joins.** Every Ad Launch keeps its Meta ad ID and `utm_content=<variant code>` so offline sales can be joined later (D-39).
+
+As built in milestone A3 (local, against the Meta stand-in):
+- Steps 1–3 and 5 run: parsing, the media check, linking by ad set ID or name, unplanned live Launches, approval flags, and archived or deleted ads ending their Launch. Dynamic ads are recorded as `dynamic` and not linked to a Launch yet.
+- An ad counts as shown when Meta reports it `ACTIVE`, `PAUSED`, `CAMPAIGN_PAUSED`, `ADSET_PAUSED` or `WITH_ISSUES`. An ad still in review, rejected or awaiting billing is linked to its planned Launch but does not put the Variant live. An archived or deleted ad ends its Launch; first seen that way, it is recorded as an ended Launch so its results are still reported (D-73; B3 checks it against real accounts).
+- An ad renamed to another Variant's code stays with the Launch it backed and becomes Mismatched. Matching runs one sync at a time and only over the ads seen in that sync.
+- Rows a sync cannot use (an ad without its ad set or status, a duplicate ad and day, an impossible date, a value that is not a number) go to `ingest.quarantine_rows` and the rest of the generation is published. A day without a results entry keeps its ad set's result type, with the value missing rather than zero.
+- A pasted post link is stored with a normalised key (host without `www.`/`m.`, path without trailing slash, query or fragment; path case kept), so the same post cannot back two Launches.
+- An open Review on a Variant that an observed ad put live can still be decided. Request Changes leaves the Variant live; approving the recorded Version clears the flags (D-61).
+- Later: promoted-Post linking and the post-ID resolution job (B3), Legacy Codes and backfill, `resolve_ad`, Dynamic Launches and the Untracked team task (A5).
 
 ### 8.6 Result views
 
@@ -912,7 +924,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | Creative creation and Format ownership | D-51 |
 | Brief attachments and CSV files in Storage; private import area | D-52, D-59 |
 | Approval after a new Version or a withdrawal | D-53 |
-| Launch and Variant lifecycle, Meta's reality wins, Legacy Variants start live, automatic Retired | D-54 |
+| Launch and Variant lifecycle, Meta's reality wins, Legacy Variants start live, automatic Retired | D-54, D-72 |
 | Command ownership | D-55 |
 | Notification routing and the Untracked Ads team task | D-56 |
 | Verdict spend basis | D-57 |

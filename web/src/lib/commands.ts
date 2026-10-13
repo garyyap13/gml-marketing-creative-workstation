@@ -28,6 +28,10 @@ const messages: Record<string, string> = {
 const reasons: Record<string, string> = {
   open_blocking_comments: 'Resolve the blocking comments before approving.',
   file_changed_in_drive: 'The Version file changed in Drive after it was registered. Submit a new Version.',
+  version_not_approved: 'This Version is not approved, so no Launch can be planned for it.',
+  approval_withdrawn: 'The approval of this Version was withdrawn. No new Launch can use it.',
+  approval_superseded: 'A newer Version replaced this approval. No new Launch can use this Version.',
+  labels_locked_after_go_live: 'Labels and Footage are locked now that the Creative has gone live.',
 }
 
 export function explain(error: unknown): string {

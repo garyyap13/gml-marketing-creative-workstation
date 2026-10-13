@@ -3,6 +3,8 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { LabelSelect } from '../components/LabelSelect'
+import { LaunchesPanel } from '../components/LaunchesPanel'
+import { ResultsPanel } from '../components/ResultsPanel'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { stageNames, stageTrack, useFootage, useLabels, useVariant, variantStates, type FileRow, type Variant } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -144,6 +146,7 @@ export function VariantPage() {
           <Link to={`/creatives/${creative.id}`} className="eyebrow">{creative.code} · {creative.title}</Link>
           <h1>{variant.code}</h1>
           <span className="small muted">{[name(variant.hook_type_id), name(variant.length_id), name(variant.aspect_ratio_id)].filter(Boolean).join(' · ') || 'No labels yet'}</span>
+          {variant.live_at && <span className="small muted">Labels and Footage locked since {new Date(variant.live_at).toLocaleDateString()}, when it went live</span>}
         </div>
         <span className="tag">{variantStates[variant.state]}</span>
       </div>
@@ -180,6 +183,9 @@ export function VariantPage() {
           })}
         </div>
       </section>
+
+      {variant.live_at && <ResultsPanel variantId={variant.id} />}
+      <LaunchesPanel variant={variant} versions={versions} reviews={reviews} canPlan={me.team === 'marketing'} />
 
       {isCreative && variant.live_at === null && (
         <LabelsAndFootage variant={variant} footageIds={footageIds} isVideo={mediaKind === 'video'} />

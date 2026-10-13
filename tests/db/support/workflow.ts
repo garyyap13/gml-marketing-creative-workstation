@@ -185,3 +185,53 @@ export function saveAnnotations(
     p_idempotency_key: randomUUID(),
   })
 }
+
+// Version 1 of a video Variant, approved by the Approver.
+export async function approvedVideoVersion() {
+  const setup = await submittedVideoVersion()
+  must(await approve(setup.approver, setup.reviewId, setup.versionId), 'approve_version')
+  return setup
+}
+
+export function planLaunch(member: Member, versionId: string, kind: 'post' | 'ad', fields: Record<string, unknown>) {
+  return command(member.client, 'plan_launch', { p_version_id: versionId, p_kind: kind, p_fields: fields, p_idempotency_key: randomUUID() })
+}
+
+export const postFields = (accountId: string) => ({ account_id: accountId, caption: 'One easy routine before you leave home', planned_on: '2026-10-15' })
+export const adFields = (accountId: string, adSetName = 'Busy professionals 25-34') => ({
+  account_id: accountId, campaign_name: 'Morning routine', ad_set_name: adSetName, ad_copy: 'Five minutes is all it takes.',
+  planned_budget: 300, planned_on: '2026-10-15',
+})
+
+// The ad name the system should generate (D-28): [variant code] avatar · angle · narrative.
+export async function expectedAdName(member: Member, variantId: string): Promise<string> {
+  const db = member.client
+  const variant = (await db.schema('creative').from('variants').select('code, creative_id').eq('id', variantId).single()).data!
+  const version = (await db.schema('creative').from('versions').select('brief_version_id').eq('variant_id', variantId).order('version_number', { ascending: false }).limit(1).single()).data!
+  const brief = (await db.schema('brief').from('brief_versions').select('avatar_id, angle_id').eq('id', version.brief_version_id).single()).data!
+  const creative = (await db.schema('creative').from('creatives').select('narrative_style_id').eq('id', variant.creative_id).single()).data!
+  const name = async (id: string) => (await db.schema('label').from('items').select('name').eq('id', id).single()).data!.name
+  return `[${variant.code}] ${await name(brief.avatar_id)} · ${await name(brief.angle_id)} · ${await name(creative.narrative_style_id)}`
+}
+
+export async function launchLockVersion(member: Member, launchId: string): Promise<number> {
+  const { data, error } = await member.client.schema('launch').from('launches').select('lock_version').eq('id', launchId).single()
+  if (error) throw error
+  return data.lock_version
+}
+
+export async function confirmPostLive(member: Member, launchId: string, postLink: string) {
+  return command(member.client, 'confirm_post_live', {
+    p_launch_id: launchId, p_post_link: postLink, p_expected_lock_version: await launchLockVersion(member, launchId), p_idempotency_key: randomUUID(),
+  })
+}
+
+export async function endLaunch(member: Member, launchId: string) {
+  return command(member.client, 'end_launch', { p_launch_id: launchId, p_expected_lock_version: await launchLockVersion(member, launchId) })
+}
+
+export async function cancelLaunch(member: Member, launchId: string, reason: string | null) {
+  return command(member.client, 'cancel_launch', {
+    p_launch_id: launchId, p_reason: reason, p_expected_lock_version: await launchLockVersion(member, launchId),
+  })
+}

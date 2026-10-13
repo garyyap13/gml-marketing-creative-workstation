@@ -199,6 +199,16 @@ The owner accepted the recommended answers on 2026-10-12.
   - Either team adds Footage, recording a title, the source (own shoot, creator, stock or product shots), the date, the on-screen presenter (D-15) and the Drive folder link. The folder is only a link and is never checked (D-62).
   - Creator footage may carry an optional usable-until date. Planning a Launch past it shows a warning (M2).
   - Results and 复盘 can later be read by Footage, like the other labels.
+- **D-72** When a Variant retires. The owner accepted the recommended answers for milestone A3 on 2026-10-13:
+  - A Variant that has gone live stays live while any of its Launches, Post or Ad, is live or planned. It retires once every Launch has ended or been cancelled, and planning a new Launch brings it back. A paused ad still counts as live. This replaces D-54's literal "no live Ad and no planned Launch", which would retire a Variant the moment its only Post went live.
+  - Pages and ad accounts come from the Meta connection (B3); until then a stand-in reports sample accounts, clearly marked as demo data.
+  - Launch thumbnails wait for Storage uploads (A1c), which completes AC-06.
+  - A3 shows daily paid results for matched Ads. Organic Post results arrive with the Page connection (B3, A5).
+- **D-73** Which Meta ad statuses mean an ad has been shown. The owner kept the proposed rule on 2026-10-14:
+  - `ACTIVE`, `PAUSED`, `CAMPAIGN_PAUSED`, `ADSET_PAUSED` and `WITH_ISSUES` count as shown, so the ad's Launch is live and its Variant goes live (D-54).
+  - An ad still in review, rejected, or waiting on billing is linked to its planned Launch but does not put the Variant live yet.
+  - An archived or deleted ad ends its Launch. If it is first seen that way, it is recorded as an ended Launch, so its results are still reported.
+  - B3 checks the rule against real accounts and raises any status that does not fit.
 
 ## Open
 

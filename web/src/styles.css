@@ -87,3 +87,8 @@ fieldset.entry .time { flex: 0 1 84px; }
 fieldset.entry .short { flex: 1 1 120px; max-width: 170px; }
 fieldset.entry .wide { flex: 1 1 260px; }
 fieldset.entry.invalid { box-shadow: inset 3px 0 0 var(--danger); padding-left: 10px; }
+
+/* Result figures (FR-08). */
+dl.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 0; }
+dl.metrics dt { font-size: 12px; color: var(--muted); }
+dl.metrics dd { margin: 2px 0 0; font-size: 20px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
