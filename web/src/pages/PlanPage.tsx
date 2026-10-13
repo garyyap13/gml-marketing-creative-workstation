@@ -3,6 +3,7 @@ import { useId, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { ContentTimeline, title } from '../components/ContentTimeline'
+import { DrivePreview } from '../components/DrivePreview'
 import { CommandError, explain, run } from '../lib/commands'
 import { useLabels, useMembers, usePlan, useVideoContent, type ContentSection, type Finding, type PlanEvidence } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -435,6 +436,9 @@ function PlanWorkspace({ id }: { id: string }) {
 
       <div className="workspace">
         <div className="stack" style={{ alignContent: 'start' }}>
+          {baseline?.files.length === 1 && baseline.files[0].drive_file_id && (
+            <DrivePreview key={baseline.files[0].drive_file_id} driveFileId={baseline.files[0].drive_file_id} note="It shows the file as it is in Drive now; the 复盘 froze its checksum." />
+          )}
           {frozen ? (
             <ContentTimeline versionId={version.id} revisionId={frozen} canEdit={false}
               onUseSection={open ? (section) => { setPicked(section); setTab('findings') } : undefined} />

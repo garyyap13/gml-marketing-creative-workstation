@@ -217,6 +217,13 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Plan states.** The owner or an Approver accepts a plan, which starts the spend window. The first linked action moves it to in progress. Completing needs a Verdict and a summary; cancelling needs a reason.
   - **Evidence in A4.** The baseline Variant's paid results for chosen dates, plus an optional comparator Variant whose currency, attribution, result type and time zone match. The Version, its file checksums and its annotation revision are frozen automatically. The evidence class is "insufficient evidence" (forced when there is no data) or "observational"; Controlled Tests wait for the Meta connection (B3).
 
+- **D-75** Canvas views and the interim player. The owner asked for all four views on 2026-10-14, accepted the recommended answers and chose Drive's embedded preview for now:
+  - **Creative canvas.** One read-only map per Creative, laid out automatically from Brief to Creative, Variants, Versions and Reviews, Launches with their results, and 复盘, with the 复盘 pointing to the follow-up Variants it created. It opens from the Creative and Variant pages, and every box opens its record.
+  - **Variant wall.** Every Variant as a tile with its labels, state and results, filtered by labels and Footage and sorted by cost per result. Only results of one currency, result type and attribution are compared; others show "not comparable", never a converted number (D-37). Tiles use placeholders until thumbnails exist (A1c uploads, or Drive thumbnails after B2).
+  - **Review canvas.** A large player with the Content Sections and comment pins on one timeline and the comments beside it.
+  - **Interim player.** Drive's embedded preview plays a Version's video on the review canvas, the Video content page and the 复盘. It needs the viewer signed into a Google account with access to the file, often fails in Safari and on iPhone, and cannot jump to a time, so pins show the time to scrub to. The B2 playback test decides whether the workstation's own streaming player replaces it (D-69).
+  - **Whiteboard.** Any number of boards, each optionally attached to a Brief or Creative, holding text sticky notes in a few colours and labelled frames, with links to Briefs, Creatives, Variants, Footage and Findings. Both teams edit any board. Each note saves on its own with a version check and the board refreshes every few seconds; there are no live cursors yet. Removing a note or board archives it. Images wait for uploads (A1c).
+
 ## Open
 
 - **O-02** Setup facts needed before integration:

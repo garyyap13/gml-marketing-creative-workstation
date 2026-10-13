@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-74), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-74), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
+Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-75), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-75), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
 
 Audience: Marketing Team, Creative Team, product owner, designer, engineering and QA.
 
@@ -411,6 +411,14 @@ The Creative Team records which Footage each Variant uses. A Variant can use sev
 
 Later steps build on this. Planning a Launch for a Variant whose Footage is past its usable-until date shows a warning (M2), and results and 复盘 can be read by Footage, for example by shoot or presenter (FR-15, FR-17).
 
+### FR-19 — Canvas views
+
+Four visual views help both teams see and shape the work (D-75):
+- **Creative canvas.** One map per Creative, laid out automatically: Brief → Creative → Variants → Versions and their Review outcomes → Launches with their results → 复盘, with each 复盘 pointing to the follow-up Variants it created. Every box opens its record.
+- **Variant wall.** Every Variant as a tile with its labels, state and results, filtered by labels and Footage and sorted by cost per result. Only results of one currency, result type, attribution, time zone and channel are compared; others are marked not comparable, never converted (D-37). Tiles show placeholders until thumbnails exist.
+- **Review canvas.** A large player with the Content Sections and comment pins on one timeline, beside the comments. Until the B2 playback test decides otherwise, Drive's embedded preview plays the video: it needs a Google sign-in with access to the file, often fails in Safari and on iPhone, and cannot jump to a time, so a pin shows the time to scrub to (D-69). The same preview appears on the Video content page and the 复盘.
+- **Whiteboard.** Boards of text sticky notes and labelled frames that both teams arrange, optionally attached to a Brief or Creative and linking to Briefs, Creatives, Variants, Footage and Findings. Each note saves on its own with a version check; removing archives.
+
 ## 7. Workflow states and rules
 
 Variant states (D-20, D-53, D-54):
@@ -524,6 +532,10 @@ The Meta sync runs every 6 hours (D-33). Meta's availability and rate limits are
 | AC-30 | Write an Optimization Plan whose Evidence cites a Version's annotations, then correct that transcript. The Evidence still cites the original annotation revision *(split from AC-29 in 1.1)* | FR-09, FR-16 |
 | AC-31 | Start a retrospective for an exact live Version; cite a Hook, record an observed metric separately from a hypothesis, and link the finding to a new-Variant action. After data/transcript corrections, the baseline still shows its original Evidence. At the check date the action's outcome and Verdict are reachable from the finding. Missing data stays insufficient, incompatible comparisons are rejected and no section-level Results are fabricated | FR-09, FR-16, FR-17 |
 | AC-32 | Register a Drive video for a Version. Its file ID, revision, checksum, size and duration are recorded, and it cannot be submitted while Drive is still processing it. A working-file link, a folder or a file already used by another Version is rejected. After the file's content is replaced in Drive, the scheduled check flags it on the Version and on data health, and no new Launch can be planned from that Version. The workstation never moves, shares or deletes the Drive file | FR-03, FR-05, FR-11 |
+| AC-34 | A Creative with two Variants, Versions, Launches with results and a 复盘 shows them all on its canvas, with the 复盘 pointing to its follow-up Variant; each box opens its record and the map pans and zooms *(D-75)* | FR-19 |
+| AC-35 | On the Variant wall, filtered to one Brief's angle, Variants in the same currency and result type sort by cost per result; one with results in another currency is "not comparable" and one never launched has "no results yet" *(D-75)* | FR-19 |
+| AC-36 | The review canvas plays the Version in Drive's preview, shows the Hook/Body/CTA sections and comment pins on one timeline, says where to scrub for a picked pin, and takes new comments *(D-75)* | FR-19 |
+| AC-37 | Both teams add notes and frames to a board on a Brief and link a note to a Variant; a stale move is refused rather than overwriting a newer one; removing a note archives it; only the board's creator or the Admin archives the board *(D-75)* | FR-19 |
 | AC-33 | Either team adds Footage and gets the next `RAW-` code, and a retried request gets the same code. A Variant lists two Footage items, and one of them is also used by another Variant. Only the Creative Team changes a Variant's Footage. After the Creative first goes live, changing a Variant's Footage is rejected *(go-live part tested in M2)* | FR-13, FR-18 |
 
 ## 10. Delivery milestones and dependencies

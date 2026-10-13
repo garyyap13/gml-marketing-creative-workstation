@@ -145,7 +145,7 @@ export function VariantPage() {
       <div className="row spread">
         <div className="stack" style={{ gap: 4 }}>
           <Link to={`/creatives/${creative.id}`} className="eyebrow">{creative.code} · {creative.title}</Link>
-          <h1>{variant.code}</h1>
+          <div className="row"><h1>{variant.code}</h1><Link to={`/creatives/${creative.id}/canvas`} className="small">Canvas</Link></div>
           <span className="small muted">{[name(variant.hook_type_id), name(variant.length_id), name(variant.aspect_ratio_id)].filter(Boolean).join(' · ') || 'No labels yet'}</span>
           {variant.live_at && <span className="small muted">Labels and Footage locked since {new Date(variant.live_at).toLocaleDateString()}, when it went live</span>}
         </div>

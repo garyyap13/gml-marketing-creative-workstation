@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useMatch, useParams } from 'react-router'
 import { Button } from '../components/Button'
-import { ContentTimeline } from '../components/ContentTimeline'
+import { ContentTimeline, segments, shortName } from '../components/ContentTimeline'
+import { DrivePreview } from '../components/DrivePreview'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { useFormKey } from '../lib/forms'
-import { useMembers, useReview, type Comment } from '../lib/data'
+import { useMembers, useReview, useVideoContent, type Comment, type ContentSection } from '../lib/data'
 import { useMember } from '../lib/session'
 import { formatTime, parseTime } from '../lib/time'
 
@@ -15,8 +16,59 @@ const when = (c: Comment) =>
       ? `${formatTime(c.anchor.start_ms)}–${formatTime(c.anchor.end_ms)}`
       : formatTime(c.anchor.start_ms)
 
+// Sections and comment pins on one timeline, for the review canvas (D-75). Drive's preview cannot seek, so picking a
+// pin says where to scrub to.
+function ReviewTimeline({ duration, sections, sectionsState, comments, selected, onSelect }: {
+  duration: number
+  sections: ContentSection[]
+  sectionsState: 'loading' | 'error' | 'ready'
+  comments: Comment[]
+  selected: Comment | null
+  onSelect: (comment: Comment | null) => void
+}) {
+  if (duration <= 0) return <p className="small muted">This file has no measured duration, so there is no timeline.</p>
+  // Pins are placed in time order; positions stay on the track.
+  const pinned = comments.filter((c) => c.anchor?.start_ms !== undefined).sort((a, b) => (a.anchor?.start_ms ?? 0) - (b.anchor?.start_ms ?? 0))
+  const at = (ms: number) => Math.min(100, Math.max(0, (ms / duration) * 100))
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <div role="group" aria-label="Timeline" className="rv-timeline">
+        <div className="rv-sections">
+          {sectionsState === 'loading' && <span className="small muted">Loading the sections…</span>}
+          {sectionsState === 'error' && <span className="small muted">Couldn't load the sections</span>}
+          {sectionsState === 'ready' && sections.length === 0 && <span className="small muted">No sections marked yet</span>}
+          {segments(sections, duration).map((part, i) =>
+            part.kind === 'gap' ? <span key={i} style={{ flex: `${part.length} 1 0` }} /> : (
+              <span key={i} className={part.section.section_type === 'hook' ? 'rv-section hook' : 'rv-section'} style={{ flex: `${part.length} 1 0` }}>
+                {shortName(part.section)}
+              </span>
+            ))}
+        </div>
+        <div className="rv-pins">
+          {pinned.map((c) => {
+            const start = c.anchor?.start_ms ?? 0
+            const end = c.anchor?.end_ms ?? start
+            const range = end > start
+            return (
+              <button key={c.id} aria-label={`${c.kind === 'blocking' ? 'Blocking comment' : 'Suggestion'} at ${when(c)}`} aria-pressed={selected?.id === c.id}
+                className={`rv-pin${c.kind === 'blocking' ? ' blocking' : ''}${range ? ' range' : ''}`} onClick={() => onSelect(selected?.id === c.id ? null : c)}
+                style={range ? { left: `${at(start)}%`, width: `${at(end) - at(start)}%` } : { left: `calc(${at(start)}% - 7px)` }} />
+            )
+          })}
+        </div>
+        <div className="row spread small muted"><span>00:00</span><span>{formatTime(duration / 2)}</span><span>{formatTime(duration)}</span></div>
+      </div>
+      <p className={selected?.anchor?.start_ms !== undefined ? 'notice small' : 'sr-only'} aria-live="polite">
+        {selected?.anchor?.start_ms !== undefined ? `Scrub to ${formatTime(selected.anchor.start_ms)} in the player: ${selected.body}` : ''}
+      </p>
+    </div>
+  )
+}
+
 export function ReviewPage() {
   const { id = '' } = useParams()
+  const canvas = useMatch('/reviews/:id/canvas') !== null
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const me = useMember()
   const data = useReview(id)
   const members = useMembers()
@@ -29,6 +81,7 @@ export function ReviewPage() {
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['review', id] }), queryClient.invalidateQueries({ queryKey: ['variant'] })])
 
   const isVideo = data.data?.files.length === 1 && data.data.files[0].mime?.startsWith('video/')
+  const content = useVideoContent(data.data?.review.version_id ?? '', undefined, canvas && Boolean(isVideo))
   const addComment = useMutation({
     mutationFn: (submitted: typeof draft) => {
       const start = parseTime(submitted.at)
@@ -103,49 +156,25 @@ export function ReviewPage() {
   const conflict = [decide.error, withdraw.error].find((e) => e instanceof CommandError && e.code === 'conflict')
   const blockingError = decide.error instanceof CommandError && decide.error.code === 'invalid' ? explain(decide.error) : null
 
-  return (
-    <main className="page">
-      <div className="row spread">
-        <div className="stack" style={{ gap: 4 }}>
-          <Link to={`/variants/${variant.id}`} className="eyebrow">Review · round {review.round_number}</Link>
-          <h1>{variant.code} · Version {version?.version_number}</h1>
-        </div>
-        <span className={open ? 'tag warn' : 'tag'}>{status}</span>
+  const selected = shown.find((c) => c.id === selectedId) ?? null
+  const header = (
+    <div className="row spread">
+      <div className="stack" style={{ gap: 4 }}>
+        <Link to={`/variants/${variant.id}`} className="eyebrow">Review · round {review.round_number}</Link>
+        <h1>{variant.code} · Version {version?.version_number}</h1>
       </div>
-
-      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'start' }}>
-        <div className="stack" style={{ gap: 16 }}>
-        <section className="panel stack">
-          <h2>File</h2>
-          {files.map((f, index) => (
-            <div key={f.id} className="row spread small">
-              <span>{files.length > 1 ? `Card ${index + 1} · ` : ''}{f.duration_ms ? `${(f.duration_ms / 1000).toFixed(1)}s · ` : ''}{f.width}×{f.height}</span>
-              <a href={`https://drive.google.com/file/d/${f.drive_file_id}/view`} target="_blank" rel="noreferrer">Open in Drive</a>
-            </div>
-          ))}
-          <p className="small muted">In-app playback arrives after the Drive playback test. Open the file in Drive, then add comments at the times you saw.</p>
-          {isVideo && duration > 0 && (
-            <div aria-hidden="true" style={{ position: 'relative', height: 10, background: 'var(--soft)', borderRadius: 4 }}>
-              {shown.filter((c) => c.anchor?.start_ms !== undefined).map((c) => (
-                <span key={c.id} style={{
-                  position: 'absolute', top: 0, height: 10, borderRadius: 3, minWidth: 4,
-                  left: `${((c.anchor?.start_ms ?? 0) / duration) * 100}%`,
-                  width: `${(((c.anchor?.end_ms ?? c.anchor?.start_ms ?? 0) - (c.anchor?.start_ms ?? 0)) / duration) * 100}%`,
-                  background: c.kind === 'blocking' ? 'var(--danger)' : 'var(--accent)',
-                }} />
-              ))}
-            </div>
-          )}
-          {isVideo && <div className="row spread small muted"><span>00:00</span><span>{formatTime(duration)}</span></div>}
-        </section>
-        {isVideo && <ContentTimeline versionId={review.version_id} canEdit={me.team === 'creative'} />}
-        </div>
-
+      <span className="row">
+        {canvas && isVideo && <Link to={`/reviews/${id}`} className="small">Exit canvas</Link>}
+        <span className={open ? 'tag warn' : 'tag'}>{status}</span>
+      </span>
+    </div>
+  )
+  const commentsPanel = (
         <section className="panel stack" aria-labelledby={commentsId}>
           <h2 id={commentsId}>Comments</h2>
           {shown.length === 0 && <p className="small muted">No comments yet.</p>}
           {shown.map((c) => (
-            <article key={c.id} className="stack" style={{ gap: 4, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <article key={c.id} className={selectedId === c.id ? 'stack comment selected' : 'stack comment'} aria-current={selectedId === c.id || undefined}>
               <div className="row small">
                 <span className={c.kind === 'blocking' ? 'tag danger' : 'tag'}>{c.kind === 'blocking' ? '必改 Blocking' : '建议 Suggestion'}</span>
                 {when(c) && <span className="muted">{when(c)}</span>}
@@ -162,8 +191,9 @@ export function ReviewPage() {
             </article>
           ))}
         </section>
-      </div>
-
+  )
+  const commentForm = (
+    <>
       {me.team === 'marketing' && (
         <section className="panel stack" aria-labelledby={formId}>
           <h2 id={formId}>Add a comment</h2>
@@ -193,7 +223,10 @@ export function ReviewPage() {
           </form>
         </section>
       )}
-
+    </>
+  )
+  const decision = (
+    <>
       {(open || approvalInEffect) && me.team === 'marketing' && (
         <section className="panel stack">
           <h2>Decision</h2>
@@ -223,6 +256,78 @@ export function ReviewPage() {
           {!conflict && !blockingError && (decide.error || (withdraw.error && !fieldError(withdraw.error, 'reason'))) && <p className="error" role="alert">{explain(decide.error ?? withdraw.error)}</p>}
         </section>
       )}
+    </>
+  )
+
+  if (canvas && isVideo) {
+    // The review canvas: a large player with the sections and comment pins on one timeline (D-75).
+    return (
+      <main className="page" style={{ maxWidth: 'none' }}>
+        {header}
+        <section aria-label="Review canvas" className="review-canvas">
+          <div className="stack" style={{ alignContent: 'start' }}>
+            <DrivePreview key={file.drive_file_id} driveFileId={file.drive_file_id} name={file.name} tall />
+            <div className="panel">
+              {/* Only this Version's comments are pinned: carried-over ones have the earlier cut's times. */}
+              <ReviewTimeline duration={duration} sections={content.data?.sections ?? []}
+                sectionsState={content.isPending ? 'loading' : content.error ? 'error' : 'ready'}
+                comments={shown.filter((c) => c.version_id === review.version_id)} selected={selected}
+                onSelect={(c) => setSelectedId(c?.id ?? null)} />
+              {shown.some((c) => c.version_id !== review.version_id) && (
+                <p className="small muted">Comments carried over from an earlier Version are listed beside the player without a pin; their times belong to that cut.</p>
+              )}
+            </div>
+          </div>
+          <div className="stack" style={{ alignContent: 'start' }}>
+            {commentsPanel}
+            {commentForm}
+          </div>
+        </section>
+        {decision}
+      </main>
+    )
+  }
+
+  return (
+    <main className="page">
+      {header}
+      {canvas && !isVideo && <p className="notice small">The review canvas is for a Version with a single video. This Version's files are shown below.</p>}
+
+      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'start' }}>
+        <div className="stack" style={{ gap: 16 }}>
+        <section className="panel stack">
+          <h2>File</h2>
+          {files.map((f, index) => (
+            <div key={f.id} className="row spread small">
+              <span>{files.length > 1 ? `Card ${index + 1} · ` : ''}{f.duration_ms ? `${(f.duration_ms / 1000).toFixed(1)}s · ` : ''}{f.width}×{f.height}</span>
+              <a href={`https://drive.google.com/file/d/${f.drive_file_id}/view`} target="_blank" rel="noreferrer">Open in Drive</a>
+            </div>
+          ))}
+          {isVideo && <DrivePreview key={file.drive_file_id} driveFileId={file.drive_file_id} name={file.name} />}
+          {isVideo && <Link to={`/reviews/${id}/canvas`} className="small">Open review canvas</Link>}
+          {isVideo && duration > 0 && (
+            <div aria-hidden="true" style={{ position: 'relative', height: 10, background: 'var(--soft)', borderRadius: 4 }}>
+              {shown.filter((c) => c.anchor?.start_ms !== undefined).map((c) => (
+                <span key={c.id} style={{
+                  position: 'absolute', top: 0, height: 10, borderRadius: 3, minWidth: 4,
+                  left: `${((c.anchor?.start_ms ?? 0) / duration) * 100}%`,
+                  width: `${(((c.anchor?.end_ms ?? c.anchor?.start_ms ?? 0) - (c.anchor?.start_ms ?? 0)) / duration) * 100}%`,
+                  background: c.kind === 'blocking' ? 'var(--danger)' : 'var(--accent)',
+                }} />
+              ))}
+            </div>
+          )}
+          {isVideo && <div className="row spread small muted"><span>00:00</span><span>{formatTime(duration)}</span></div>}
+        </section>
+        {isVideo && <ContentTimeline versionId={review.version_id} canEdit={me.team === 'creative'} />}
+        </div>
+
+        {commentsPanel}
+      </div>
+
+      {commentForm}
+
+      {decision}
     </main>
   )
 }

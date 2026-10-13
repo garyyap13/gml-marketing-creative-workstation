@@ -617,6 +617,96 @@ export function usePlan(id: string) {
   })
 }
 
+export type CanvasData = NonNullable<ReturnType<typeof useCreativeCanvas>['data']>
+
+// Everything one Creative's canvas draws: its Brief, Variants, Versions and Reviews, Launches and their results, and
+// the 复盘 looking back at them with the follow-up Variants they created (D-75).
+export function useCreativeCanvas(creativeId: string) {
+  return useQuery({
+    queryKey: ['canvas', creativeId],
+    queryFn: async () => {
+      const creative = await supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, format_id').eq('id', creativeId).single()
+      if (creative.error) throw creative.error
+      const c = creative.data as { id: string; code: string; title: string; brief_version_id: string | null; format_id: string | null }
+      const briefVersion = c.brief_version_id
+        ? await supabase.schema('brief').from('brief_versions').select('brief_id, version_number').eq('id', c.brief_version_id).single()
+        : { data: null, error: null }
+      if (briefVersion.error) throw briefVersion.error
+      const brief = briefVersion.data
+        ? await supabase.schema('brief').from('briefs').select('id, title').eq('id', briefVersion.data.brief_id).single()
+        : { data: null, error: null }
+      if (brief.error) throw brief.error
+      const variants = await selectAll<Variant & { derived_from_variant_id: string | null }>((from, to) =>
+        supabase.schema('creative').from('variants').select(`${variantColumns}, derived_from_variant_id`).eq('creative_id', creativeId).order('code').range(from, to))
+      const ids = variants.map((v) => v.id)
+      const [versions, reviews, launches, results, plans] = await Promise.all([
+        selectIn<Version>(ids, (chunk, from, to) => supabase.schema('creative').from('versions').select('id, variant_id, version_number, submitted_at').in('variant_id', chunk).order('id').range(from, to)),
+        selectIn<Review>(ids, (chunk, from, to) => supabase.schema('review').from('reviews').select('id, version_id, variant_id, round_number, decision, decided_at, approval_end_reason, lock_version').in('variant_id', chunk).order('id').range(from, to)),
+        selectIn<{ id: string; variant_id: string; version_id: string | null; kind: 'post' | 'ad'; status: string; origin: string; approval_flag: string | null; created_at: string }>(ids, (chunk, from, to) =>
+          supabase.schema('launch').from('launches').select('id, variant_id, version_id, kind, status, origin, approval_flag, created_at').in('variant_id', chunk).order('id').range(from, to)),
+        selectIn<Pick<ResultRow, 'launch_id' | 'spend' | 'results' | 'currency' | 'result_indicator' | 'attribution_setting' | 'time_zone' | 'channel_scope'>>(ids, (chunk, from, to) =>
+          supabase.schema('reporting').from('variant_daily_results').select('launch_id, spend, results, currency, result_indicator, attribution_setting, time_zone, channel_scope').in('variant_id', chunk).order('revision_id').range(from, to)),
+        selectIn<Pick<Plan, 'id' | 'baseline_variant_id' | 'baseline_version_id' | 'state' | 'verdict' | 'check_date' | 'created_at'>>(ids, (chunk, from, to) =>
+          supabase.schema('learning').from('optimization_plans').select('id, baseline_variant_id, baseline_version_id, state, verdict, check_date, created_at').in('baseline_variant_id', chunk).order('id').range(from, to)),
+      ])
+      const actions = await selectIn<{ plan_id: string; variant_id: string | null }>(plans.map((p) => p.id), (chunk, from, to) =>
+        supabase.schema('learning').from('plan_actions').select('plan_id, variant_id').in('plan_id', chunk).order('id').range(from, to))
+      return {
+        creative: c,
+        brief: brief.data as { id: string; title: string } | null,
+        variants, versions, reviews, launches, results, plans, actions,
+      }
+    },
+  })
+}
+
+export type WallData = NonNullable<ReturnType<typeof useVariantWall>['data']>
+export type VariantTotal = {
+  variant_id: string; currency: string; result_indicator: string; attribution_setting: string; time_zone: string; channel_scope: string
+  spend: number | null; results: number | null; days: number; unreported: number
+}
+
+// Every Variant that isn't cancelled (nor in an archived Creative), with what the wall filters and compares by: its
+// labels, its Brief's labels, its Footage, its results totals per scope for the dates, and whether a 复盘 asked for
+// it (D-75). Totals are summed in the database.
+export function useVariantWall(from: string, to: string) {
+  return useQuery({
+    queryKey: ['wall', from, to],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const all = await selectAll<Variant>((f, t2) =>
+        supabase.schema('creative').from('variants').select(variantColumns).neq('state', 'cancelled').order('code').range(f, t2))
+      const creatives = await selectIn<{ id: string; code: string; title: string; brief_version_id: string | null; format_id: string | null; narrative_style_id: string | null }>(
+        [...new Set(all.map((v) => v.creative_id))], (chunk, f, t2) =>
+          supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, format_id, narrative_style_id').in('id', chunk).is('archived_at', null).order('id').range(f, t2))
+      const creativeOf = new Map(creatives.map((c) => [c.id, c]))
+      const variants = all.filter((v) => creativeOf.has(v.creative_id))
+      const ids = variants.map((v) => v.id)
+      const wanted = new Set(ids)
+      const [briefVersions, footageLinks, footage, totals, actions] = await Promise.all([
+        selectIn<{ id: string; product_id: string | null; avatar_id: string | null; angle_id: string | null }>(
+          [...new Set(creatives.map((c) => c.brief_version_id).filter(Boolean) as string[])], (chunk, f, t2) =>
+            supabase.schema('brief').from('brief_versions').select('id, product_id, avatar_id, angle_id').in('id', chunk).order('id').range(f, t2)),
+        selectIn<{ variant_id: string; footage_id: string }>(ids, (chunk, f, t2) =>
+          supabase.schema('creative').from('variant_footage').select('variant_id, footage_id').in('variant_id', chunk).is('removed_at', null).order('id').range(f, t2)),
+        selectAll<{ id: string; code: string; title: string }>((f, t2) => supabase.schema('creative').from('footage').select('id, code, title').order('code').range(f, t2)),
+        selectAll<VariantTotal>((f, t2) => supabase.schema('reporting').rpc('variant_totals', { p_from: from || null, p_to: to || null })
+          .order('variant_id').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t2)),
+        selectIn<{ variant_id: string }>(ids, (chunk, f, t2) =>
+          supabase.schema('learning').from('plan_actions').select('variant_id').in('variant_id', chunk).order('variant_id').range(f, t2)),
+      ])
+      return {
+        variants,
+        creatives: creativeOf,
+        briefVersions: new Map(briefVersions.map((b) => [b.id, b])),
+        footageLinks, footage,
+        totals: totals.filter((r) => wanted.has(r.variant_id)),
+        fromRetro: new Set(actions.map((a) => a.variant_id)),
+      }
+    },
+  })
+}
+
 // Every active Variant with its Creative, for the board.
 export function useBoard() {
   return useQuery({

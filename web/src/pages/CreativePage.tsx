@@ -108,7 +108,7 @@ export function CreativePage() {
     <main className="page">
       <div className="stack" style={{ gap: 4 }}>
         <span className="eyebrow">Creative · {members.data?.find((m) => m.id === creative.creative_owner_id)?.display_name} · due {creative.due_date}</span>
-        <h1>{creative.code} · {creative.title}</h1>
+        <div className="row"><h1>{creative.code} · {creative.title}</h1><Link to={`/creatives/${creative.id}/canvas`} className="small">Canvas</Link></div>
         <div className="row small muted">
           {formatItem ? `${formatItem.name} · ${formatItem.media_kind}` : 'No Format yet'}
           <span className={creative.format_confirmed_by ? 'tag' : 'tag warn'}>{creative.format_confirmed_by ? 'Format confirmed' : 'Format to confirm'}</span>

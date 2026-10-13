@@ -107,3 +107,59 @@ table.compare th:first-child, table.compare td:first-child { text-align: left; }
 table.compare thead th { color: var(--muted); }
 .finding { border-top: 1px solid var(--line); padding-top: 10px; }
 @media (max-width: 860px) { .workspace { grid-template-columns: 1fr; } }
+
+/* Creative canvas (D-75). */
+.canvas-panel { padding: 0; overflow: hidden; }
+svg.canvas { display: block; width: 100%; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; background: var(--paper); }
+svg.canvas:active { cursor: grabbing; }
+.cv-heading { font-size: 12px; fill: var(--muted); }
+.cv-edge { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.cv-edge.loop { stroke: var(--warn); stroke-dasharray: 5 4; }
+.cv-edge.derived { stroke-dasharray: 3 3; }
+.cv-arrowhead { fill: var(--line); }
+.cv-arrowhead.loop { fill: var(--warn); }
+.cv-node rect { fill: var(--paper); stroke: var(--line); stroke-width: 1; }
+.cv-node.live rect { fill: var(--soft); stroke: var(--accent); }
+.cv-node.learning rect { fill: var(--wash); stroke: var(--warn); }
+.cv-node.pending rect { stroke-dasharray: 4 3; }
+.cv-node:hover rect { stroke-width: 2; }
+.cv-node:focus { outline: none; }
+.cv-node:focus-visible rect { stroke: var(--accent); stroke-width: 3; }
+.cv-title { font-size: 13px; font-weight: 500; fill: var(--ink); }
+.cv-sub { font-size: 11px; fill: var(--muted); }
+.cv-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); }
+.cv-key.live { background: var(--soft); border-color: var(--accent); }
+.cv-key.learning { background: var(--wash); border-color: var(--warn); }
+
+/* Variant wall (D-75). */
+.views { gap: 4px; }
+.views a { text-decoration: none; padding: 6px 12px; border-radius: 7px; color: var(--muted); border: 1px solid transparent; }
+.views a[aria-current='page'] { background: var(--soft); color: var(--ink); border-color: var(--line); }
+.wall-filters { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.wall { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.tile { display: grid; gap: 6px; align-content: start; text-decoration: none; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
+.tile:hover, .tile:focus-visible { border-color: var(--accent); }
+.tile-art { height: 120px; border-radius: 7px; background: var(--soft); display: grid; place-items: center; font-size: 12px; letter-spacing: 1.5px; color: var(--accent); }
+.tile-art.pending { background: var(--wash); color: var(--warn); border: 1px dashed var(--warn); }
+.tile-title { font-weight: 500; }
+.tile-metric { font-size: 20px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+
+/* Drive preview and the review canvas (D-75). */
+.drive-preview { height: 280px; border-radius: var(--radius); background: var(--soft); border: 1px solid var(--line); overflow: hidden; display: grid; place-items: center; }
+.drive-preview.tall { height: min(62vh, 560px); }
+.drive-preview iframe { width: 100%; height: 100%; border: 0; }
+.drive-play { display: inline-flex; align-items: center; gap: 8px; }
+.review-canvas { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .review-canvas { grid-template-columns: 1fr; } }
+.rv-timeline { display: grid; gap: 8px; }
+.rv-sections { display: flex; gap: 3px; min-height: 24px; }
+.rv-section { background: var(--bg); color: var(--muted); border-radius: 4px; padding: 3px 6px; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+.rv-section.hook { background: var(--soft); color: var(--accent); }
+.rv-pins { position: relative; height: 14px; background: var(--bg); border-radius: 7px; }
+.rv-pins { overflow: visible; margin: 0 7px; }
+.rv-pin { position: absolute; top: -3px; height: 20px; width: 14px; min-width: 14px; padding: 0; border-radius: 10px; border: 2px solid var(--paper); background: var(--accent); }
+.rv-pin.range { min-width: 8px; }
+.rv-pin.blocking { background: var(--danger); }
+.rv-pin[aria-pressed='true'] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.comment { gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.comment.selected { background: var(--soft); border-radius: 6px; padding: 10px; }

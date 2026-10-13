@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-74). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
+Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-75). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
 
 Audience: Engineering, database, integration, QA and operations.
 
@@ -221,6 +221,21 @@ D-71 tracks raw footage as Footage, linked to the Variants that use it.
 | `creative.variant_footage` | UUID `id`; → variant; → footage; added at; removed at | One current link per (variant, footage) (partial unique index where not removed). A removed link is marked removed, never deleted (D-46). Changed only before the Creative's first go-live (T-13) |
 
 Commands: `add_footage` and `update_footage` for either team; `set_variant_footage` for the Creative Team, replacing a Variant's Footage list before go-live. A Launch planned for a Variant whose Footage is past its usable-until date returns a warning, not an error (M2). The Label view and 复盘 can pool results by Footage (T-15, T-18).
+
+### 4.2.3 Canvas views (T-21)
+
+D-75 adds four views; the first three only read existing records.
+- **Creative canvas** (`/creatives/:id/canvas`): the client reads the Creative, its Brief, Variants, Versions, Reviews, Launches, `reporting.variant_daily_results` and the Optimization Plans and plan actions, and lays the map out itself. A Launch shows cost per result only when its rows share one currency, result type, attribution, time zone and channel scope, and never for Reach.
+- **Variant wall** (`/creatives/wall`): `reporting.variant_totals(p_from, p_to)` (security invoker) sums each Variant's paid results per scope in the database. The client compares Variants within one scope only.
+- **Review canvas** (`/reviews/:id/canvas`): the Review page's own data and commands in a larger layout. Drive's embedded preview (`https://drive.google.com/file/d/<id>/preview`) loads only when asked. Only the Version's own comments are pinned; carried-over comments keep the earlier cut's times and are listed without a pin.
+- **Whiteboard**:
+
+| Table | Fields / relationships | Constraints |
+|---|---|---|
+| `board.boards` | title; optional → Brief or → Creative; created by and at; archived time and by; `lock_version` | At most one home. Archived, never deleted |
+| `board.items` | → board; kind (`note`/`frame`); text; note colour (`yellow`/`green`/`blue`/`purple`); position; frame size; optional link (`brief`/`creative`/`variant`/`footage`/`finding` and its ID); created by and at; updated by and at; archived time; `lock_version` | Notes up to 1,000 characters, frame names up to 120. A link must point at a record of its kind. Archived, never deleted |
+
+Commands: `create_board`, `add_board_item`, `update_board_item` (any subset of text, colour, position, size and link, with the expected lock version), `archive_board_item` for either team; `archive_board` for the board's creator or the Admin. The client refreshes a board every few seconds; there are no live cursors yet.
 
 ### 4.3 Review and approval
 
@@ -910,6 +925,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | FR-15 Combination and Label views | T-08, T-15 |
 | FR-16 Video content metadata | T-17; measured duration, annotation revisions, transcript cues, Content Sections, provenance and frozen Evidence references; AC-29, AC-30 |
 | FR-18 Footage | T-20; Footage Codes, Variant links, lock at go-live, usable-until warning; AC-33 |
+| FR-19 Canvas views | T-21; Creative canvas, Variant wall, review canvas with Drive's preview, whiteboard; AC-34–AC-37 |
 | FR-17 Creative Retrospective / 复盘 | T-18; frozen baseline, section findings, action links, comparison validity, existing Verdict lifecycle; AC-31 |
 
 ## 14. Decisions, open items and references

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { expect, type Browser, type Page } from '@playwright/test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../support/drive'
+import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../support/meta'
 import { inviteThroughFunction, magicLinkFor, operatorClient, signedOutClient, testEmail } from '../support/local'
 
 // The first Admin, signed in through the API, for arranging a journey's starting point.
@@ -162,3 +163,41 @@ export async function driveReportsVideo(page: Page, creativeApi: SupabaseClient,
   const reported = await reportDriveDetails(data.id, videoDetails(driveId, name ? { name } : {}))
   if (reported.error) throw new Error(`record_drive_metadata failed: ${reported.error.message}`)
 }
+
+const week = { date_from: '2026-10-01', date_to: '2026-10-07' }
+
+// Mei (Marketing Owner and Approver) and Jun (Creative): an approved, annotated Version whose Ad spent RM1,200 for 40
+// leads over four days, as in the mockup.
+export async function liveVersion() {
+  const meiEmail = await inviteMember('marketing', 'Mei', true)
+  const junEmail = await inviteMember('creative', 'Jun')
+  const meiApi = await memberClient(meiEmail)
+  const junApi = await memberClient(junEmail)
+  const { creativeId } = await handedOffVideoBrief(meiApi, await memberId(junApi), { hypothesis: 'Will showing the product earlier bring more enquiries?' })
+  const version = await submittedVideoVersion(junApi, creativeId)
+  const review = (await meiApi.schema('review').from('reviews').select('lock_version').eq('id', version.reviewId).single()).data
+  await call(meiApi, 'approve_version', { p_review_id: version.reviewId, p_version_id: version.versionId, p_expected_lock_version: review?.lock_version, p_idempotency_key: randomUUID() })
+  const fileId = (await junApi.schema('creative').from('version_files').select('file_id').eq('version_id', version.versionId).single()).data?.file_id
+  await call(junApi, 'save_video_annotations', {
+    p_version_id: version.versionId, p_file_id: fileId, p_expected_prior_revision_id: null, p_idempotency_key: randomUUID(),
+    p_annotations: {
+      language: 'en', source: 'manual', transcript_state: 'reviewed', section_state: 'reviewed',
+      cues: [{ start_ms: 0, end_ms: 2500, text: 'Only five minutes to get ready?', speaker: 'Presenter' }, { start_ms: 8000, end_ms: 12000, text: "Here's the step I keep in my everyday routine.", speaker: 'Presenter' }],
+      sections: [
+        { type: 'hook', start_ms: 0, end_ms: 3000, on_screen_text: 'Your morning, simplified.' },
+        { type: 'body', detail: 'demo', start_ms: 3000, end_ms: 25000, on_screen_text: 'One everyday step.' },
+        { type: 'cta', detail: 'offer', start_ms: 25000, end_ms: 30000, on_screen_text: 'Ask us about your routine.' },
+      ],
+    },
+  })
+  const accounts = await demoAccounts()
+  const planned = await call(meiApi, 'plan_launch', {
+    p_version_id: version.versionId, p_kind: 'ad', p_fields: { account_id: accounts.adAccount, campaign_name: 'Morning routine', ad_set_name: 'Working mums' }, p_idempotency_key: randomUUID(),
+  })
+  const ad = sampleAd(planned.ad_name, { adsetName: 'Working mums' })
+  await publishMetaSync(accounts.adAccountExternalId, [ad], dailyInsights(ad, '2026-10-01', 4, { spend: '300.00', impressions: '10000', reach: '8000', clicks: '250', leads: '10' }))
+  return { meiEmail, junEmail, meiApi, junApi, ...version }
+}
+
+export const writePlan = (api: Awaited<ReturnType<typeof memberClient>>, versionId: string) =>
+  call(api, 'write_optimization_plan', { p_fields: { version_id: versionId }, p_evidence: week, p_actions: [], p_idempotency_key: randomUUID() })

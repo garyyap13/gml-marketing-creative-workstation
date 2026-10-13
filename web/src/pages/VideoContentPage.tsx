@@ -3,6 +3,7 @@ import { useEffect, useId, useState, type ChangeEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { detailLabels, sectionStates, sectionTypes, segments, transcriptStates } from '../components/ContentTimeline'
+import { DrivePreview } from '../components/DrivePreview'
 import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useMembers, useVideoContent, type ContentSection, type TranscriptCue } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -224,6 +225,7 @@ function VideoContentEditor({ id }: { id: string }) {
       </div>
       {!canEdit && <p className="notice small">Only the Creative Team edits the transcript and sections.</p>}
       {content.error && <p className="error" role="alert">Couldn't refresh this page. Your unsaved changes are still here.</p>}
+      <DrivePreview driveFileId={video.drive_file_id} name={video.name} />
       <p id={hintId} className="small muted">Times are minutes and seconds, like 0:02.5.</p>
 
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} className="stack">

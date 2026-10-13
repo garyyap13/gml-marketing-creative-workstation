@@ -25,7 +25,7 @@ export const sectionStates: Record<SectionState, string> = { not_started: 'No se
 type Timed = { start_ms: number; end_ms: number }
 export const range = (s: Timed) => `${formatTime(s.start_ms)}–${formatTime(s.end_ms)}`
 // Body sections go by their detail on the timeline ("Problem", "Demo"), like the mockup; the others by their type.
-const shortName = (s: ContentSection) => (s.section_type === 'body' && s.detail_label ? detailLabels[s.detail_label] : sectionTypes[s.section_type])
+export const shortName = (s: ContentSection) => (s.section_type === 'body' && s.detail_label ? detailLabels[s.detail_label] : sectionTypes[s.section_type])
 export const title = (s: ContentSection) => [sectionTypes[s.section_type], s.detail_label && detailLabels[s.detail_label], range(s)].filter(Boolean).join(' · ')
 
 // The sections laid end to end in time order at their share of the video, with the gaps between them. Each part

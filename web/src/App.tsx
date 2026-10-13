@@ -4,10 +4,12 @@ import { rememberReturnPath, returnPath, useSession } from './lib/session'
 import { Board } from './pages/Board'
 import { BriefPage } from './pages/BriefPage'
 import { Briefs } from './pages/Briefs'
+import { CreativeCanvasPage } from './pages/CreativeCanvasPage'
 import { CreativePage } from './pages/CreativePage'
 import { FootagePage } from './pages/FootagePage'
 import { VariantPage } from './pages/VariantPage'
 import { VideoContentPage } from './pages/VideoContentPage'
+import { WallPage } from './pages/WallPage'
 import { MyTasks } from './pages/MyTasks'
 import { PlanPage } from './pages/PlanPage'
 import { PlansPage } from './pages/PlansPage'
@@ -54,8 +56,11 @@ export function App() {
         <Route path="/briefs/:id" element={<BriefPage />} />
         <Route path="/creatives" element={<Board />} />
         <Route path="/creatives/:id" element={<CreativePage />} />
+        <Route path="/creatives/:id/canvas" element={<CreativeCanvasPage />} />
+        <Route path="/creatives/wall" element={<WallPage />} />
         <Route path="/variants/:id" element={<VariantPage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
+        <Route path="/reviews/:id/canvas" element={<ReviewPage />} />
         <Route path="/versions/:id/content" element={<VideoContentPage />} />
         <Route path="/footage" element={<FootagePage />} />
         <Route path="/plans" element={<PlansPage />} />

@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Link } from 'react-router'
+import { CreativeViews } from '../components/CreativeViews'
 import { stageNames, useBoard, useMembers, type Variant } from '../lib/data'
 
 const lanes: Array<{ name: string; states: Variant['state'][] }> = [
@@ -34,7 +35,7 @@ export function Board() {
   const board = useBoard()
   return (
     <main className="page" style={{ maxWidth: 'none' }}>
-      <h1>Creatives</h1>
+      <div className="row spread"><h1>Creatives</h1><CreativeViews current="board" /></div>
       {board.error && <p className="error" role="alert">Couldn't load the board. Reload to try again.</p>}
       {board.data?.length === 0 && <p className="notice">No Variants yet. They appear here once the Creative Team adds them.</p>}
       <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', alignItems: 'start' }}>
