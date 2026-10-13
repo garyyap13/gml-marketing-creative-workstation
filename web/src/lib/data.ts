@@ -93,6 +93,7 @@ export type Creative = {
   narrative_style_id: string | null
   creative_owner_id: string
   due_date: string
+  first_live_at?: string | null
   lock_version: number
 }
 
@@ -244,7 +245,7 @@ export function useCreative(id: string) {
     queryKey: ['creative', id],
     queryFn: async () => {
       const creative = await supabase.schema('creative').from('creatives')
-        .select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, lock_version')
+        .select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, first_live_at, lock_version')
         .eq('id', id).single()
       if (creative.error) throw creative.error
       const variants = await supabase.schema('creative').from('variants').select(variantColumns).eq('creative_id', id).order('code')

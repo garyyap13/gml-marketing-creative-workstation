@@ -1,0 +1,273 @@
+// Loads clearly labelled demo data into the LOCAL Supabase stack: one Creative taken through all six steps of the
+// loop (brief, production, review, launch, results and 复盘), for a hands-on walkthrough of the web app.
+//
+// Run with `pnpm demo`, which first resets the local database. Everything here is demo data: the people, the
+// Creative and the accounts are labelled "(demo)", Drive and Meta are the test stand-ins, and nothing leaves this
+// machine. The script refuses to run against anything but the local stack.
+
+import { randomUUID } from 'node:crypto'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../tests/support/drive'
+import { inviteThroughFunction, operatorClient, signedOutClient, stack, waitForApi } from '../tests/support/local'
+import { demoAccounts, metaId, publishRawMetaSync } from '../tests/support/meta'
+
+const local = new URL(stack().API_URL)
+if (!['127.0.0.1', 'localhost'].includes(local.hostname)) {
+  throw new Error(`Refusing to load demo data into ${local.origin}: the demo is for the local stack only.`)
+}
+
+const appUrl = 'http://127.0.0.1:5173'
+const people = {
+  owner: { email: 'owner.demo@workstation.test', name: 'Workstation owner (demo)', team: 'marketing' as const },
+  mei: { email: 'mei.demo@workstation.test', name: 'Mei (demo)', team: 'marketing' as const, approver: true },
+  jun: { email: 'jun.demo@workstation.test', name: 'Jun (demo)', team: 'creative' as const },
+  aina: { email: 'aina.demo@workstation.test', name: 'Aina (demo)', team: 'creative' as const },
+}
+
+async function call<T = any>(client: SupabaseClient, name: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await client.schema('api').rpc(name, args)
+  if (error) throw new Error(`${name} failed: ${error.message} ${error.details ?? ''}`)
+  return data as T
+}
+const key = () => randomUUID()
+const daysFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+
+// Signs a demo person in through the API with a generated local password; in the browser they use a magic link or
+// the 6-digit code from the local mail catcher.
+async function signedIn(email: string): Promise<SupabaseClient> {
+  const password = randomUUID()
+  const { data: users, error } = await operatorClient().auth.admin.listUsers({ perPage: 1000 })
+  if (error) throw error
+  const user = users.users.find((u) => u.email === email)
+  if (!user) throw new Error(`no account for ${email}`)
+  const updated = await operatorClient().auth.admin.updateUserById(user.id, { password })
+  if (updated.error) throw updated.error
+  const client = signedOutClient()
+  const result = await client.auth.signInWithPassword({ email, password })
+  if (result.error) throw result.error
+  await call(client, 'accept_invitation', {})
+  return client
+}
+
+async function lockVersion(client: SupabaseClient, schema: string, table: string, id: string): Promise<number> {
+  const { data, error } = await client.schema(schema).from(table).select('lock_version').eq('id', id).single()
+  if (error) throw error
+  return data.lock_version
+}
+
+// Registers a Drive file for a Variant and reports its details through the Drive stand-in.
+async function driveVideo(jun: SupabaseClient, variantId: string, name: string): Promise<string> {
+  const driveId = fakeDriveFileId()
+  const registered = await call(jun, 'register_drive_media', { p_variant_id: variantId, p_drive_ref: driveLink(driveId), p_idempotency_key: key() })
+  const reported = await reportDriveDetails(registered.id, videoDetails(driveId, { name }))
+  if (reported.error) throw new Error(`record_drive_metadata failed: ${reported.error.message}`)
+  return registered.id
+}
+
+async function submit(jun: SupabaseClient, variantId: string, fileId: string) {
+  return call<{ version_id: string; review_id: string }>(jun, 'submit_version', {
+    p_variant_id: variantId, p_file_ids: [fileId], p_notes: null,
+    p_expected_lock_version: await lockVersion(jun, 'creative', 'variants', variantId), p_idempotency_key: key(),
+  })
+}
+
+async function annotate(jun: SupabaseClient, versionId: string, sections: Record<string, unknown>[], cues: Record<string, unknown>[]) {
+  const fileId = (await jun.schema('creative').from('version_files').select('file_id').eq('version_id', versionId).single()).data?.file_id
+  await call(jun, 'save_video_annotations', {
+    p_version_id: versionId, p_file_id: fileId, p_expected_prior_revision_id: null, p_idempotency_key: key(),
+    p_annotations: { language: 'en', source: 'manual', transcript_state: 'reviewed', section_state: 'reviewed', cues, sections },
+  })
+}
+
+async function main() {
+  await waitForApi()
+  console.log('Loading the six-step demo into the local stack…')
+
+  // People: a first Admin, then Mei (Marketing, Approver), Jun and Aina (Creative), invited as the app does.
+  const ownerPassword = randomUUID()
+  const created = await operatorClient().auth.admin.createUser({ email: people.owner.email, password: ownerPassword, email_confirm: true })
+  if (created.error) throw created.error
+  const bootstrapped = await operatorClient().schema('api').rpc('bootstrap_admin', { p_email: people.owner.email, p_display_name: people.owner.name, p_team: 'marketing' })
+  if (bootstrapped.error) {
+    throw new Error(`This local database already has an Admin. Run \`pnpm demo\`, which resets it first. (${bootstrapped.error.message})`)
+  }
+  const owner = signedOutClient()
+  const ownerSignIn = await owner.auth.signInWithPassword({ email: people.owner.email, password: ownerPassword })
+  if (ownerSignIn.error) throw ownerSignIn.error
+  await call(owner, 'accept_invitation', {})
+  for (const person of [people.mei, people.jun, people.aina]) {
+    const invited = await inviteThroughFunction(owner, {
+      p_email: person.email, p_display_name: person.name, p_team: person.team, p_is_approver: 'approver' in person, p_idempotency_key: key(),
+    })
+    if (invited.error) throw new Error(`invite-member failed for ${person.email}: ${invited.error.message}`)
+  }
+  const mei = await signedIn(people.mei.email)
+  const jun = await signedIn(people.jun.email)
+  const meiId = (await call(mei, 'accept_invitation', {})).id as string
+  const junId = (await call(jun, 'accept_invitation', {})).id as string
+
+  // Label lists, each added by the team that owns it.
+  const label = async (client: SupabaseClient, kind: string, name: string, mediaKind: string | null = null) =>
+    (await call(client, 'add_label_item', { p_kind: kind, p_name: name, p_media_kind: mediaKind, p_idempotency_key: key() })).id as string
+  const product = await label(mei, 'product', 'Daily routine set')
+  const avatar = await label(mei, 'avatar', 'Busy professionals')
+  const angle = await label(mei, 'angle', 'Everyday convenience')
+  const funnel = await label(mei, 'funnel_stage', 'Consideration')
+  const format = await label(mei, 'format', 'Vertical video', 'video')
+  const narrative = await label(jun, 'narrative_style', 'Demonstration')
+  const question = await label(jun, 'hook_type', 'Question')
+  const boldClaim = await label(jun, 'hook_type', 'Bold claim')
+  const length30 = await label(jun, 'length', '30s')
+  const vertical = await label(jun, 'aspect_ratio', '9:16')
+
+  // 1. Brief: Mei writes the Brief, adds the Creative for Jun and hands it off.
+  const brief = await call(mei, 'create_brief', { p_title: 'Morning routine (demo)', p_marketing_owner_id: meiId, p_idempotency_key: key() })
+  const saved = await call(mei, 'save_brief', {
+    p_brief_id: brief.id, p_expected_lock_version: brief.lock_version,
+    p_fields: {
+      product_id: product, avatar_id: avatar, angle_id: angle, funnel_stage_id: funnel,
+      key_message: 'One easy routine before you leave home', cta: 'Message us to find out more',
+      hypothesis: 'Will showing the product earlier bring more enquiries?',
+    },
+  })
+  const creative = await call(mei, 'create_creative', {
+    p_brief_version_id: brief.brief_version_id, p_title: 'The 5-minute routine (demo)', p_format_id: format,
+    p_creative_owner_id: junId, p_due_date: daysFromToday(10), p_idempotency_key: key(),
+  })
+  await call(mei, 'hand_off_brief', { p_brief_id: brief.id, p_expected_lock_version: saved.lock_version, p_idempotency_key: key() })
+
+  // 2. Production: Jun sets the Narrative Style, records the Footage, and makes Variants A and B.
+  await call(jun, 'set_creative_labels', { p_creative_id: creative.id, p_narrative_style_id: narrative, p_expected_lock_version: await lockVersion(jun, 'creative', 'creatives', creative.id) })
+  const footage = await call(jun, 'add_footage', {
+    p_title: 'Kitchen shoot (demo)', p_source: 'own_shoot', p_shot_on: daysFromToday(-20), p_presenter_id: null,
+    p_drive_folder_link: 'https://drive.google.com/drive/folders/1DemoKitchenShoot0123456789', p_usable_until: null, p_idempotency_key: key(),
+  })
+  const variantA = await call(jun, 'create_variant', { p_creative_id: creative.id, p_labels: { hook_type_id: question, length_id: length30, aspect_ratio_id: vertical }, p_derived_from_variant_id: null, p_idempotency_key: key() })
+  const variantB = await call(jun, 'create_variant', { p_creative_id: creative.id, p_labels: { hook_type_id: boldClaim, length_id: length30, aspect_ratio_id: vertical }, p_derived_from_variant_id: variantA.id, p_idempotency_key: key() })
+  for (const variant of [variantA, variantB]) {
+    await call(jun, 'set_variant_footage', { p_variant_id: variant.id, p_footage_ids: [footage.id], p_expected_lock_version: await lockVersion(jun, 'creative', 'variants', variant.id) })
+    for (const stage of ['rough_cut', 'fine_cut']) {
+      await call(jun, 'set_production_stage', { p_variant_id: variant.id, p_stage: stage, p_expected_lock_version: await lockVersion(jun, 'creative', 'variants', variant.id) })
+    }
+  }
+
+  // 3. Review: Version 1 of A gets a blocking comment and changes; Version 2 is approved. B is approved first time.
+  const a1 = await submit(jun, variantA.id, await driveVideo(jun, variantA.id, `${variantA.code}_v1.mp4`))
+  const blocking = await call(mei, 'add_comment', {
+    p_version_id: a1.version_id, p_body: 'Please use the approved CTA wording: "Message us to find out more."', p_kind: 'blocking',
+    p_anchor: { start_ms: 20000, end_ms: 24000 }, p_parent_id: null, p_idempotency_key: key(),
+  })
+  await call(mei, 'add_comment', {
+    p_version_id: a1.version_id, p_body: 'Consider a closer product shot for the next Variant.', p_kind: 'suggestion',
+    p_anchor: { start_ms: 5000 }, p_parent_id: null, p_idempotency_key: key(),
+  })
+  await call(mei, 'request_changes', { p_review_id: a1.review_id, p_expected_lock_version: await lockVersion(mei, 'review', 'reviews', a1.review_id), p_idempotency_key: key() })
+  await call(jun, 'start_next_version', { p_variant_id: variantA.id, p_expected_lock_version: await lockVersion(jun, 'creative', 'variants', variantA.id) })
+  const a2 = await submit(jun, variantA.id, await driveVideo(jun, variantA.id, `${variantA.code}_v2.mp4`))
+  await call(jun, 'resolve_comment', { p_comment_id: blocking.id, p_note: 'Updated the end card in Version 2.', p_resolving_version_id: a2.version_id, p_idempotency_key: key() })
+  await call(mei, 'approve_version', { p_review_id: a2.review_id, p_version_id: a2.version_id, p_expected_lock_version: await lockVersion(mei, 'review', 'reviews', a2.review_id), p_idempotency_key: key() })
+  const b1 = await submit(jun, variantB.id, await driveVideo(jun, variantB.id, `${variantB.code}_v1.mp4`))
+  await call(mei, 'approve_version', { p_review_id: b1.review_id, p_version_id: b1.version_id, p_expected_lock_version: await lockVersion(mei, 'review', 'reviews', b1.review_id), p_idempotency_key: key() })
+
+  // Transcripts and Hook/Body/CTA sections: in A the product appears at 00:12, in B at 00:08.
+  await annotate(jun, a2.version_id, [
+    { type: 'hook', start_ms: 0, end_ms: 3000, on_screen_text: 'Less time. One easy routine.' },
+    { type: 'body', detail: 'problem', start_ms: 3000, end_ms: 12000, on_screen_text: 'Too many steps?' },
+    { type: 'body', detail: 'demo', start_ms: 12000, end_ms: 25000, on_screen_text: 'One everyday step.' },
+    { type: 'cta', detail: 'offer', start_ms: 25000, end_ms: 30000, on_screen_text: 'Message us to learn more.' },
+  ], [
+    { start_ms: 0, end_ms: 2500, text: 'Only five minutes to get ready?', speaker: 'Presenter' },
+    { start_ms: 12500, end_ms: 16000, text: "Here's the step I keep in my everyday routine.", speaker: 'Presenter' },
+    { start_ms: 25500, end_ms: 29500, text: 'Message us to find out more.', speaker: 'Presenter' },
+  ])
+  await annotate(jun, b1.version_id, [
+    { type: 'hook', start_ms: 0, end_ms: 3000, on_screen_text: 'Your morning, simplified.' },
+    { type: 'body', detail: 'problem', start_ms: 3000, end_ms: 8000, on_screen_text: 'Too many steps?' },
+    { type: 'body', detail: 'demo', start_ms: 8000, end_ms: 18000, on_screen_text: 'One everyday step.' },
+    { type: 'body', detail: 'proof', start_ms: 18000, end_ms: 25000, on_screen_text: 'Ready by the door.' },
+    { type: 'cta', detail: 'offer', start_ms: 25000, end_ms: 30000, on_screen_text: 'Ask us about your routine.' },
+  ], [
+    { start_ms: 0, end_ms: 2500, text: 'Only five minutes to get ready?', speaker: 'Presenter' },
+    { start_ms: 3200, end_ms: 7500, text: "Some mornings, a long routine just doesn't fit.", speaker: 'Presenter' },
+    { start_ms: 8000, end_ms: 12000, text: "Here's the step I keep in my everyday routine.", speaker: 'Presenter' },
+    { start_ms: 18500, end_ms: 23500, text: 'I keep it beside my keys so I remember it before heading out.', speaker: 'Presenter' },
+    { start_ms: 25500, end_ms: 29500, text: 'Message us to find out more.', speaker: 'Presenter' },
+  ])
+
+  // 4. Launch: a Post of B goes live; Ads of A and B run in the same ad set.
+  const accounts = await demoAccounts()
+  const post = await call(mei, 'plan_launch', { p_version_id: b1.version_id, p_kind: 'post', p_fields: { account_id: accounts.page, caption: 'One easy routine before you leave home.', planned_on: '2026-10-01' }, p_idempotency_key: key() })
+  await call(mei, 'confirm_post_live', { p_launch_id: post.id, p_post_link: 'https://www.facebook.com/gmlstudio/posts/pfbid0DemoMorningRoutine', p_expected_lock_version: 0, p_idempotency_key: key() })
+  const adFields = { account_id: accounts.adAccount, campaign_name: 'Morning routine (demo)', ad_set_name: 'Busy professionals 25-34', planned_budget: 1200, planned_on: '2026-10-01' }
+  const adA = await call(mei, 'plan_launch', { p_version_id: a2.version_id, p_kind: 'ad', p_fields: adFields, p_idempotency_key: key() })
+  const adB = await call(mei, 'plan_launch', { p_version_id: b1.version_id, p_kind: 'ad', p_fields: adFields, p_idempotency_key: key() })
+
+  // 5. Results: the Meta stand-in reports four days of the two ads. Same spend; B gets more leads (as in the mockup).
+  const adSetId = metaId()
+  const ads = [
+    { id: metaId(), name: adA.ad_name, video: metaId(), leads: ['8', '8', '7', '7'], clicks: '200' },
+    { id: metaId(), name: adB.ad_name, video: metaId(), leads: ['10', '10', '10', '10'], clicks: '250' },
+  ]
+  const campaignId = metaId()
+  await publishRawMetaSync(accounts.adAccountExternalId, {
+    campaigns: [{ id: campaignId, name: 'Morning routine (demo)', objective: 'OUTCOME_LEADS' }],
+    adsets: [{ id: adSetId, name: 'Busy professionals 25-34', campaign_id: campaignId, optimization_goal: 'LEAD_GENERATION', attribution_setting: '7d_click_1d_view' }],
+    ads: ads.map((ad) => ({ id: ad.id, name: ad.name, adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: ad.video } })),
+    insights: ads.flatMap((ad) => ad.leads.map((leads, i) => ({
+      ad_id: ad.id, adset_id: adSetId, date_start: `2026-10-0${i + 1}`, date_stop: `2026-10-0${i + 1}`,
+      spend: '300.00', impressions: '10000', reach: '8000', inline_link_clicks: ad.clicks, attribution_setting: '7d_click_1d_view',
+      results: [{ indicator: 'actions:onsite_conversion.lead_grouped', values: [{ value: leads }] }],
+    }))),
+  })
+
+  // 6. 复盘: Mei starts a 复盘 of B against A; both teams record Findings; Jun's Hypothesis becomes follow-up Variant C.
+  const plan = await call(mei, 'write_optimization_plan', {
+    p_fields: { version_id: b1.version_id, hypothesis: 'Does showing the product sooner bring cheaper leads?' },
+    p_evidence: { date_from: '2026-10-01', date_to: '2026-10-04', comparator_variant_id: variantA.id }, p_actions: [], p_idempotency_key: key(),
+  })
+  const evidence = (await mei.schema('learning').from('plan_evidence').select('id, annotation_revision_id').eq('plan_id', plan.id).eq('role', 'baseline').single()).data!
+  const demo = (await jun.schema('creative').from('content_sections').select('id').eq('revision_id', evidence.annotation_revision_id).eq('detail_label', 'demo').single()).data!
+  await call(mei, 'append_retrospective_finding', {
+    p_plan_id: plan.id, p_expected_lock_version: await lockVersion(mei, 'learning', 'optimization_plans', plan.id), p_idempotency_key: key(),
+    p_finding: { kind: 'observation', body: 'Variant B produced 40 leads at RM30 each, against RM40 for A at the same spend. Keep the convenience angle for the next comparison.', disposition: 'keep', target: 'whole_video', evidence_id: evidence.id },
+  })
+  const hypothesis = await call(jun, 'append_retrospective_finding', {
+    p_plan_id: plan.id, p_expected_lock_version: await lockVersion(jun, 'learning', 'optimization_plans', plan.id), p_idempotency_key: key(),
+    p_finding: { kind: 'hypothesis', body: 'The product still appears only at 00:08. Try showing it inside the opening three seconds.', disposition: 'test', target: 'section', section_id: demo.id },
+  })
+  await call(mei, 'change_plan_state', { p_plan_id: plan.id, p_state: 'accepted', p_note: null, p_expected_lock_version: await lockVersion(mei, 'learning', 'optimization_plans', plan.id) })
+  const action = await call(mei, 'link_plan_action', {
+    p_plan_id: plan.id, p_expected_lock_version: await lockVersion(mei, 'learning', 'optimization_plans', plan.id), p_idempotency_key: key(),
+    p_action: {
+      kind: 'new_variant', finding_id: hypothesis.id, intended_change: 'Show the product within the first three seconds. Keep the body, offer and CTA the same.',
+      success_criterion: 'Cost per lead below RM30 at similar spend', owner_id: junId, due_date: daysFromToday(7), check_date: daysFromToday(21),
+      minimum_spend: 500, minimum_spend_currency: 'MYR',
+    },
+  })
+
+  const { MAILPIT_URL } = stack()
+  console.log(`
+Demo loaded: ${creative.code} "The 5-minute routine (demo)".
+
+  1 Brief       ${appUrl}/briefs/${brief.id}
+  2 Production  ${appUrl}/creatives/${creative.id}
+  3 Review      ${appUrl}/reviews/${a1.review_id}  (Version 1 of ${variantA.code}: a blocking comment, then changes)
+  4 Launch      ${appUrl}/variants/${variantB.id}
+  5 Results     ${appUrl}/variants/${variantB.id}  (Paid results: RM1,200 spend, 40 leads, RM30 a lead)
+  6 复盘         ${appUrl}/plans/${plan.id}
+    Follow-up   ${appUrl}/variants/${action.variant_id}  (${action.code}, "From 复盘" on the board)
+
+Sign in at ${appUrl}/sign-in as one of the demo people, then open the local mail catcher at
+${MAILPIT_URL} and use the link or the 6-digit code from the newest email:
+  ${people.mei.email}   Mei, Marketing Owner and Approver
+  ${people.jun.email}   Jun, Creative Owner
+  ${people.aina.email}  Aina, Creative Team
+  ${people.owner.email}  the Admin (Settings)
+
+All of this is demo data on this machine; \`pnpm test:db\` and \`pnpm test:e2e\` reset it.`)
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error)
+  process.exit(1)
+})

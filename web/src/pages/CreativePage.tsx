@@ -123,8 +123,15 @@ export function CreativePage() {
         ) : (
           <>
             <span style={{ flex: '1 1 220px' }}>Narrative style: {name(creative.narrative_style_id) ?? <span className="muted">not set yet</span>}</span>
-            <div style={{ flex: '1 1 200px' }}><LabelSelect kind="format" label="Format" value={format} onChange={setFormat} /></div>
-            <button onClick={() => confirmFormat.mutate()} disabled={confirmFormat.isPending}>Confirm Format</button>
+            {creative.first_live_at ? (
+              // The Format locks with the Creative's first go-live, like its labels (D-13).
+              <span className="small muted" style={{ flex: '1 1 200px' }}>Format locked since go-live on {new Date(creative.first_live_at).toLocaleDateString()}</span>
+            ) : (
+              <>
+                <div style={{ flex: '1 1 200px' }}><LabelSelect kind="format" label="Format" value={format} onChange={setFormat} /></div>
+                <button onClick={() => confirmFormat.mutate()} disabled={confirmFormat.isPending}>Confirm Format</button>
+              </>
+            )}
           </>
         )}
         {(saveStyle.error || confirmFormat.error) && <p className="error" role="alert">{explain(saveStyle.error ?? confirmFormat.error)}</p>}

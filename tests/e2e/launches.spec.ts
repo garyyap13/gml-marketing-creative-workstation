@@ -77,6 +77,9 @@ test('Marketing pastes the post link; the Post and the Variant go live, and the 
   await expect(post).toContainText('Live')
   await expect(mei.getByText('Live', { exact: true }).first()).toBeVisible()
   await expect(mei.getByText(/Labels and Footage locked since/)).toBeVisible()
+  await mei.getByRole('link', { name: /Morning routine demo/ }).click()
+  await expect(mei.getByText(/Format locked since go-live/)).toBeVisible()
+  await expect(mei.getByRole('button', { name: 'Confirm Format' })).toHaveCount(0)
 
   const jun = await signIn(browser, junEmail)
   await jun.goto(`/variants/${variantId}`)

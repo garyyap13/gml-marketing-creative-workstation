@@ -1,0 +1,4 @@
+# esbuild (used by tsx for scripts/demo.ts) ships its binary as a platform package; its install script only
+# validates it, so it is not run.
+allowBuilds:
+  esbuild: false

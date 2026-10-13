@@ -52,6 +52,8 @@ pnpm web:dev
 
 `pnpm web:dev` serves the web app at http://127.0.0.1:5173 against the local stack. Sign in with a magic link or the 6-digit code from the email: invite the person first in Settings, which calls the `invite-member` Edge Function (the first Admin is set up with `bootstrap_admin`), then open the link from the local mail catcher (its URL is in `supabase status`).
 
+`pnpm demo` resets the local database and loads clearly labelled demo data: one Creative, GML-0001, taken through all six steps (Brief, production, a Review with a blocking comment, a Post and two Ads, four days of sample Meta results, and a 复盘 with Findings and a follow-up Variant). It prints a link for each step and the demo people to sign in as (`mei.demo@workstation.test` and so on); the sign-in link and 6-digit code arrive in the local mail catcher. It refuses to run against anything but the local stack.
+
 `pnpm test:db` resets the local database, sets up a first Admin and runs the database tests in `tests/db`. `pnpm test:e2e` runs the browser journeys in `tests/e2e` with Playwright, driving the installed Google Chrome in a throwaway profile (no browser download), and also resets the local database. Run the two suites one at a time. When a migration adds a schema that `supabase/config.toml` exposes, apply it (`supabase migration up`) before restarting the stack, because the API refuses to start without the schema. Stop the stack with `supabase stop` and the VM with `colima stop`. The local stack's ports are reachable from the local network, so stop it on untrusted networks.
 
 ## Related project
