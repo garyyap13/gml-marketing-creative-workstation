@@ -88,7 +88,7 @@ export async function memberId(client: SupabaseClient): Promise<string> {
 }
 
 // Labels, a filled Brief handed off with one video Creative owned by the given Creative Team member.
-export async function handedOffVideoBrief(marketing: SupabaseClient, creativeOwnerId: string) {
+export async function handedOffVideoBrief(marketing: SupabaseClient, creativeOwnerId: string, extra: { hypothesis?: string } = {}) {
   const brief = await call(marketing, 'create_brief', { p_title: unique('Morning routine'), p_marketing_owner_id: await memberId(marketing), p_idempotency_key: randomUUID() })
   const saved = await call(marketing, 'save_brief', {
     p_brief_id: brief.id,
@@ -99,6 +99,7 @@ export async function handedOffVideoBrief(marketing: SupabaseClient, creativeOwn
       funnel_stage_id: await addLabel(marketing, 'funnel_stage', unique('Consideration')),
       key_message: 'One easy routine before you leave home',
       cta: 'Message us',
+      ...(extra.hypothesis ? { hypothesis: extra.hypothesis } : {}),
     },
     p_expected_lock_version: brief.lock_version,
   })

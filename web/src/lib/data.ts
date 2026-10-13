@@ -348,6 +348,7 @@ export type AnnotationRevision = {
 }
 export type TranscriptCue = { start_ms: number; end_ms: number; text: string; speaker: string | null }
 export type ContentSection = {
+  id: string
   section_type: 'hook' | 'body' | 'cta' | 'other'
   detail_label: string | null
   start_ms: number
@@ -356,10 +357,12 @@ export type ContentSection = {
   notes: string | null
 }
 
-// A Version's video with its latest annotation revision: the timed transcript and Content Sections (TRD T-17).
-export function useVideoContent(versionId: string) {
+// A Version's video with its latest annotation revision, or a given one (a 复盘 shows the revision it froze): the
+// timed transcript and Content Sections (TRD T-17).
+export function useVideoContent(versionId: string, revisionId?: string | null, enabled = true) {
   return useQuery({
-    queryKey: ['video-content', versionId],
+    enabled: enabled && Boolean(versionId),
+    queryKey: ['video-content', versionId, revisionId ?? 'latest'],
     queryFn: async () => {
       const version = await supabase.schema('creative').from('versions').select('id, variant_id, version_number, submitted_at').eq('id', versionId).single()
       if (version.error) throw version.error
@@ -379,17 +382,19 @@ export function useVideoContent(versionId: string) {
         video,
       }
       if (!video) return { ...base, revision: null, cues: [] as TranscriptCue[], sections: [] as ContentSection[] }
-      const revision = await supabase.schema('creative').from('annotation_revisions')
+      const revisions = supabase.schema('creative').from('annotation_revisions')
         .select('id, revision_number, source, language, transcript_state, section_state, created_by, created_at')
-        .eq('version_id', versionId).eq('file_id', video.id).order('revision_number', { ascending: false }).limit(1).maybeSingle()
+      const revision = revisionId
+        ? await revisions.eq('id', revisionId).maybeSingle()
+        : await revisions.eq('version_id', versionId).eq('file_id', video.id).order('revision_number', { ascending: false }).limit(1).maybeSingle()
       if (revision.error) throw revision.error
       if (!revision.data) return { ...base, revision: null, cues: [] as TranscriptCue[], sections: [] as ContentSection[] }
-      const revisionId = revision.data.id as string
+      const frozenId = revision.data.id as string
       const [cues, sections] = await Promise.all([
         selectAll<TranscriptCue>((from, to) => supabase.schema('creative').from('transcript_cues')
-          .select('start_ms, end_ms, text, speaker').eq('revision_id', revisionId).order('sequence').range(from, to)),
+          .select('start_ms, end_ms, text, speaker').eq('revision_id', frozenId).order('sequence').range(from, to)),
         selectAll<ContentSection>((from, to) => supabase.schema('creative').from('content_sections')
-          .select('section_type, detail_label, start_ms, end_ms, on_screen_text, notes').eq('revision_id', revisionId).order('sequence').range(from, to)),
+          .select('id, section_type, detail_label, start_ms, end_ms, on_screen_text, notes').eq('revision_id', frozenId).order('sequence').range(from, to)),
       ])
       return { ...base, revision: revision.data as AnnotationRevision, cues, sections }
     },
@@ -467,6 +472,150 @@ export function useVariantResults(variantId: string) {
   })
 }
 
+export type Plan = {
+  id: string
+  author_id: string
+  owner_id: string
+  baseline_variant_id: string
+  baseline_version_id: string
+  hypothesis: string | null
+  intent_brief_hypothesis: string | null
+  intent_source_plan_hypothesis: string | null
+  state: 'proposed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
+  evidence_class: 'insufficient_evidence' | 'observational' | 'experiment_supported'
+  check_date: string | null
+  minimum_spend: number | null
+  minimum_spend_currency: string | null
+  accepted_at: string | null
+  verdict: 'confirmed' | 'not_confirmed' | 'not_enough_data' | null
+  verdict_by: string | null
+  verdict_by_system: boolean
+  verdict_at: string | null
+  verdict_note: string | null
+  completion_summary: string | null
+  cancel_reason: string | null
+  created_at: string
+  lock_version: number
+}
+export type PlanEvidence = {
+  id: string
+  role: 'baseline' | 'comparator'
+  variant_id: string
+  version_id: string | null
+  annotation_revision_id: string | null
+  files: { file_id: string; checksum: string | null; checksum_algorithm: string | null; drive_file_id: string }[]
+  launch_ids: string[]
+  date_from: string
+  date_to: string
+  scope: { currency: string; time_zone: string; attribution_setting: string; result_indicator: string; channel_scope: string } | null
+  totals: { spend: number | null; results: number | null; impressions: number | null; link_clicks: number | null; days: number } | null
+  missing: Record<string, string>
+  frozen_at: string
+}
+export type Finding = {
+  id: string
+  kind: 'observation' | 'hypothesis'
+  body: string
+  disposition: 'keep' | 'change' | 'test'
+  target: 'whole_video' | 'section' | 'time_range'
+  section_id: string | null
+  start_ms: number | null
+  end_ms: number | null
+  evidence_id: string | null
+  supersedes_id: string | null
+  author_id: string
+  created_at: string
+}
+export type PlanAction = {
+  id: string
+  kind: string
+  finding_id: string
+  variant_id: string | null
+  owner_id: string
+  due_date: string
+  intended_change: string
+  success_criterion: string
+  created_at: string
+}
+const planColumns = 'id, author_id, owner_id, baseline_variant_id, baseline_version_id, hypothesis, intent_brief_hypothesis, intent_source_plan_hypothesis, state, evidence_class, check_date, minimum_spend, minimum_spend_currency, accepted_at, verdict, verdict_by, verdict_by_system, verdict_at, verdict_note, completion_summary, cancel_reason, created_at, lock_version'
+
+// Every 复盘, newest first, with the code and Version it looks back at.
+export function usePlans(variantId?: string) {
+  return useQuery({
+    queryKey: ['plans', variantId ?? 'all'],
+    queryFn: async () => {
+      const plans = await selectAll<Plan>((from, to) => {
+        const query = supabase.schema('learning').from('optimization_plans').select(planColumns)
+        return (variantId ? query.eq('baseline_variant_id', variantId) : query).order('created_at', { ascending: false }).order('id').range(from, to)
+      })
+      const variants = await selectIn<{ id: string; code: string }>([...new Set(plans.map((p) => p.baseline_variant_id))], (chunk, from, to) =>
+        supabase.schema('creative').from('variants').select('id, code').in('id', chunk).order('id').range(from, to))
+      const versions = await selectIn<{ id: string; version_number: number }>([...new Set(plans.map((p) => p.baseline_version_id))], (chunk, from, to) =>
+        supabase.schema('creative').from('versions').select('id, version_number').in('id', chunk).order('id').range(from, to))
+      return plans.map((p) => ({
+        ...p,
+        code: variants.find((v) => v.id === p.baseline_variant_id)?.code ?? '…',
+        versionNumber: versions.find((v) => v.id === p.baseline_version_id)?.version_number,
+      }))
+    },
+  })
+}
+
+// One 复盘 with everything its workspace shows: frozen Evidence, Findings, actions, counted spend and the labels of
+// what it looks back at (FR-17).
+export function usePlan(id: string) {
+  return useQuery({
+    queryKey: ['plan', id],
+    queryFn: async () => {
+      const plan = await supabase.schema('learning').from('optimization_plans').select(planColumns).eq('id', id).single()
+      if (plan.error) throw plan.error
+      const p = plan.data as Plan
+      const [evidence, findings, actions, spend, variant, version] = await Promise.all([
+        supabase.schema('learning').from('plan_evidence')
+          .select('id, role, variant_id, version_id, annotation_revision_id, files, launch_ids, date_from, date_to, scope, totals, missing, frozen_at').eq('plan_id', id).order('role'),
+        selectAll<Finding>((from, to) => supabase.schema('learning').from('retrospective_findings')
+          .select('id, kind, body, disposition, target, section_id, start_ms, end_ms, evidence_id, supersedes_id, author_id, created_at').eq('plan_id', id).order('created_at').order('id').range(from, to)),
+        supabase.schema('learning').from('plan_actions').select('id, kind, finding_id, variant_id, owner_id, due_date, intended_change, success_criterion, created_at').eq('plan_id', id).order('created_at'),
+        supabase.schema('reporting').from('plan_spend').select('currency, spend, counted, unreported_days').eq('plan_id', id),
+        supabase.schema('creative').from('variants').select('id, code, creative_id, state, live_at').eq('id', p.baseline_variant_id).single(),
+        supabase.schema('creative').from('versions').select('id, version_number, brief_version_id').eq('id', p.baseline_version_id).single(),
+      ])
+      for (const result of [evidence, actions, spend, variant, version]) if (result.error) throw result.error
+      const ev = evidence.data as PlanEvidence[]
+      const comparator = ev.find((e) => e.role === 'comparator')
+      const baselineVariant = variant.data as { id: string; code: string; creative_id: string; state: Variant['state']; live_at: string | null }
+      const baselineVersion = version.data as { id: string; version_number: number; brief_version_id: string | null }
+      const [creative, brief, actionVariants, comparatorVariant, revision] = await Promise.all([
+        supabase.schema('creative').from('creatives').select('id, code, title, narrative_style_id').eq('id', baselineVariant.creative_id).single(),
+        baselineVersion.brief_version_id
+          ? supabase.schema('brief').from('brief_versions').select('avatar_id, angle_id').eq('id', baselineVersion.brief_version_id).single()
+          : Promise.resolve({ data: null, error: null }),
+        supabase.schema('creative').from('variants').select('id, code').in('id', (actions.data ?? []).map((a) => a.variant_id).filter(Boolean) as string[]),
+        comparator ? supabase.schema('creative').from('variants').select('id, code').eq('id', comparator.variant_id).single() : Promise.resolve({ data: null, error: null }),
+        ev[0]?.annotation_revision_id
+          ? supabase.schema('creative').from('annotation_revisions').select('revision_number').eq('id', ev[0].annotation_revision_id).single()
+          : Promise.resolve({ data: null, error: null }),
+      ])
+      for (const result of [creative, brief, actionVariants, comparatorVariant, revision]) if (result.error) throw result.error
+      return {
+        plan: p,
+        baseline: ev.find((e) => e.role === 'baseline') ?? null,
+        comparator: comparator ?? null,
+        comparatorCode: (comparatorVariant.data as { code: string } | null)?.code ?? null,
+        findings: findings,
+        actions: actions.data as PlanAction[],
+        actionVariants: (actionVariants.data ?? []) as { id: string; code: string }[],
+        spend: (spend.data ?? []) as { currency: string; spend: number; counted: boolean; unreported_days: number }[],
+        variant: baselineVariant,
+        version: baselineVersion,
+        creative: creative.data as { id: string; code: string; title: string; narrative_style_id: string | null },
+        brief: brief.data as { avatar_id: string | null; angle_id: string | null } | null,
+        annotationRevisionNumber: (revision.data as { revision_number: number } | null)?.revision_number ?? null,
+      }
+    },
+  })
+}
+
 // Every active Variant with its Creative, for the board.
 export function useBoard() {
   return useQuery({
@@ -477,8 +626,18 @@ export function useBoard() {
       const creatives = await selectIn<{ id: string; code: string; title: string; creative_owner_id: string; due_date: string }>(
         [...new Set(variants.map((v) => v.creative_id))], (chunk, from, to) =>
           supabase.schema('creative').from('creatives').select('id, code, title, creative_owner_id, due_date').in('id', chunk).is('archived_at', null).order('id').range(from, to))
+      // Variants a 复盘 asked for, with the code of the baseline they test against (D-74).
+      const actions = await selectIn<{ variant_id: string; baseline_evidence_id: string }>(variants.map((v) => v.id), (chunk, from, to) =>
+        supabase.schema('learning').from('plan_actions').select('variant_id, baseline_evidence_id').in('variant_id', chunk).order('variant_id').range(from, to))
+      const evidence = await selectIn<{ id: string; variant_id: string; version_id: string | null }>([...new Set(actions.map((a) => a.baseline_evidence_id))], (chunk, from, to) =>
+        supabase.schema('learning').from('plan_evidence').select('id, variant_id, version_id').in('id', chunk).order('id').range(from, to))
       const byId = new Map(creatives.map((c) => [c.id, c]))
-      return variants.map((v) => ({ ...v, creative: byId.get(v.creative_id) }))
+      const codeOf = new Map(variants.map((v) => [v.id, v.code]))
+      return variants.map((v) => {
+        const action = actions.find((a) => a.variant_id === v.id)
+        const baseline = evidence.find((e) => e.id === action?.baseline_evidence_id)
+        return { ...v, creative: byId.get(v.creative_id), fromRetroBaseline: action ? codeOf.get(baseline?.variant_id ?? '') ?? 'another Variant' : null }
+      })
     },
   })
 }

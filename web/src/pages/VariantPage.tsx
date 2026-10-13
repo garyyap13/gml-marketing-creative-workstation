@@ -5,6 +5,7 @@ import { Button } from '../components/Button'
 import { LabelSelect } from '../components/LabelSelect'
 import { LaunchesPanel } from '../components/LaunchesPanel'
 import { ResultsPanel } from '../components/ResultsPanel'
+import { StartRetroPanel } from '../components/StartRetroPanel'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { stageNames, stageTrack, useFootage, useLabels, useVariant, variantStates, type FileRow, type Variant } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -185,6 +186,7 @@ export function VariantPage() {
       </section>
 
       {variant.live_at && <ResultsPanel variantId={variant.id} />}
+      {variant.live_at && <StartRetroPanel variant={variant} versions={versions} />}
       <LaunchesPanel variant={variant} versions={versions} reviews={reviews} canPlan={me.team === 'marketing'} />
 
       {isCreative && variant.live_at === null && (

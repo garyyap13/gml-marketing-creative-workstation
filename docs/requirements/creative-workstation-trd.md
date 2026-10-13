@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-73). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
+Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-74). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
 
 Audience: Engineering, database, integration, QA and operations.
 
@@ -289,7 +289,7 @@ The following v1.0 tables are removed (D-27, ADR 0004): `distribution.package_ve
 
 ### 4.7 Creative Retrospective / 复盘 (T-18)
 
-D-63 extends the existing Optimization Plan, Evidence and action records. The owner confirmed this design as D-68; it is not an applied migration.
+D-63 extends the existing Optimization Plan, Evidence and action records. The owner confirmed this design as D-68, and D-74 settled the open details; the local migration `20261014060000_retrospectives.sql` implements it (milestone A4).
 
 | Record | Proposed additions / fields | Integrity |
 |---|---|---|
@@ -305,6 +305,13 @@ Extend `write_optimization_plan` to accept retrospective context and initial fin
 Proposed `append_retrospective_finding` allows either team to add or correct a finding on an active plan with caller identity, expected plan lock version, idempotency and audit in one transaction. Extend `link_plan_action` under existing owner/Approver permissions to attach findings and follow-up details. Corrections do not mutate frozen Evidence. Verdicts continue through `record_verdict`; no second review-state machine or approval flag is introduced.
 
 Reporting joins Plans, frozen Evidence, findings, action outputs and Verdicts under member RLS. Search uses cited section types and the labels attached to the cited Creative. Compare only compatible Result types, currencies, scopes, attribution settings and source metric definitions. Show delivery context and date windows explicitly; date ranges may differ in a before/after comparison but that alone never establishes a Controlled Test.
+
+As built in milestone A4:
+- `write_optimization_plan` takes `version_id`, an optional hypothesis, owner and priority, and the Evidence dates with an optional comparator Variant; initial actions are refused and are linked afterwards. The Version must have a Launch that went live. Evidence freezes, per role, the Version's file IDs with checksums, the latest annotation revision, the Launch IDs, the scope, the totals and every cited daily row with its observation revision ID (`learning.evidence_rows`); a comparator of another kind is refused. With no rows the class is forced to `insufficient_evidence`; `experiment_supported` waits for Controlled Tests (B3).
+- A Finding is one `observation` or `hypothesis` with a disposition; an Observation is whole-video and cites frozen Evidence; a section must belong to the frozen annotation revision and a time range stays inside the video. Appending bumps the plan's lock version. One finding motivates one action (`plan_actions.finding_id`), in place of `action_findings` for now.
+- `change_plan_state(p_plan_id, p_state, p_note, p_expected_lock_version)` accepts, completes (Verdict and summary needed) or cancels (reason needed). `link_plan_action(p_plan_id, p_action, p_expected_lock_version, p_idempotency_key)` creates a `new_variant` action on an accepted plan: the follow-up Variant of the baseline's Creative, derived from the baseline with its labels, a task for the action owner (closed when the Variant's first Version is submitted), and the plan's check date and minimum spend.
+- `record_verdict` is for Approvers from the check date; below the minimum only "not enough data" is accepted, and an automatic Verdict stands. `worker.run_due_checks(p_today)` combines `emit_due_events` and `auto_verdicts` for plans; tests call it, and a schedule arrives with the hosted project (B1). `reporting.plan_spend` shows counted and uncounted spend by currency.
+- "Today" is the database's date (UTC) for now; a team time-zone setting is later work.
 
 Whole-ad metrics remain at ad/Variant scope. Optional time-series evidence retains exact media identity, time bucket, unit, denominator, source and scope; do not invent missing retention observations or derive section-level Cost per Result. Retrieval failures do not erase prior Evidence. Automatic transcription, retention acquisition and AI diagnosis are separate integration choices.
 
@@ -379,7 +386,7 @@ Worker-only functions, never executable by browser roles:
 - `record_drive_check`: called only by the Drive check Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19).
 - `record_whatsapp_status`: called by the webhook Edge Function.
 - `emit_due_events`: a scheduled SQL job. It appends activity-log events when a Variant passes its due date or a plan reaches its check date, and routing then creates the tasks (D-56).
-- `auto_verdicts`: a daily SQL job. It records "not enough data" when spend falls below the plan's minimum. Spend counts the Launches linked to the plan's actions between acceptance and the check date (D-43, D-57).
+- `auto_verdicts`: a daily SQL job. It records "not enough data" when spend falls below the plan's minimum. Spend counts the Launches linked to the plan's actions between acceptance and the check date, in the minimum's currency only (D-43, D-57, D-74). Built in A4 as `worker.run_due_checks` together with the plan part of `emit_due_events`.
 - `record_file_purge`: called only by the purge Edge Function. It deletes a `core.files` row after its Storage object is gone, and only if the file was never attached and is older than 30 days (D-59).
 
 The never-attached file purge (`purge_unattached_files`) is an Edge Function run daily by a scheduled job, not a SQL-only job. Supabase Storage objects are deleted through the Storage API, not by SQL (D-62).
@@ -467,6 +474,8 @@ api.enter_manual_results(p_platform text, p_account_id uuid, p_entity_ref text, 
 api.write_optimization_plan(p_fields jsonb, p_evidence jsonb, p_actions jsonb, p_idempotency_key uuid) returns jsonb
 api.append_retrospective_finding(p_plan_id uuid, p_finding jsonb, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
 api.record_verdict(p_plan_id uuid, p_verdict text, p_note text, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
+api.link_plan_action(p_plan_id uuid, p_action jsonb, p_expected_lock_version int, p_idempotency_key uuid) returns jsonb
+api.change_plan_state(p_plan_id uuid, p_state text, p_note text, p_expected_lock_version int) returns jsonb
 api.archive_record(p_entity_type text, p_entity_id uuid, p_reason text, p_expected_lock_version int) returns jsonb
 ```
 

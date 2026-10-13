@@ -9,6 +9,8 @@ import { FootagePage } from './pages/FootagePage'
 import { VariantPage } from './pages/VariantPage'
 import { VideoContentPage } from './pages/VideoContentPage'
 import { MyTasks } from './pages/MyTasks'
+import { PlanPage } from './pages/PlanPage'
+import { PlansPage } from './pages/PlansPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { Settings } from './pages/Settings'
 import { SignIn } from './pages/SignIn'
@@ -56,6 +58,8 @@ export function App() {
         <Route path="/reviews/:id" element={<ReviewPage />} />
         <Route path="/versions/:id/content" element={<VideoContentPage />} />
         <Route path="/footage" element={<FootagePage />} />
+        <Route path="/plans" element={<PlansPage />} />
+        <Route path="/plans/:id" element={<PlanPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

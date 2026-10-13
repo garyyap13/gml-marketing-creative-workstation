@@ -17,7 +17,7 @@ export function Layout() {
           <NavLink to="/creatives">Creatives</NavLink>
           <NavLink to="/footage">Footage</NavLink>
           <span className="later" title="Arrives with Launches and results">Results</span>
-          <span className="later" title="Arrives with the learning loop">复盘</span>
+          <NavLink to="/plans">复盘</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
       </aside>

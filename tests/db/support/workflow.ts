@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { driveLink, fakeDriveFileId, imageDetails, reportDriveDetails, videoDetails } from '../../support/drive'
+import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../../support/meta'
 import {
   command,
+  operatorClient,
   fillBrief,
   invitedMember,
   labelItem,
@@ -234,4 +236,69 @@ export async function cancelLaunch(member: Member, launchId: string, reason: str
   return command(member.client, 'cancel_launch', {
     p_launch_id: launchId, p_reason: reason, p_expected_lock_version: await launchLockVersion(member, launchId),
   })
+}
+
+// An approved video Version with annotations, one planned Ad matched by the Meta stand-in, and four days of paid
+// results: RM 1,200 spend and 40 leads, as in the mockup.
+export async function liveVersionWithResults() {
+  const setup = await approvedVideoVersion()
+  const fileId = await versionFileId(setup.jun, setup.versionId)
+  const annotations = must(await saveAnnotations(setup.jun, setup.versionId, fileId, null), 'save_video_annotations')
+  const accounts = await demoAccounts()
+  const planned = must(await planLaunch(setup.marketing, setup.versionId, 'ad', adFields(accounts.adAccount, 'Working mums')), 'plan_launch')
+  const ad = sampleAd(planned.ad_name, { adsetName: 'Working mums' })
+  await publishMetaSync(accounts.adAccountExternalId, [ad], dailyInsights(ad, '2026-10-01', 4, fourDays))
+  return { ...setup, fileId, annotationRevisionId: annotations.id as string, accounts, launchId: planned.id as string, ad }
+}
+export const fourDays = { spend: '300.00', impressions: '10000', reach: '8000', clicks: '250', leads: '10' }
+
+export function writePlan(member: Member, fields: Record<string, unknown>, evidence: Record<string, unknown>) {
+  return command(member.client, 'write_optimization_plan', { p_fields: fields, p_evidence: evidence, p_actions: [], p_idempotency_key: randomUUID() })
+}
+
+export async function planLockVersion(member: Member, planId: string): Promise<number> {
+  const { data, error } = await member.client.schema('learning').from('optimization_plans').select('lock_version').eq('id', planId).single()
+  if (error) throw error
+  return data.lock_version
+}
+
+export async function appendFinding(member: Member, planId: string, finding: Record<string, unknown>, lockVersion?: number) {
+  return command(member.client, 'append_retrospective_finding', {
+    p_plan_id: planId, p_finding: finding, p_expected_lock_version: lockVersion ?? (await planLockVersion(member, planId)), p_idempotency_key: randomUUID(),
+  })
+}
+
+export async function baselineEvidenceId(member: Member, planId: string): Promise<string> {
+  const { data, error } = await member.client.schema('learning').from('plan_evidence').select('id').eq('plan_id', planId).eq('role', 'baseline').single()
+  if (error) throw error
+  return data.id
+}
+
+export async function changePlanState(member: Member, planId: string, state: string, note: string | null = null) {
+  return command(member.client, 'change_plan_state', { p_plan_id: planId, p_state: state, p_note: note, p_expected_lock_version: await planLockVersion(member, planId) })
+}
+
+export async function linkPlanAction(member: Member, planId: string, action: Record<string, unknown>) {
+  return command(member.client, 'link_plan_action', {
+    p_plan_id: planId, p_action: action, p_expected_lock_version: await planLockVersion(member, planId), p_idempotency_key: randomUUID(),
+  })
+}
+
+// A date `days` from today, as the database sees today (UTC).
+export const daysFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+
+export const followUp = (findingId: string, ownerId: string, overrides: Record<string, unknown> = {}) => ({
+  kind: 'new_variant', finding_id: findingId, intended_change: 'Show the product within the first three seconds. Keep the body, offer and CTA.',
+  success_criterion: 'Cost per lead below RM30 at similar spend', owner_id: ownerId, due_date: daysFromToday(7), check_date: daysFromToday(21),
+  minimum_spend: 500, minimum_spend_currency: 'MYR', ...overrides,
+})
+
+export async function recordVerdict(member: Member, planId: string, verdict: string, note = 'Agreed with both teams') {
+  return command(member.client, 'record_verdict', {
+    p_plan_id: planId, p_verdict: verdict, p_note: note, p_expected_lock_version: await planLockVersion(member, planId), p_idempotency_key: randomUUID(),
+  })
+}
+
+export function runDueChecks(today: string) {
+  return operatorClient().schema('worker').rpc('run_due_checks', { p_today: today })
 }

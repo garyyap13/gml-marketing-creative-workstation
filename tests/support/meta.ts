@@ -49,7 +49,7 @@ export function dailyInsights(
 }
 
 // Publishes one sync generation for an ad account: its campaigns, ad sets, ads and insights, then matching runs.
-export async function publishMetaSync(adAccountExternalId: string, ads: SampleAd[], insights: ReturnType<typeof dailyInsights> = []) {
+export async function publishMetaSync(adAccountExternalId: string, ads: SampleAd[], insights: Array<Record<string, unknown>> = []) {
   const campaignId = metaId()
   const payload = {
     campaigns: [{ id: campaignId, name: 'Morning routine', objective: 'OUTCOME_LEADS' }],

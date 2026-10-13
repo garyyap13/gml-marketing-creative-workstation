@@ -23,10 +23,10 @@ export const transcriptStates: Record<TranscriptState, string> = {
 export const sectionStates: Record<SectionState, string> = { not_started: 'No sections yet', draft: 'Draft sections', reviewed: 'Reviewed sections' }
 
 type Timed = { start_ms: number; end_ms: number }
-const range = (s: Timed) => `${formatTime(s.start_ms)}–${formatTime(s.end_ms)}`
+export const range = (s: Timed) => `${formatTime(s.start_ms)}–${formatTime(s.end_ms)}`
 // Body sections go by their detail on the timeline ("Problem", "Demo"), like the mockup; the others by their type.
 const shortName = (s: ContentSection) => (s.section_type === 'body' && s.detail_label ? detailLabels[s.detail_label] : sectionTypes[s.section_type])
-const title = (s: ContentSection) => [sectionTypes[s.section_type], s.detail_label && detailLabels[s.detail_label], range(s)].filter(Boolean).join(' · ')
+export const title = (s: ContentSection) => [sectionTypes[s.section_type], s.detail_label && detailLabels[s.detail_label], range(s)].filter(Boolean).join(' · ')
 
 // The sections laid end to end in time order at their share of the video, with the gaps between them. Each part
 // keeps its section's index in the list it was given.
@@ -52,9 +52,15 @@ function spoken(state: TranscriptState, cues: TranscriptCue[], section: ContentS
   return heard.map((c) => (speakers.size > 1 && c.speaker ? `${c.speaker}: “${c.text}”` : `“${c.text}”`)).join(' ')
 }
 
-// On a Review, picking a section shows what is said and what is on screen in it (FR-16).
-export function ContentTimeline({ versionId, canEdit }: { versionId: string; canEdit: boolean }) {
-  const content = useVideoContent(versionId)
+// On a Review, picking a section shows what is said and what is on screen in it (FR-16). A 复盘 shows the annotation
+// revision it froze, and can hand the picked section to a Finding (FR-17).
+export function ContentTimeline({ versionId, revisionId, canEdit, onUseSection }: {
+  versionId: string
+  revisionId?: string | null
+  canEdit: boolean
+  onUseSection?: (section: ContentSection) => void
+}) {
+  const content = useVideoContent(versionId, revisionId)
   const [picked, setPicked] = useState(0)
   const headingId = useId()
   if (content.isPending) return null
@@ -94,6 +100,7 @@ export function ContentTimeline({ versionId, canEdit }: { versionId: string; can
             <h3>{title(selected)}</h3>
             <div><span className="eyebrow">Spoken</span><p>{spoken(revision.transcript_state, cues, selected)}</p></div>
             <div><span className="eyebrow">On-screen text</span><p>{selected.on_screen_text ?? <span className="muted">None recorded</span>}</p></div>
+            {onUseSection && <button style={{ justifySelf: 'start' }} onClick={() => onUseSection(selected)}>Use this section in a finding</button>}
           </div>
         ) : (
           <p className="small muted">No sections marked yet.</p>

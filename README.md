@@ -7,7 +7,7 @@ Requirements and architecture for GML's internal workstation, where the Marketin
 | Document | Purpose |
 |---|---|
 | [Glossary (CONTEXT.md)](CONTEXT.md) | Canonical vocabulary (Brief, Creative, Variant, Version, Launch, Combination, …) and the terms to avoid |
-| [Interview decisions](docs/requirements/2026-10-11-interview-decisions.md) | Owner-confirmed decisions D-01…D-73 (including the confirmed defaults D-49–D-62) and the remaining open item O-02. The log wins when documents conflict |
+| [Interview decisions](docs/requirements/2026-10-11-interview-decisions.md) | Owner-confirmed decisions D-01…D-74 (including the confirmed defaults D-49–D-62) and the remaining open item O-02. The log wins when documents conflict |
 | [Architecture decision records](docs/adr/) | Hard-to-reverse decisions: Supabase, meaning-free codes, separation from the Video Orchestrator, lightweight Launch tracking, single company, commands as Postgres functions, Version files in Google Drive |
 | [Product Requirements Document (1.1)](docs/requirements/creative-workstation-prd.md) | Teams and roles, the six-step workflow, scope, screens, functional requirements, acceptance criteria and proposed defaults |
 | [Technical Requirements Document (1.1)](docs/requirements/creative-workstation-trd.md) | Supabase architecture, data model, RPC command contract, Meta sync and matching, security, notifications and verification |
@@ -33,7 +33,7 @@ Every Creative has a code such as `GML-0007`, and each Variant adds a letter, as
 
 ## Repository status
 
-This repository contains the requirements, the UI concept, the local Supabase database (members, Briefs, Creatives, Variants, Footage, Drive-registered Versions, Reviews, video transcripts and Content Sections, Launches, sample Meta matching and paid results, and My Tasks) and the web app, with database tests and browser journeys. It has no hosted Supabase project, authenticated Google, Drive, Meta or WhatsApp connections, or live Meta data yet. Example records and figures are illustrative.
+This repository contains the requirements, the UI concept, the local Supabase database (members, Briefs, Creatives, Variants, Footage, Drive-registered Versions, Reviews, video transcripts and Content Sections, Launches, sample Meta matching and paid results, 复盘 with frozen Evidence, Findings, follow-up Variants and Verdicts, and My Tasks) and the web app, with database tests and browser journeys. It has no hosted Supabase project, authenticated Google, Drive, Meta or WhatsApp connections, or live Meta data yet. Example records and figures are illustrative.
 
 V1 covers the team workflow, Launch records, read-only Meta reporting, WhatsApp notifications and the optimization loop. Publishing, ad creation and budget changes are later scope.
 

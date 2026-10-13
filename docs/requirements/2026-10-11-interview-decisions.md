@@ -209,6 +209,13 @@ The owner accepted the recommended answers on 2026-10-12.
   - An ad still in review, rejected, or waiting on billing is linked to its planned Launch but does not put the Variant live yet.
   - An archived or deleted ad ends its Launch. If it is first seen that way, it is recorded as an ended Launch, so its results are still reported.
   - B3 checks the rule against real accounts and raises any status that does not fit.
+- **D-74** The 复盘 loop's open details. The owner accepted the recommended answers for milestone A4 on 2026-10-14:
+  - **Verdicts.** On the check date a daily check counts the spend. Below the minimum, the system records "not enough data", and that Verdict is final. Otherwise the plan owner and the Approvers are asked for the Verdict, and an Approver records confirmed, not confirmed or not enough data. No Verdict is recorded before the check date (refines D-43, D-57).
+  - **Spend currency.** Only spend in the minimum's currency counts: spend on Launches linked to the plan's actions, from acceptance to the check date. Spend in another currency is listed as not counted and is never converted (D-37).
+  - **Findings.** A Finding is one note of one kind. An Observation cites a frozen result. A Hypothesis may point at a Content Section or a time range. Each is marked keep, change or test. A section can only carry a Hypothesis, because ad-level results do not measure sections. A correction adds a new note that supersedes the old one.
+  - **Follow-up Variants.** The plan owner or an Approver turns a Finding into a new Variant of the baseline's Creative. It is derived from the baseline and starts with its labels, which the Creative Team can change before go-live. The action owner gets a task, and the board marks the Variant "From 复盘".
+  - **Plan states.** The owner or an Approver accepts a plan, which starts the spend window. The first linked action moves it to in progress. Completing needs a Verdict and a summary; cancelling needs a reason.
+  - **Evidence in A4.** The baseline Variant's paid results for chosen dates, plus an optional comparator Variant whose currency, attribution, result type and time zone match. The Version, its file checksums and its annotation revision are frozen automatically. The evidence class is "insufficient evidence" (forced when there is no data) or "observational"; Controlled Tests wait for the Meta connection (B3).
 
 ## Open
 

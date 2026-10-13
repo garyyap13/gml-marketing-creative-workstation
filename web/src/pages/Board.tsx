@@ -23,6 +23,7 @@ function Lane({ name, cards }: { name: string; cards: ReturnType<typeof useBoard
             {v.production_stage ? stageNames[v.production_stage] : 'No stage'} · {members.data?.find((m) => m.id === v.creative?.creative_owner_id)?.display_name} · due {v.creative?.due_date}
           </span>
           {v.state === 'changes_requested' && <span className="tag warn" style={{ justifySelf: 'start' }}>Changes requested</span>}
+          {v.fromRetroBaseline && <span className="row small"><span className="tag">From 复盘</span><span className="muted">Baseline: {v.fromRetroBaseline}</span></span>}
         </Link>
       ))}
     </section>

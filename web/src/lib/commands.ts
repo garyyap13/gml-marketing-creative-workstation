@@ -32,6 +32,16 @@ const reasons: Record<string, string> = {
   approval_withdrawn: 'The approval of this Version was withdrawn. No new Launch can use it.',
   approval_superseded: 'A newer Version replaced this approval. No new Launch can use this Version.',
   labels_locked_after_go_live: 'Labels and Footage are locked now that the Creative has gone live.',
+  version_never_live: 'This Version has not been shown yet, so there is nothing to look back at.',
+  plan_not_accepted: 'Accept the plan first. That starts the spend window.',
+  plan_closed: 'This 复盘 is closed.',
+  verdict_recorded: 'A Verdict has already been recorded.',
+  before_check_date: 'The Verdict can be recorded from the check date.',
+  no_check_date: 'Link a follow-up action first; it sets the check date.',
+  below_minimum_spend: 'Spend is below the minimum, so the Verdict is not enough data.',
+  verdict_needed: 'Record the Verdict before completing the plan.',
+  invalid_transition: 'The plan has moved on. Reload to see where it is.',
+  comparator_incompatible: 'Compare with results in the same currency, time zone, attribution and result type.',
 }
 
 export function explain(error: unknown): string {

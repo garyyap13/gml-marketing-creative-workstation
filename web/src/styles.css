@@ -92,3 +92,18 @@ fieldset.entry.invalid { box-shadow: inset 3px 0 0 var(--danger); padding-left: 
 dl.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 0; }
 dl.metrics dt { font-size: 12px; color: var(--muted); }
 dl.metrics dd { margin: 2px 0 0; font-size: 20px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+
+/* 复盘 workspace (FR-17), after the mockup. */
+.hypothesis { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--soft); display: grid; gap: 4px; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; align-items: start; }
+.tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); padding: 10px 0; }
+.tabs button[aria-selected='true'] { border-bottom-color: var(--accent); color: var(--ink); }
+[role='tabpanel'][hidden] { display: none; }
+table.compare { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.compare caption { text-align: left; color: var(--muted); padding-bottom: 6px; }
+table.compare th, table.compare td { padding: 8px 0; border-bottom: 1px solid var(--line); text-align: right; font-weight: 400; }
+table.compare th:first-child, table.compare td:first-child { text-align: left; }
+table.compare thead th { color: var(--muted); }
+.finding { border-top: 1px solid var(--line); padding-top: 10px; }
+@media (max-width: 860px) { .workspace { grid-template-columns: 1fr; } }

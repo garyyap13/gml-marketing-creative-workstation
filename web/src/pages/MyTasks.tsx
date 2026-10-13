@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useMember } from '../lib/session'
 
 // Where each kind of task takes you.
-const routes: Record<string, string> = { brief: '/briefs', review: '/reviews', variant: '/variants' }
+const routes: Record<string, string> = { brief: '/briefs', review: '/reviews', variant: '/variants', plan: '/plans' }
 
 type Task = { id: string; kind: string; action_needed: string; entity_type: string; entity_id: string; created_at: string }
 
