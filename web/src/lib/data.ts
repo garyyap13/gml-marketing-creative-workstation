@@ -833,3 +833,83 @@ export function useBoard() {
     },
   })
 }
+
+export type AdToResolve = {
+  id: string; external_id: string; name: string; match_state: 'untracked' | 'mismatched' | 'kept_out'; parsed_codes: string[]
+  effective_status: string; first_seen_at: string; account_id: string; ad_set_id: string | null; variant_id: string | null
+  launch_id: string | null; suggested_creative_id: string | null; resolution: 'linked' | 'kept_out' | null; resolution_reason: string | null
+  resolved_by: string | null; resolved_at: string | null
+}
+export type VariantChoice = { id: string; code: string; creative_id: string }
+
+// Untracked, Mismatched and kept-out Ads, with what is needed to explain each one and to link it (D-55, T-14).
+export function useAdsToResolve() {
+  return useQuery({
+    queryKey: ['ads-to-resolve'],
+    queryFn: async () => {
+      const ads = await selectAll<AdToResolve>((from, to) =>
+        supabase.schema('meta').from('ads')
+          .select('id, external_id, name, match_state, parsed_codes, effective_status, first_seen_at, account_id, ad_set_id, variant_id, launch_id, suggested_creative_id, resolution, resolution_reason, resolved_by, resolved_at')
+          .in('match_state', ['untracked', 'mismatched', 'kept_out']).order('first_seen_at').order('id').range(from, to))
+      const [adSets, accounts, launches, variants, creatives] = await Promise.all([
+        selectIn<{ id: string; name: string; campaign_id: string | null }>([...new Set(ads.map((a) => a.ad_set_id).filter(Boolean) as string[])], (chunk, from, to) =>
+          supabase.schema('meta').from('ad_sets').select('id, name, campaign_id').in('id', chunk).order('id').range(from, to)),
+        selectAll<LaunchAccount>((from, to) =>
+          supabase.schema('launch').from('accounts').select('id, platform, name, currency, time_zone, source').order('name').order('id').range(from, to)),
+        selectIn<{ id: string; variant_id: string }>([...new Set(ads.map((a) => a.launch_id).filter(Boolean) as string[])], (chunk, from, to) =>
+          supabase.schema('launch').from('launches').select('id, variant_id').in('id', chunk).order('id').range(from, to)),
+        selectAll<VariantChoice>((from, to) => supabase.schema('creative').from('variants').select('id, code, creative_id').order('code').order('id').range(from, to)),
+        selectAll<{ id: string; code: string; title: string; archived_at: string | null }>((from, to) =>
+          supabase.schema('creative').from('creatives').select('id, code, title, archived_at').order('code').order('id').range(from, to)),
+      ])
+      const campaigns = await selectIn<{ id: string; name: string }>([...new Set(adSets.map((s) => s.campaign_id).filter(Boolean) as string[])], (chunk, from, to) =>
+        supabase.schema('meta').from('campaigns').select('id, name').in('id', chunk).order('id').range(from, to))
+      // Variants of archived Creatives aren't offered for new links, but still explain the ads already tied to them.
+      const archived = new Set(creatives.filter((c) => c.archived_at).map((c) => c.id))
+      return {
+        ads, variants, linkable: variants.filter((v) => !archived.has(v.creative_id)),
+        adSets: new Map(adSets.map((s) => [s.id, s])),
+        campaigns: new Map(campaigns.map((c) => [c.id, c])),
+        accounts: new Map(accounts.map((a) => [a.id, a])),
+        launchVariant: new Map(launches.map((l) => [l.id, l.variant_id])),
+        creatives: new Map(creatives.map((c) => [c.id, c])),
+      }
+    },
+  })
+}
+
+export type AccountHealth = {
+  account_id: string; platform: string; account_name: string; source: LaunchAccount['source']; currency: string | null; time_zone: string | null
+  last_published_at: string | null; generation: number | null; quarantined: number; failed_since: number; ads_seen: number; ads_matched: number
+  stale: boolean | null
+}
+export type SyncProblem = { id: string; account_id: string; generation: number; row_locator: string; error: string; resolution: string | null; created_at: string }
+
+export const PROBLEMS_SHOWN = 50
+
+// Data health (D-38): each account's last sync, the rows syncs set aside, Ads still to resolve, and Launches that went
+// live without an approval in effect.
+export function useDataHealth() {
+  return useQuery({
+    queryKey: ['data-health'],
+    queryFn: async () => {
+      const count = (state: string) => supabase.schema('meta').from('ads').select('id', { count: 'exact', head: true }).eq('match_state', state)
+      const [accounts, problems, untracked, mismatched, flagged] = await Promise.all([
+        selectAll<AccountHealth>((from, to) => supabase.schema('reporting').from('data_health').select('*').order('account_name').order('account_id').range(from, to)),
+        supabase.schema('reporting').from('sync_problems').select('id, account_id, generation, row_locator, error, resolution, created_at')
+          .order('created_at', { ascending: false }).order('id').limit(PROBLEMS_SHOWN),
+        count('untracked'), count('mismatched'),
+        selectAll<{ id: string; variant_id: string; kind: 'post' | 'ad'; approval_flag: NonNullable<Launch['approval_flag']> }>((from, to) =>
+          supabase.schema('launch').from('launches').select('id, variant_id, kind, approval_flag').eq('status', 'live').not('approval_flag', 'is', null)
+            .order('created_at').order('id').range(from, to)),
+      ])
+      for (const result of [problems, untracked, mismatched]) if (result.error) throw result.error
+      const codes = await selectIn<{ id: string; code: string }>([...new Set(flagged.map((l) => l.variant_id))], (chunk, from, to) =>
+        supabase.schema('creative').from('variants').select('id, code').in('id', chunk).order('id').range(from, to))
+      return {
+        accounts, problems: problems.data as SyncProblem[], flagged, untracked: untracked.count ?? 0, mismatched: mismatched.count ?? 0,
+        variantCode: new Map(codes.map((v) => [v.id, v.code])),
+      }
+    },
+  })
+}

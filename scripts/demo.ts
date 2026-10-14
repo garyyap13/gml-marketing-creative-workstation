@@ -231,7 +231,9 @@ async function main() {
   await publishRawMetaSync(accounts.adAccountExternalId, {
     campaigns: [{ id: campaignId, name: 'Morning routine (demo)', objective: 'OUTCOME_LEADS' }],
     adsets: [{ id: adSetId, name: 'Busy professionals 25-34', campaign_id: campaignId, optimization_goal: 'LEAD_GENERATION', attribution_setting: '7d_click_1d_view' }],
-    ads: ads.map((ad) => ({ id: ad.id, name: ad.name, adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: ad.video } })),
+    // A third ad the agency named without a Variant code: Untracked, so it raises the Marketing Team's task.
+    ads: [...ads.map((ad) => ({ id: ad.id, name: ad.name, adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: ad.video } })),
+      { id: metaId(), name: 'Morning routine agency cut (demo)', adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: metaId() } }],
     insights: ads.flatMap((ad) => ad.leads.map((leads, i) => ({
       ad_id: ad.id, adset_id: adSetId, date_start: `2026-10-0${i + 1}`, date_stop: `2026-10-0${i + 1}`,
       spend: '300.00', impressions: '10000', reach: '8000', inline_link_clicks: ad.clicks, attribution_setting: '7d_click_1d_view',
@@ -287,6 +289,10 @@ Demo loaded: ${creative.code} "The 5-minute routine (demo)".
   5 Results     ${appUrl}/variants/${variantB.id}  (Paid results: RM1,200 spend, 40 leads, RM30 a lead)
   6 复盘         ${appUrl}/plans/${plan.id}
     Follow-up   ${appUrl}/variants/${action.variant_id}  (${action.code}, "From 复盘" on the board)
+
+Results:
+    Ads to resolve   ${appUrl}/results?section=resolve  (one Untracked ad named without a Variant code)
+    Data health      ${appUrl}/results?section=health
 
 Canvas views:
     Creative canvas  ${appUrl}/creatives/${creative.id}/canvas

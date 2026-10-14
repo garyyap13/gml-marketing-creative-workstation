@@ -153,6 +153,9 @@ A Meta ad whose name carries no recognisable code, waiting to be linked to a Var
 **Mismatched Ad**:
 An Ad whose name carries a Variant's code but whose Meta video differs from the one recorded for that Variant, waiting for someone to confirm.
 
+**Kept-out Ad**:
+An Untracked or Mismatched Ad that the Marketing Team decided is not one of the workstation's Variants, with a reason; its results stay out of every Variant's results.
+
 **Dynamic Ad**:
 An Ad that rotates several Variants inside one ad, so its results count only at ad level.
 

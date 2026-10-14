@@ -260,7 +260,7 @@ Review rules:
 | `launch.dynamic_ad_variants` | → launch, → variant | PK (launch, variant). Only when `is_dynamic` (D-58) |
 | `meta.campaigns` | → ad account, external ID, name, objective | Unique (account, external ID) |
 | `meta.ad_sets` | → campaign, external ID, name, optimisation goal, result indicator, attribution setting | Unique (account, external ID) |
-| `meta.ads` | → ad set; external ID; name; parsed code; media IDs; creative type (single, carousel, multi-asset); effective status; match state (`matched`/`mismatched`/`untracked`/`dynamic`); → variant; → launch; → promoted post; first and last seen | Unique (account, external ID) |
+| `meta.ads` | → ad set; external ID; name; parsed code; media IDs; creative type (single, carousel, multi-asset); effective status; match state (`matched`/`mismatched`/`untracked`/`dynamic`/`kept_out`); → variant; → launch; → promoted post; first and last seen; resolution (`linked`/`kept_out`, → resolved variant, the media it was linked with, by, at, reason; A5a) | Unique (account, external ID). A resolution holds through later syncs (§8.5) |
 | `meta.posts` | → account, external ID, permalink, published time, → launch | Unique (account, external ID) |
 | `meta.ad_match_events` | → ad; from and to state; → variant; actor (system or member); reason; time | Append-only |
 | `meta.object_history` | object type and ID, status and configuration snapshot, observed time | Append-only |
@@ -675,7 +675,7 @@ If a CSV overlaps API data for the same scope, one authoritative dataset is sele
 - `data_health`
 - `optimization_backlog`
 
-They expose curated columns only and never raw payloads. Built so far (A3): `variant_daily_results` (each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons) and `revision_values` (the values of any published revision, for frozen Evidence). Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
+They expose curated columns only and never raw payloads. Built so far: `variant_daily_results` (A3: each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons), `revision_values` (A3: the values of any published revision, for frozen Evidence), `variant_totals` (D-75), and `data_health` and `sync_problems` (A5a, §8.5). Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
 
 Formulas follow D-37, D-39 and D-58. Every ratio uses summed numerators and denominators from compatible rows:
 - Cost per Result = Σ spend ÷ Σ Results, for one result indicator.
@@ -729,7 +729,20 @@ As built in milestone A3 (local, against the Meta stand-in):
 - Rows a sync cannot use (an ad without its ad set or status, a duplicate ad and day, an impossible date, a value that is not a number) go to `ingest.quarantine_rows` and the rest of the generation is published. A day without a results entry keeps its ad set's result type, with the value missing rather than zero.
 - A pasted post link is stored with a normalised key (host without `www.`/`m.`, path without trailing slash, query or fragment; path case kept), so the same post cannot back two Launches.
 - An open Review on a Variant that an observed ad put live can still be decided. Request Changes leaves the Variant live; approving the recorded Version clears the flags (D-61).
-- Later: promoted-Post linking and the post-ID resolution job (B3), Legacy Codes and backfill, `resolve_ad`, Dynamic Launches and the Untracked team task (A5).
+- Later: promoted-Post linking and the post-ID resolution job (B3), Legacy Codes and backfill (B3, D-76), and Dynamic Launches (A5b).
+
+As built in milestone A5a (D-76):
+- **Resolving.** `resolve_ad` links an Untracked, Mismatched or kept-out ad to a Variant, or keeps it out with a reason. It is open to the Marketing Team (D-55).
+  - The resolution is stored on the ad, so later syncs honour it, ahead of the ad's name (PD-27).
+    - A linked ad stays with its Variant while its media is the one it was linked with. Other media makes it Mismatched against that Variant, keeping its Launch (D-61). An ad linked before Meta reported any media takes the first media reported.
+    - A kept-out ad, match state `kept_out`, stays out until someone links it.
+  - Linking records the Variant's media when none is recorded yet, as the first matched ad would (D-28).
+  - An ad that backs a Launch and is renamed to another Variant's code, to no code or to several codes becomes Mismatched against that Launch's Variant and keeps its Launch. It can only be linked to that Variant. Where the media really differs, the Creative Owner adds the new Variant first, because creating Variants stays with the Creative Team.
+  - Resolving re-runs matching for that one ad (`app.match_ad`). It locks the ad's row, then takes the same matching lock as the sync; a sync writes its ads before taking that lock, so the two wait for each other instead of deadlocking. Every resolution, including keeping an ad out again, goes into `meta.ad_match_events` with its actor and reason, and into the activity log.
+  - A newly Mismatched Ad gives its Variant's Marketing Owner a task (D-56), done when the ad is linked or kept out.
+- **The team task.** After each sync and each resolution, `refresh_untracked_task` keeps one open `untracked_ads` task for the Marketing Team: opened by the first Untracked Ad, updated with the count, and done when none is left. A partial unique index allows only one open task, and it never sends WhatsApp (D-56, T-16).
+- **Data health.** `reporting.data_health` gives each account's last published sync, the rows that sync set aside, failed runs since, match coverage (matched ads ÷ synced ads, PRD §9) and whether the account is stale. Stale means no sync for 12 hours, two missed 6-hourly syncs; the threshold is proposed. Staleness is null for accounts that don't sync yet. `reporting.sync_problems` lists set-aside rows with their location and reason, never their raw payload. The stand-in never records a failed sync; B3 does.
+- Later: undoing a link to the wrong Variant, and a check that the page resolving an ad wasn't stale.
 
 ### 8.6 Result views
 

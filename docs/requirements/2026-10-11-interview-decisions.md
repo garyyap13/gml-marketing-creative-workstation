@@ -223,6 +223,12 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Review canvas.** A large player with the Content Sections and comment pins on one timeline and the comments beside it.
   - **Interim player.** Drive's embedded preview plays a Version's video on the review canvas, the Video content page and the 复盘. It needs the viewer signed into a Google account with access to the file, often fails in Safari and on iPhone, and cannot jump to a time, so pins show the time to scrub to. The B2 playback test decides whether the workstation's own streaming player replaces it (D-69).
   - **Whiteboard.** Any number of boards, each optionally attached to a Brief or Creative, holding text sticky notes in a few colours and labelled frames, with links to Briefs, Creatives, Variants, Footage and Findings. Both teams edit any board. Each note saves on its own with a version check and the board refreshes every few seconds; there are no live cursors yet. Removing a note or board archives it. Images wait for uploads (A1c).
+- **D-76** The rest of the results (milestone A5). The owner accepted the recommended answers on 2026-10-14:
+  - **Scope.** A5 builds three slices: resolving Untracked and Mismatched Ads with data health (A5a), the Combination and Label views (A5b), and manual entry with CSV import (A5c). Legacy Codes and backfill, Breakdowns and organic Post results wait for the Meta connection (B3), because they depend on what real accounts return.
+  - **Commits.** Each slice is committed on the working branch once its tests, review and docs pass; nothing is pushed.
+  - **Manual results.** For TikTok, Xiaohongshu and YouTube, the Marketing Team enters spend and its currency (when paid), views or impressions, clicks and Results with their type, plus optional reach, likes, comments, shares and saves. Each entry covers a chosen date range and is stored as that period's total, never split into days.
+  - **CSV.** Imports start with the workstation's own template, with the same fields and one row per post or ad per period. Mapping each platform's native export follows once the team shares a sample from each platform.
+  - **Where it lives.** A Results page with five sections: Ads to resolve, Combinations, Labels, Enter results and Data health. Untracked Ads raise one Marketing Team task (D-56).
 
 ## Open
 

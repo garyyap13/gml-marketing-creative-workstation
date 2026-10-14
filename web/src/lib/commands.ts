@@ -45,6 +45,8 @@ const reasons: Record<string, string> = {
   handed_off_use_rebrief: 'This Brief has been handed off. Start a Rebrief to change it.',
   launch_closed: 'This Launch has ended or was cancelled, so its thumbnail can no longer change.',
   already_verified: 'This file has already been checked. Upload it again to replace it.',
+  already_matched: 'This ad is already tied to its Variant.',
+  dynamic_ad: 'This ad carries several Variants, so it is reported at ad level and not linked to one.',
   board_archived: 'This board is archived, so nothing on it can change.',
   item_archived: 'That was removed from the board.',
 }

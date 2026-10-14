@@ -15,6 +15,7 @@ import { WhiteboardPage } from './pages/WhiteboardPage'
 import { MyTasks } from './pages/MyTasks'
 import { PlanPage } from './pages/PlanPage'
 import { PlansPage } from './pages/PlansPage'
+import { ResultsPage } from './pages/ResultsPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { Settings } from './pages/Settings'
 import { SignIn } from './pages/SignIn'
@@ -65,6 +66,7 @@ export function App() {
         <Route path="/reviews/:id/canvas" element={<ReviewPage />} />
         <Route path="/versions/:id/content" element={<VideoContentPage />} />
         <Route path="/footage" element={<FootagePage />} />
+        <Route path="/results" element={<ResultsPage />} />
         <Route path="/plans" element={<PlansPage />} />
         <Route path="/plans/:id" element={<PlanPage />} />
         <Route path="/boards" element={<BoardsPage />} />
