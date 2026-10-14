@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 import { operatorClient } from '../support/local'
 import { call, liveVersion, signIn, writePlan } from './support'
 
-const today = () => new Date().toISOString().slice(0, 10)
+// The team's today in its time zone (D-78), which due and check dates count from.
+const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
 
 test('from a live Variant, Marketing starts a 复盘 and sees the frozen baseline and what the team wanted to learn', async ({ browser }) => {
   const { meiEmail, variantId, variantCode } = await liveVersion()

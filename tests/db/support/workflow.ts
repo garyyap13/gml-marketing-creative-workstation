@@ -284,8 +284,9 @@ export async function linkPlanAction(member: Member, planId: string, action: Rec
   })
 }
 
-// A date `days` from today, as the database sees today (UTC).
-export const daysFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+// A date `days` from the team's today, in the team time zone the workstation starts with (D-78).
+export const dateIn = (timeZone: string, days = 0) => new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(Date.now() + days * 86_400_000))
+export const daysFromToday = (days: number) => dateIn('Asia/Kuala_Lumpur', days)
 
 export const followUp = (findingId: string, ownerId: string, overrides: Record<string, unknown> = {}) => ({
   kind: 'new_variant', finding_id: findingId, intended_change: 'Show the product within the first three seconds. Keep the body, offer and CTA.',

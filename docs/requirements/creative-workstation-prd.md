@@ -102,7 +102,7 @@ Each person is Marketing or Creative. One or more Marketing Team members carry t
 | Record which Footage a Variant uses, before go-live (D-71) | No | Yes | — | — |
 | Write an Optimization Plan | Yes | Yes | — | — |
 | Archive a record (D-61): a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; Footage by the member who added it (D-79) | When owner | When owner | Any Optimization Plan | Any record |
-| Manage members and flags, the Meta connection, WhatsApp settings and Breakdown settings | — | — | — | Yes |
+| Manage members and flags, the team time zone (D-78), the Meta connection, WhatsApp settings and Breakdown settings | — | — | — | Yes |
 
 One Approver's decision approves a Version (D-50); multi-approver chains are later scope. Changes of owner, role or flag are logged (D-45).
 
@@ -148,7 +148,7 @@ The main navigation is My Tasks, Briefs, Creatives, Footage, Results, Optimizati
 | Results | Combination view (per ad set and period), Label view, Variant results, Breakdowns |
 | Optimization | Creative Retrospective (复盘): video, transcript, Content Sections, scoped results, team findings and Plans with Evidence, owner, priority, due date, check date, state and Verdict |
 | Data health | Last sync, coverage, errors, Untracked Ads, Mismatched Ads, Ads live without approval, Legacy Creatives awaiting labels, Version files changed or unreadable in Drive |
-| Settings | Team label lists; members and flags, Meta connection, WhatsApp and Breakdowns (Admin, D-49) |
+| Settings | Team label lists; members and flags, the team time zone that "today" follows for due and check dates (Asia/Kuala_Lumpur, D-78), Meta connection, WhatsApp and Breakdowns (Admin, D-49) |
 
 Records can be found by Creative Code, Variant code, Legacy Code or title, and filtered by label, owner, state and due date. A Creative shows each Variant's state and each Launch's status independently.
 

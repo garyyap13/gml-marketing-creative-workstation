@@ -10,12 +10,12 @@ import { useFormKey } from '../lib/forms'
 import { attributionName, count, dateRange, money, ratio, resultName } from '../lib/results'
 import { useMember } from '../lib/session'
 import { formatTime } from '../lib/time'
+import { useTeamToday } from '../lib/teamDate'
 
 type Data = NonNullable<ReturnType<typeof usePlan>['data']>
 const stateNames: Record<string, string> = { proposed: '复盘 proposed', accepted: '复盘 accepted', in_progress: '复盘 in progress', completed: '复盘 completed', cancelled: '复盘 cancelled' }
 const verdictNames: Record<string, string> = { confirmed: 'Confirmed', not_confirmed: 'Not confirmed', not_enough_data: 'Not enough data' }
 const dispositionNames: Record<Finding['disposition'], string> = { keep: 'Keep', change: 'Change', test: 'Test' }
-const today = () => new Date().toISOString().slice(0, 10)
 const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString()
 
 function errorText(error: unknown) {
@@ -220,6 +220,8 @@ function FindingsPanel({ data, sections, picked, onPickSection, open, refresh }:
 
 function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: boolean; refresh: () => Promise<unknown> }) {
   const me = useMember()
+  // Due and check dates count from the team's today, as link_plan_action and record_verdict do (D-78).
+  const today = useTeamToday()
   const members = useMembers()
   const actionKey = useFormKey()
   const verdictKey = useFormKey()
@@ -306,8 +308,8 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
                 {creativeMembers.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
               </select>
             </label>
-            <label>Due date<input type="date" min={today()} value={form.due} onChange={(e) => setF({ due: e.target.value })} /></label>
-            <label>Check date<input type="date" min={form.due || today()} value={form.check} onChange={(e) => setF({ check: e.target.value })} /></label>
+            <label>Due date<input type="date" min={today} value={form.due} onChange={(e) => setF({ due: e.target.value })} /></label>
+            <label>Check date<input type="date" min={form.due || today} value={form.check} onChange={(e) => setF({ check: e.target.value })} /></label>
             <label>Minimum test spend ({currency})<input inputMode="decimal" value={form.spend} onChange={(e) => setF({ spend: e.target.value })} /></label>
           </div>
           <label>Success criterion<input maxLength={1000} value={form.criterion} onChange={(e) => setF({ criterion: e.target.value })} placeholder="Cost per lead below RM30 at similar spend" /></label>
@@ -336,7 +338,7 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
           {notCounted.length > 0 && (
             <p className="small muted">Not counted (other currencies are never converted): {notCounted.map((s) => money(Number(s.spend), s.currency)).join(', ')}.</p>
           )}
-          {me.is_approver && open && !plan.verdict && plan.state !== 'proposed' && (today() >= plan.check_date ? (
+          {me.is_approver && open && !plan.verdict && plan.state !== 'proposed' && (today >= plan.check_date ? (
             <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); record.mutate() }}>
               <label style={{ flex: '0 1 200px' }}>Verdict
                 <select value={verdict.value} onChange={(e) => { verdictKey.renew(); setVerdict({ ...verdict, value: e.target.value }) }}>

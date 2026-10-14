@@ -6,6 +6,7 @@ import { rebase, useDraft, useFormKey } from '../lib/forms'
 import { useLabels, useMembers, type MemberRow } from '../lib/data'
 import { labelLists, type LabelKind } from '../lib/labels'
 import { teamName, useMember } from '../lib/session'
+import { useTeamSettings } from '../lib/teamDate'
 
 const status = (m: MemberRow) => (!m.active ? 'Deactivated' : m.auth_user_id ? 'Active' : 'Invited')
 
@@ -266,11 +267,49 @@ function LabelList({ kind, name, team }: { kind: LabelKind; name: string; team: 
   )
 }
 
+// The team time zone: "today" for due dates, Verdict check dates and usable-until warnings is the team's today there
+// (D-78). The Admin changes it.
+function TeamTimeZone() {
+  const me = useMember()
+  const queryClient = useQueryClient()
+  const headingId = useId()
+  const settings = useTeamSettings()
+  const [zone, setZone] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const shown = zone ?? settings.data?.time_zone ?? ''
+  const save = useMutation({
+    mutationFn: () => run('update_team_settings', { p_time_zone: shown.trim(), p_expected_lock_version: settings.data?.lock_version }),
+    // The typed zone stays until the saved one has loaded, so the old zone never flashes back.
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['team-settings'] }); setZone(null); setSaved(true) },
+    onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? queryClient.invalidateQueries({ queryKey: ['team-settings'] }) : undefined),
+  })
+  const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []
+  return (
+    <section className="panel stack" aria-labelledby={headingId}>
+      <h2 id={headingId}>Team time zone</h2>
+      <p className="small muted">"Today" for due dates, Verdict check dates and usable-until warnings follows this time zone. Results entered for an account use that account's own time zone.</p>
+      {settings.error && <p className="error" role="alert">{explain(settings.error)}</p>}
+      {me.is_admin ? (
+        <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); save.mutate() }}>
+          <label style={{ flex: '1 1 240px' }}>Time zone
+            <input list={`${headingId}-zones`} value={shown} onChange={(e) => { setSaved(false); setZone(e.target.value) }} />
+            <datalist id={`${headingId}-zones`}>{zones.map((z) => <option key={z} value={z} />)}</datalist>
+          </label>
+          <button type="submit" disabled={save.isPending || !settings.data}>Save time zone</button>
+          <span className="small muted" aria-live="polite">{saved ? 'Saved.' : ''}</span>
+          {save.error && <p className="error" role="alert" style={{ flexBasis: '100%' }}>{fieldError(save.error, 'time_zone') ?? explain(save.error)}</p>}
+        </form>
+      ) : <p>{settings.data?.time_zone}</p>}
+    </section>
+  )
+}
+
 export function Settings() {
   return (
     <main className="page">
       <h1>Settings</h1>
       <Members />
+      <TeamTimeZone />
       <h2>Label lists</h2>
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         {labelLists.map((list) => <LabelList key={list.kind} {...list} />)}

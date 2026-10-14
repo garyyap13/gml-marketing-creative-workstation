@@ -61,6 +61,28 @@ test('the Admin edits a member: makes them an Approver, then deactivates them', 
   await expect(members.getByRole('row', { name: new RegExp(`${kai}.*Deactivated`) })).toBeVisible()
 })
 
+test('the Admin sets the team time zone', async ({ browser }) => {
+  const adminApi = await firstAdminClient()
+  const admin = await signIn(browser, firstAdminEmail())
+  await admin.getByRole('link', { name: 'Settings' }).click()
+  const zone = admin.getByRole('region', { name: 'Team time zone' })
+  try {
+    await expect(zone.getByLabel('Time zone')).toHaveValue('Asia/Kuala_Lumpur')
+    await zone.getByLabel('Time zone').fill('Mars/Base')
+    await zone.getByRole('button', { name: 'Save time zone' }).click()
+    await expect(zone.getByRole('alert')).toContainText('A time zone such as Asia/Kuala_Lumpur')
+    // Singapore keeps the same clock as Kuala Lumpur, so no other journey's dates move.
+    await zone.getByLabel('Time zone').fill('Asia/Singapore')
+    await zone.getByRole('button', { name: 'Save time zone' }).click()
+    await expect(zone.getByText('Saved.')).toBeVisible()
+    await expect(zone.getByLabel('Time zone')).toHaveValue('Asia/Singapore')
+  } finally {
+    // Leave the team on Kuala Lumpur for every other journey, whatever happened above.
+    const { data } = await adminApi.schema('core').from('settings').select('lock_version').single()
+    await call(adminApi, 'update_team_settings', { p_time_zone: 'Asia/Kuala_Lumpur', p_expected_lock_version: data?.lock_version })
+  }
+})
+
 test('editing a member never undoes a change another Admin saved meanwhile, and a team switch keeps the Approver tick', async ({ browser }) => {
   const kai = unique('Kai')
   const kaiId = await memberId(await memberClient(await inviteMember('marketing', kai, true)))
