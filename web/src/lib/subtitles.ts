@@ -70,10 +70,21 @@ export function parseSubtitles(text: string): { cues: SubtitleCue[]; unreadable:
   return { cues, unreadable }
 }
 
-// Reads the file as UTF-8, or UTF-16 when it starts with a UTF-16 byte-order mark, and fingerprints its bytes.
-export async function readSubtitleFile(file: File): Promise<{ text: string; sha256: string }> {
+// UTF-16 when the file starts with a UTF-16 byte-order mark; otherwise UTF-8. A file with invalid UTF-8 and no
+// accented or other non-English letters in valid UTF-8 at all is read as Windows-1252, as older Windows editing tools
+// save it; one stray bad byte among real UTF-8 text stays a single replacement character rather than garbling the rest.
+function decodeSubtitles(bytes: Uint8Array): { text: string; windows1252: boolean } {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return { text: new TextDecoder('utf-16le').decode(bytes), windows1252: false }
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return { text: new TextDecoder('utf-16be').decode(bytes), windows1252: false }
+  const utf8 = new TextDecoder('utf-8').decode(bytes)
+  const declaredUtf8 = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+  if (declaredUtf8 || !utf8.includes('\ufffd') || /[^\x00-\x7f\ufffd]/.test(utf8)) return { text: utf8, windows1252: false }
+  return { text: new TextDecoder('windows-1252').decode(bytes), windows1252: true }
+}
+
+// Reads the file's text, saying whether it was read as Windows-1252, and fingerprints its bytes.
+export async function readSubtitleFile(file: File): Promise<{ text: string; windows1252: boolean; sha256: string }> {
   const bytes = new Uint8Array(await file.arrayBuffer())
-  const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le' : bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : 'utf-8'
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
-  return { text: new TextDecoder(encoding).decode(bytes), sha256: [...digest].map((b) => b.toString(16).padStart(2, '0')).join('') }
+  return { ...decodeSubtitles(bytes), sha256: [...digest].map((b) => b.toString(16).padStart(2, '0')).join('') }
 }

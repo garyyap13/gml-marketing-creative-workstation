@@ -172,7 +172,7 @@ function VideoContentEditor({ id }: { id: string }) {
     if (!file) return
     setImportError(null)
     setImportNote('')
-    const { text, sha256 } = await readSubtitleFile(file)
+    const { text, windows1252, sha256 } = await readSubtitleFile(file)
     const { cues, unreadable } = parseSubtitles(text)
     if (!cues.length) {
       setImportError(`No subtitles found in ${file.name}. Export SRT or WebVTT captions from the editing tool.`)
@@ -187,6 +187,7 @@ function VideoContentEditor({ id }: { id: string }) {
     setDraft((current) => current && { ...current, cues: fitted.map(toCueDraft), transcriptState: 'draft', importedFrom: { name: file.name, reference: `${file.name} sha256:${sha256}` } })
     setImportNote([
       `Imported ${cues.length} cues from ${file.name}.`,
+      windows1252 && "It wasn't saved as UTF-8, so it was read as Windows-1252; if accented letters or quotes look wrong, export UTF-8 subtitles instead.",
       trimmed && `${trimmed} ${trimmed === 1 ? 'cue ending just after the video now ends with it' : 'cues ending just after the video now end with it'}.`,
       unreadable && `${unreadable} timing ${unreadable === 1 ? 'line' : 'lines'} couldn't be read and ${unreadable === 1 ? 'was' : 'were'} skipped.`,
       'Check the cues against the video; you can mark the transcript reviewed after saving.',

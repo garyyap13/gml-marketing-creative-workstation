@@ -101,7 +101,7 @@ test('the Creative Team imports the editor\'s subtitles as a draft transcript, t
   await expect(jun.getByRole('group', { name: 'Cue 2' }).getByLabel('Words')).toHaveValue("Here's the step I keep in my everyday routine.")
 })
 
-test('a WebVTT export keeps its speakers, an untidy SRT still imports, and a file without subtitles is refused', async ({ browser }) => {
+test('a WebVTT export keeps its speakers, an untidy or Windows-1252 SRT still imports, and a file without subtitles is refused', async ({ browser }) => {
   const { junEmail, versionId } = await videoVersionFor('Jun')
 
   const jun = await signIn(browser, junEmail)
@@ -125,6 +125,21 @@ test('a WebVTT export keeps its speakers, an untidy SRT still imports, and a fil
   await expect(cues.nth(0).getByLabel('Words')).toHaveValue('Only five minutes?')
   await expect(cues.nth(1).getByLabel('Words')).toHaveValue('"Really?"')
   await expect(cues.nth(1).getByLabel('Start')).toHaveValue('00:03')
+
+  // Older Windows editing tools save Windows-1252 rather than UTF-8: é, an en dash and curly quotes are single bytes.
+  const windows1252 = Buffer.concat([
+    Buffer.from('1\r\n00:00:00,000 --> 00:00:02,000\r\nCaf'), Buffer.from([0xe9, 0x20, 0x96, 0x20, 0x93]), Buffer.from('ready'), Buffer.from([0x94, 0x0d, 0x0a]),
+  ])
+  await importer.setInputFiles({ name: 'cafe.srt', mimeType: 'application/x-subrip', buffer: windows1252 })
+  await expect(cues).toHaveCount(1)
+  await expect(cues.nth(0).getByLabel('Words')).toHaveValue('Café – “ready”')
+  await expect(transcript.getByText(/read as Windows-1252/)).toBeVisible()
+
+  // A UTF-8 file with one stray bad byte keeps its accents; only that byte is lost.
+  const strayByte = Buffer.concat([Buffer.from('1\r\n00:00:00,000 --> 00:00:02,000\r\nSelamat pagi, café'), Buffer.from([0xff]), Buffer.from('\r\n')])
+  await importer.setInputFiles({ name: 'pagi.srt', mimeType: 'application/x-subrip', buffer: strayByte })
+  await expect(cues.nth(0).getByLabel('Words')).toHaveValue('Selamat pagi, café\ufffd')
+  await expect(transcript.getByText(/read as Windows-1252/)).toHaveCount(0)
 })
 
 test('when someone saves a newer revision first, the editor can keep your changes and save on top', async ({ browser }) => {
