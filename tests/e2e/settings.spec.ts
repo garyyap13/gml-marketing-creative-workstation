@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { testEmail } from '../support/local'
-import { firstAdminEmail, inviteMember, signIn, unique } from './support'
+import { call, firstAdminClient, firstAdminEmail, inviteMember, memberClient, memberId, signIn, unique } from './support'
 
 test('the Admin invites a member in Settings, and each team adds items to its own label lists', async ({ browser }) => {
   const admin = await signIn(browser, firstAdminEmail())
@@ -40,4 +40,69 @@ test('Settings shows a member who has not signed in yet as invited', async ({ br
   const admin = await signIn(browser, firstAdminEmail())
   await admin.getByRole('link', { name: 'Settings' }).click()
   await expect(admin.getByRole('region', { name: 'Members' }).getByRole('row', { name: new RegExp(`${mei}.*Marketing Team.*Invited`) })).toBeVisible()
+})
+
+test('the Admin edits a member: makes them an Approver, then deactivates them', async ({ browser }) => {
+  const kai = unique('Kai')
+  await inviteMember('marketing', kai)
+  const admin = await signIn(browser, firstAdminEmail())
+  await admin.getByRole('link', { name: 'Settings' }).click()
+  const members = admin.getByRole('region', { name: 'Members' })
+
+  await members.getByRole('button', { name: `Edit ${kai}` }).click()
+  const edit = members.getByRole('form', { name: `Edit ${kai}` })
+  await edit.getByLabel('Approver').check()
+  await edit.getByRole('button', { name: 'Save' }).click()
+  await expect(members.getByRole('row', { name: new RegExp(`${kai}.*Marketing Team · Approver`) })).toBeVisible()
+
+  await members.getByRole('button', { name: `Edit ${kai}` }).click()
+  await members.getByRole('form', { name: `Edit ${kai}` }).getByLabel('Active').uncheck()
+  await members.getByRole('form', { name: `Edit ${kai}` }).getByRole('button', { name: 'Save' }).click()
+  await expect(members.getByRole('row', { name: new RegExp(`${kai}.*Deactivated`) })).toBeVisible()
+})
+
+test('editing a member never undoes a change another Admin saved meanwhile, and a team switch keeps the Approver tick', async ({ browser }) => {
+  const kai = unique('Kai')
+  const kaiId = await memberId(await memberClient(await inviteMember('marketing', kai, true)))
+  const adminApi = await firstAdminClient()
+  const admin = await signIn(browser, firstAdminEmail())
+  await admin.getByRole('link', { name: 'Settings' }).click()
+  const members = admin.getByRole('region', { name: 'Members' })
+  await members.getByRole('button', { name: `Edit ${kai}` }).click()
+  const edit = members.getByRole('form', { name: `Edit ${kai}` })
+  await edit.getByLabel('Team').selectOption('creative')
+  await expect(edit.getByLabel('Approver')).toBeDisabled()
+  await expect(edit.getByText('Approvers are on the Marketing Team')).toBeVisible()
+  await edit.getByLabel('Team').selectOption('marketing')
+  await expect(edit.getByLabel('Approver')).toBeChecked()
+
+  // Meanwhile another Admin deactivates Kai.
+  const { data: row } = await adminApi.schema('core').from('members').select('lock_version').eq('id', kaiId).single()
+  await call(adminApi, 'update_member', { p_member_id: kaiId, p_changes: { active: false }, p_expected_lock_version: row?.lock_version })
+  await edit.getByLabel('Name').fill(`${kai} Tan`)
+  await edit.getByRole('button', { name: 'Save' }).click()
+  await expect(edit.getByRole('alert')).toContainText(`Someone else changed ${kai} while you were editing`)
+  await expect(edit.getByLabel('Active')).not.toBeChecked()
+  await edit.getByRole('button', { name: 'Save' }).click()
+  await expect(members.getByRole('row', { name: new RegExp(`${kai} Tan.*Approver.*Deactivated`) })).toBeVisible()
+  await expect(members.getByRole('button', { name: `Edit ${kai} Tan` })).toBeFocused()
+})
+
+test('removing your own Admin access asks first, and changing your mind withdraws the question', async ({ browser }) => {
+  const adminApi = await firstAdminClient()
+  const { data: me } = await adminApi.schema('core').from('members').select('display_name').ilike('email', firstAdminEmail()).single()
+  const admin = await signIn(browser, firstAdminEmail())
+  await admin.getByRole('link', { name: 'Settings' }).click()
+  const members = admin.getByRole('region', { name: 'Members' })
+  await members.getByRole('button', { name: `Edit ${me?.display_name}`, exact: true }).click()
+  const edit = members.getByRole('form', { name: `Edit ${me?.display_name}` })
+  await edit.getByLabel('Admin').uncheck()
+  await edit.getByRole('button', { name: 'Save' }).click()
+  await expect(edit.getByRole('alert')).toContainText("You're removing your own Admin access")
+  await expect(edit.getByRole('button', { name: 'Save anyway' })).toBeVisible()
+  await edit.getByLabel('Admin').check()
+  await expect(edit.getByRole('alert')).toHaveCount(0)
+  await expect(edit.getByRole('button', { name: 'Save', exact: true })).toBeVisible()
+  await edit.getByRole('button', { name: 'Cancel' }).click()
+  await expect(members.getByRole('form')).toHaveCount(0)
 })

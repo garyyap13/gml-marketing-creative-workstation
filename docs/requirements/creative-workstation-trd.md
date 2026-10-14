@@ -389,7 +389,7 @@ The states are:
 | `record_verdict` | Approver | On or after the check date | Verdict recorded |
 | `archive_record` | Per D-61: a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; any record by the Admin | Record not already archived | `archived_at` set; the record is hidden, but its history, Launches and results are kept and no state changes (D-46, D-61) |
 | `mark_task_read` | Recipient (any Marketing Team member for a team task) | Task addressed to the caller or the caller's team | `work.task_reads` row |
-| `invite_member`, `update_member` | Admin (D-49) | Valid email, name and team; only Marketing Team members can be Approvers; an invited email is not already a member or invited; `update_member` takes the expected lock version | Member invited, or name, team, flags, active state, WhatsApp number or WhatsApp opt-in changed |
+| `invite_member`, `update_member` | Admin (D-49) | Valid email, name and team; only Marketing Team members can be Approvers; an invited email is not already a member or invited; `update_member` takes the expected lock version and never demotes or deactivates the last active Admin (D-78); only Admins who have signed in count, a safeguard added in implementation | Member invited, or name, team, flags, active state, WhatsApp number or WhatsApp opt-in changed |
 | `accept_invitation` | Any signed-in user | An active, unaccepted invitation for the email address in the verified sign-in token (D-70) | Sign-in linked to the member |
 | `update_settings`, `request_sync` | Admin (D-49) | | Settings or sync job updated |
 

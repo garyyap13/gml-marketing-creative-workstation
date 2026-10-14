@@ -179,4 +179,54 @@ describe('managing members', () => {
     expect(accepted.data?.id).toBe(invited.data?.id)
     expect([dotted.error, undotted.error]).toEqual([null, null])
   })
+
+  test('the workstation always keeps an active Admin: the last one can be neither demoted nor deactivated', async () => {
+    const admin = await firstAdmin()
+    const update = async (memberId: string, changes: Record<string, unknown>) => admin.client.schema('api').rpc('update_member', {
+      p_member_id: memberId, p_changes: changes, p_expected_lock_version: await lockVersionOf(admin.client, memberId),
+    })
+    // Admins made by earlier tests step down, so the first Admin is the only one.
+    const { data: others } = await admin.client.schema('core').from('members').select('id')
+      .eq('is_admin', true).eq('active', true).is('archived_at', null).neq('id', admin.memberId)
+    for (const other of others ?? []) expect((await update(other.id, { is_admin: false })).error).toBeNull()
+    const kai = await invitedMember('marketing')
+
+    const demoteSelf = await update(admin.memberId, { is_admin: false })
+    const deactivateSelf = await update(admin.memberId, { active: false })
+    const promoted = await update(kai.memberId, { is_admin: true })
+    const demotedAgain = await update(kai.memberId, { is_admin: false })
+
+    expect([demoteSelf.status, ...fieldErrors(demoteSelf.error)]).toEqual([422, 'is_admin'])
+    expect([deactivateSelf.status, ...fieldErrors(deactivateSelf.error)]).toEqual([422, 'active'])
+    expect([promoted.error, demotedAgain.error]).toEqual([null, null])
+  })
+
+  test('an Admin who has never signed in does not count, so the last signed-in Admin still cannot step down', async () => {
+    const admin = await firstAdmin()
+    const update = async (memberId: string, changes: Record<string, unknown>) => admin.client.schema('api').rpc('update_member', {
+      p_member_id: memberId, p_changes: changes, p_expected_lock_version: await lockVersionOf(admin.client, memberId),
+    })
+    const { data: others } = await admin.client.schema('core').from('members').select('id')
+      .eq('is_admin', true).eq('active', true).is('archived_at', null).neq('id', admin.memberId)
+    for (const other of others ?? []) expect((await update(other.id, { is_admin: false })).error).toBeNull()
+    const invited = await admin.client.schema('api').rpc('invite_member', {
+      p_email: testEmail(), p_display_name: 'Mistyped address', p_team: 'marketing', p_is_approver: false, p_idempotency_key: randomUUID(),
+    })
+
+    const promoted = await update(invited.data?.id, { is_admin: true })
+    const demoteSelf = await update(admin.memberId, { is_admin: false })
+
+    expect(promoted.error).toBeNull()
+    expect([demoteSelf.status, ...fieldErrors(demoteSelf.error)]).toEqual([422, 'is_admin'])
+    expect((await update(invited.data?.id, { is_admin: false })).error).toBeNull()
+  })
+
+  test('flags must be true or false', async () => {
+    const admin = await firstAdmin()
+    const kai = await invitedMember('marketing')
+    const result = await admin.client.schema('api').rpc('update_member', {
+      p_member_id: kai.memberId, p_changes: { is_admin: 'yes', active: 1, is_approver: null }, p_expected_lock_version: await lockVersionOf(admin.client, kai.memberId),
+    })
+    expect([result.status, ...fieldErrors(result.error).sort()]).toEqual([422, 'active', 'is_admin', 'is_approver'])
+  })
 })

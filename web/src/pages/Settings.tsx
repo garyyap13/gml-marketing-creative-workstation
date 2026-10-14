@@ -1,12 +1,121 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useId, type FormEvent } from 'react'
-import { explain, fieldError, run, runFunction } from '../lib/commands'
-import { useDraft, useFormKey } from '../lib/forms'
+import { useId, useRef, useState, type FormEvent } from 'react'
+import { describedBy, FieldError } from '../components/FieldError'
+import { CommandError, explain, fieldError, run, runFunction } from '../lib/commands'
+import { rebase, useDraft, useFormKey } from '../lib/forms'
 import { useLabels, useMembers, type MemberRow } from '../lib/data'
 import { labelLists, type LabelKind } from '../lib/labels'
 import { teamName, useMember } from '../lib/session'
 
 const status = (m: MemberRow) => (!m.active ? 'Deactivated' : m.auth_user_id ? 'Active' : 'Invited')
+
+const editable = (m: MemberRow) => ({ name: m.display_name, team: m.team, approver: m.is_approver, admin: m.is_admin, active: m.active })
+
+// The Admin changes a member's name, team, Approver and Admin flags, or deactivates them (D-49). The last active
+// Admin can't be demoted or deactivated (D-78). A save sends only what changed since the form opened, with the lock
+// version it opened with, so a change someone made meanwhile returns a conflict instead of being undone.
+function EditMember({ member, onDone }: { member: MemberRow; onDone: () => void }) {
+  const me = useMember()
+  const queryClient = useQueryClient()
+  const ids = useId()
+  const [opened, setOpened] = useState(member)
+  const [form, setForm] = useState(() => editable(member))
+  const [rebased, setRebased] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  // Changing anything withdraws the "Save anyway" step, so it always matches what is on screen.
+  const change = (patch: Partial<ReturnType<typeof editable>>) => { setConfirming(false); setForm({ ...form, ...patch }) }
+  const approver = form.team === 'marketing' && form.approver
+  const changes = () => {
+    const before = editable(opened)
+    const changed: Record<string, unknown> = {}
+    if (form.name.trim() !== before.name) changed.display_name = form.name
+    if (form.team !== before.team) changed.team = form.team
+    if (approver !== before.approver) changed.is_approver = approver
+    if (form.admin !== before.admin) changed.is_admin = form.admin
+    if (form.active !== before.active) changed.active = form.active
+    return changed
+  }
+  // Removing your own Admin access or deactivating yourself takes a second step.
+  const selfLockout = member.id === me.id && (!form.admin || !form.active) && (opened.is_admin && opened.active)
+  const save = useMutation({
+    mutationFn: () => {
+      const changed = changes()
+      if (!Object.keys(changed).length) return Promise.resolve(null)
+      return run('update_member', { p_member_id: member.id, p_changes: changed, p_expected_lock_version: opened.lock_version })
+    },
+    onMutate: () => setRebased(false),
+    onSuccess: async (result) => {
+      // Your own changes take effect on reload, so the page never offers controls you no longer have.
+      if (result && member.id === me.id) return window.location.reload()
+      await queryClient.invalidateQueries({ queryKey: ['members'] })
+      onDone()
+    },
+    onError: async (error) => {
+      setConfirming(false)
+      if (!(error instanceof CommandError && error.code === 'conflict')) return
+      await queryClient.invalidateQueries({ queryKey: ['members'] })
+      const latest = queryClient.getQueryData<MemberRow[]>(['members'])?.find((m) => m.id === member.id)
+      if (!latest) return
+      setForm((current) => rebase(current, editable(opened), editable(latest)))
+      setOpened(latest)
+      setRebased(true)
+    },
+  })
+  const problem = (field: string) => fieldError(save.error, field)
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (selfLockout && !confirming) setConfirming(true)
+    else save.mutate()
+  }
+  const box = { width: 'auto' }
+  return (
+    <form aria-label={`Edit ${member.display_name}`} className="row" style={{ alignItems: 'end' }} onSubmit={submit}>
+      <label style={{ flex: '1 1 140px' }}>Name
+        <input autoFocus value={form.name} onChange={(e) => change({ name: e.target.value })} {...describedBy(problem('display_name'), `${ids}-name`)} />
+        <FieldError id={`${ids}-name`} error={problem('display_name')} />
+      </label>
+      <label style={{ flex: '1 1 120px' }}>Team
+        <select value={form.team} onChange={(e) => change({ team: e.target.value as MemberRow['team'] })} {...describedBy(problem('team'), `${ids}-team`)}>
+          <option value="marketing">Marketing</option><option value="creative">Creative</option>
+        </select>
+        <FieldError id={`${ids}-team`} error={problem('team')} />
+      </label>
+      <span className="stack" style={{ gap: 2 }}>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="checkbox" style={box} checked={approver} disabled={form.team !== 'marketing'} onChange={(e) => change({ approver: e.target.checked })}
+            aria-invalid={Boolean(problem('is_approver')) || undefined} aria-describedby={[form.team !== 'marketing' && `${ids}-approver-why`, problem('is_approver') && `${ids}-approver`].filter(Boolean).join(' ') || undefined} />
+          Approver
+        </label>
+        {form.team !== 'marketing' && <span id={`${ids}-approver-why`} className="small muted">Approvers are on the Marketing Team</span>}
+        <FieldError id={`${ids}-approver`} error={problem('is_approver')} standalone />
+      </span>
+      <span className="stack" style={{ gap: 2 }}>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="checkbox" style={box} checked={form.admin} onChange={(e) => change({ admin: e.target.checked })} {...describedBy(problem('is_admin'), `${ids}-admin`)} />Admin
+        </label>
+        <FieldError id={`${ids}-admin`} error={problem('is_admin')} standalone />
+      </span>
+      <span className="stack" style={{ gap: 2 }}>
+        <label className="row" style={{ gap: 6 }}>
+          <input type="checkbox" style={box} checked={form.active} onChange={(e) => change({ active: e.target.checked })} {...describedBy(problem('active'), `${ids}-active`)} />Active
+        </label>
+        <FieldError id={`${ids}-active`} error={problem('active')} standalone />
+      </span>
+      <button type="submit" className="primary" disabled={save.isPending}>{confirming ? 'Save anyway' : 'Save'}</button>
+      <button type="button" onClick={onDone}>Cancel</button>
+      {confirming && (
+        <p className="notice" role="alert" style={{ flexBasis: '100%' }}>
+          {form.active ? "You're removing your own Admin access, so Settings will stop letting you manage members." : "You're deactivating yourself, so you'll be signed out and can't sign back in."} Press Save anyway to go ahead.
+        </p>
+      )}
+      {save.error && !(save.error instanceof CommandError && Object.keys(save.error.fieldErrors).length) && (
+        <p className="error" role="alert" style={{ flexBasis: '100%' }}>
+          {rebased ? `Someone else changed ${member.display_name} while you were editing. The form now shows their changes, keeping yours; save again to apply yours.` : explain(save.error)}
+        </p>
+      )}
+    </form>
+  )
+}
 
 function Members() {
   const me = useMember()
@@ -31,6 +140,11 @@ function Members() {
     },
   })
   const headingId = useId()
+  const [editing, setEditing] = useState<string | null>(null)
+  const editingMember = members.data?.find((m) => m.id === editing)
+  // Closing the editor puts focus back on that member's Edit button.
+  const lastEdited = useRef<string | null>(null)
+  const closeEditor = () => { lastEdited.current = editing; setEditing(null) }
 
   return (
     <section className="panel stack" aria-labelledby={headingId}>
@@ -41,20 +155,29 @@ function Members() {
         <thead>
           <tr className="small muted" style={{ textAlign: 'left' }}>
             <th style={{ fontWeight: 400 }}>Name</th><th style={{ fontWeight: 400 }}>Email</th><th style={{ fontWeight: 400 }}>Team and flags</th><th style={{ fontWeight: 400 }}>Status</th>
+            {me.is_admin && <th><span className="sr-only">Edit</span></th>}
           </tr>
         </thead>
         <tbody>
           {members.data?.map((m) => (
-            <tr key={m.id} style={{ borderTop: '1px solid var(--line)' }}>
+            <tr key={m.id} style={{ borderTop: '1px solid var(--line)' }} aria-current={editing === m.id || undefined}>
               <td style={{ padding: '8px 0' }}>{m.display_name}</td>
               <td className="small muted">{m.email}</td>
               <td className="small">{teamName(m.team)}{m.is_approver ? ' · Approver' : ''}{m.is_admin ? ' · Admin' : ''}</td>
               <td><span className={status(m) === 'Invited' ? 'tag warn' : 'tag'}>{status(m)}</span></td>
+              {me.is_admin && (
+                <td>
+                  <button className="small" aria-label={`Edit ${m.display_name}`} aria-expanded={editing === m.id} onClick={() => setEditing(editing === m.id ? null : m.id)}
+                    ref={(button) => { if (button && lastEdited.current === m.id) { lastEdited.current = null; button.focus() } }}>Edit</button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
       </div>
+      {/* Below the table, so the whole form fits a phone screen. */}
+      {editingMember && <EditMember key={editingMember.id} member={editingMember} onDone={closeEditor} />}
       {me.is_admin && (
         <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); invite.mutate(form) }}>
           <label style={{ flex: '2 1 180px' }}>Email

@@ -38,6 +38,7 @@ export type MemberRow = {
   is_admin: boolean
   active: boolean
   auth_user_id: string | null
+  lock_version: number
 }
 
 export function useMembers() {
@@ -47,7 +48,7 @@ export function useMembers() {
       const { data, error } = await supabase
         .schema('core')
         .from('members')
-        .select('id, email, display_name, team, is_approver, is_admin, active, auth_user_id')
+        .select('id, email, display_name, team, is_approver, is_admin, active, auth_user_id, lock_version')
         .is('archived_at', null)
         .order('display_name')
       if (error) throw error

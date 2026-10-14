@@ -17,3 +17,9 @@ export function useFormKey() {
   const key = useRef(crypto.randomUUID())
   return { key: () => key.current, renew: () => { key.current = crypto.randomUUID() } }
 }
+
+// After a conflict, starts an edit form again from the latest saved values while keeping each field this person had
+// changed from the values the form opened with, so saving again applies only their changes on top.
+export function rebase<T extends Record<string, unknown>>(form: T, opened: T, latest: T): T {
+  return Object.fromEntries(Object.keys(form).map((key) => [key, form[key] === opened[key] ? latest[key] : form[key]])) as T
+}
