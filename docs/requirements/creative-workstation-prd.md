@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-75), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-75), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
+Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-76), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-76), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The remaining proposed defaults are listed in §11.3: PD-25's Drive check timing, and PD-26–PD-28 from building uploads and results. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
 
 Audience: Marketing Team, Creative Team, product owner, designer, engineering and QA.
 
@@ -632,6 +632,7 @@ Notification routing (D-56):
 | PD-25 | Drive change-check timing and scope (see §11.3) | Before the Drive integration in M1 is finalised |
 | PD-26 | Upload details: Rebrief carry-forward, accepted types, when files are checked, the wall's picture, the purge's timing (see §11.3) | Before the pilot |
 | PD-27 | How a resolved ad behaves at later syncs (see §11.3) | Before the pilot |
+| PD-28 | When the Combination view says "Meta didn't pick it", and the kept-out slice (see §11.3) | Before the pilot |
 
 The former O-01 (where domain commands run) is decided as D-48 / ADR 0006. The Shared Drive vs My Drive question is closed by D-62.
 
@@ -644,6 +645,7 @@ PD-01…PD-18 are now decisions D-49–D-59, PD-19…PD-22 are D-61, PD-23 and P
 | PD-25 | Drive change check: runs every 6 hours and on request from a Version or plan page, covering the files of Versions under review, approved Versions in effect, Versions of Live Variants and files cited as Evidence. The rest of the former PD-25 is D-69 | FR-11, AC-32 |
 | PD-26 | Uploads (A1c):<br/>- a Rebrief's new version starts with the attachments the last version had;<br/>- attachments may be PDFs, pictures (JPEG, PNG, WebP, GIF), videos (MP4, MOV), Office documents (Word, Excel, PowerPoint), zip files or plain text; web pages and SVG are refused;<br/>- a file's name must end to match its type, so a download never saves as something that runs;<br/>- thumbnails may be JPEG, PNG, WebP or GIF pictures;<br/>- each file is checked straight after it is uploaded, while the person waits, rather than from a queue;<br/>- adding or removing an attachment doesn't change the Brief's lock version, so it never wipes someone's unsaved Brief edits; hand-off still freezes the attachments;<br/>- the Variant wall shows the most recently set of each Variant's Launch thumbnails;<br/>- the D-59 purge of never-attached files waits for scheduling in B1 | FR-02, FR-06, FR-19, AC-06 |
 | PD-27 | Resolved ads (A5a): a resolution wins over the ad's name at later syncs. An ad linked to a Variant stays with it even if renamed to another code, until its video changes, when it becomes Mismatched. A kept-out ad stays out even if it later carries a valid code, until someone links it | FR-14, AC-18 |
+| PD-28 | Combination view (A5b): a Live Variant with less than 10% of the ad set's spend in the period is captioned "Meta didn't pick it". Kept-out ads, added in A5a, get their own slice alongside Dynamic, Untracked and Mismatched, so the shares still add up to 100% | FR-15, AC-20 |
 
 ## 12. Document precedence
 

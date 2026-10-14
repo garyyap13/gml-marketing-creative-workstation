@@ -913,3 +913,81 @@ export function useDataHealth() {
     },
   })
 }
+
+// One slice of an ad set's results in one scope (T-15): a Variant, or the ad set's Dynamic, Untracked, Mismatched or
+// kept-out ads.
+export type CombinationSlice = {
+  slice: 'variant' | 'dynamic' | 'untracked' | 'mismatched' | 'kept_out'; variant_id: string | null; variant_code: string | null
+  ad_id: string | null; ad_name: string | null; ads: number; spend: number | null; results: number | null; impressions: number | null
+  link_clicks: number | null; days: number; spend_missing: number; results_missing: number
+  // A Live Variant with no delivery reported in the period has no scope.
+  currency: string; result_indicator: string; attribution_setting: string; time_zone: string; channel_scope: string
+}
+export type CombinationAdSet = { ad_set_id: string; ad_set_name: string; campaign_name: string | null; account_id: string; currency: string; spend: number | null; last_day: string }
+export type MemberLabels = { variant_id: string; avatar_id: string | null; angle_id: string | null; format_id: string | null; narrative_style_id: string | null; hook_type_id: string | null }
+
+// The ad sets with results in the dates, most spend first, for choosing a Combination view.
+export function useCombinationAdSets(from: string, to: string) {
+  return useQuery({
+    queryKey: ['combination-ad-sets', from, to],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [sets, accounts] = await Promise.all([
+        selectAll<CombinationAdSet>((f, t2) => supabase.schema('reporting').rpc('combination_ad_sets', { p_from: from || null, p_to: to || null })
+          .order('spend', { ascending: false, nullsFirst: false }).order('ad_set_id').order('currency').range(f, t2)),
+        selectAll<LaunchAccount>((f, t2) => supabase.schema('launch').from('accounts').select('id, platform, name, currency, time_zone, source').order('name').order('id').range(f, t2)),
+      ])
+      return { sets, accounts: new Map(accounts.map((a) => [a.id, a])) }
+    },
+  })
+}
+
+// One ad set's slices for the dates, and the labels of its member Variants for diversity (D-40).
+export function useCombination(adSetId: string, from: string, to: string) {
+  return useQuery({
+    queryKey: ['combination', adSetId, from, to],
+    enabled: Boolean(adSetId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const slices = await selectAll<CombinationSlice>((f, t2) => supabase.schema('reporting').rpc('combination', { p_ad_set_id: adSetId, p_from: from || null, p_to: to || null })
+        .order('slice').order('variant_code').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t2))
+      const ids = [...new Set(slices.map((s) => s.variant_id).filter(Boolean) as string[])]
+      const variants = await selectIn<{ id: string; creative_id: string; hook_type_id: string | null }>(ids, (chunk, f, t2) =>
+        supabase.schema('creative').from('variants').select('id, creative_id, hook_type_id').in('id', chunk).order('id').range(f, t2))
+      const creatives = await selectIn<{ id: string; brief_version_id: string | null; format_id: string | null; narrative_style_id: string | null }>(
+        [...new Set(variants.map((v) => v.creative_id))], (chunk, f, t2) =>
+          supabase.schema('creative').from('creatives').select('id, brief_version_id, format_id, narrative_style_id').in('id', chunk).order('id').range(f, t2))
+      const briefs = await selectIn<{ id: string; avatar_id: string | null; angle_id: string | null }>(
+        [...new Set(creatives.map((c) => c.brief_version_id).filter(Boolean) as string[])], (chunk, f, t2) =>
+          supabase.schema('brief').from('brief_versions').select('id, avatar_id, angle_id').in('id', chunk).order('id').range(f, t2))
+      const creativeOf = new Map(creatives.map((c) => [c.id, c]))
+      const briefOf = new Map(briefs.map((b) => [b.id, b]))
+      const members: MemberLabels[] = variants.map((v) => {
+        const creative = creativeOf.get(v.creative_id)
+        const brief = briefOf.get(creative?.brief_version_id ?? '')
+        return {
+          variant_id: v.id, hook_type_id: v.hook_type_id, format_id: creative?.format_id ?? null, narrative_style_id: creative?.narrative_style_id ?? null,
+          avatar_id: brief?.avatar_id ?? null, angle_id: brief?.angle_id ?? null,
+        }
+      })
+      return { slices, members }
+    },
+  })
+}
+
+export type LabelResult = {
+  label_id: string | null; label_name: string | null; variants: number; spend: number | null; results: number | null; impressions: number | null
+  link_clicks: number | null; spend_missing: number; results_missing: number; engagement_missing: number; currency: string; result_indicator: string
+  attribution_setting: string; time_zone: string; channel_scope: string
+}
+
+// Each label item's Variant results pooled across ad sets, per scope (D-40, T-15).
+export function useLabelResults(kind: string, from: string, to: string) {
+  return useQuery({
+    queryKey: ['label-results', kind, from, to],
+    staleTime: 60_000,
+    queryFn: () => selectAll<LabelResult>((f, t2) => supabase.schema('reporting').rpc('label_results', { p_kind: kind, p_from: from || null, p_to: to || null })
+      .order('spend', { ascending: false, nullsFirst: false }).order('label_id').order('currency').order('result_indicator').order('attribution_setting')
+      .order('time_zone').order('channel_scope').range(f, t2)),
+  })
+}

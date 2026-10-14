@@ -675,7 +675,7 @@ If a CSV overlaps API data for the same scope, one authoritative dataset is sele
 - `data_health`
 - `optimization_backlog`
 
-They expose curated columns only and never raw payloads. Built so far: `variant_daily_results` (A3: each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons), `revision_values` (A3: the values of any published revision, for frozen Evidence), `variant_totals` (D-75), and `data_health` and `sync_problems` (A5a, §8.5). Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
+They expose curated columns only and never raw payloads. Built so far: `variant_daily_results` (A3: each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons), `revision_values` (A3: the values of any published revision, for frozen Evidence), `variant_totals` (D-75), `data_health` and `sync_problems` (A5a, §8.5), and `ad_daily_results`, `combination` and `label_results` (A5b, §8.6). Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
 
 Formulas follow D-37, D-39 and D-58. Every ratio uses summed numerators and denominators from compatible rows:
 - Cost per Result = Σ spend ÷ Σ Results, for one result indicator.
@@ -729,7 +729,7 @@ As built in milestone A3 (local, against the Meta stand-in):
 - Rows a sync cannot use (an ad without its ad set or status, a duplicate ad and day, an impossible date, a value that is not a number) go to `ingest.quarantine_rows` and the rest of the generation is published. A day without a results entry keeps its ad set's result type, with the value missing rather than zero.
 - A pasted post link is stored with a normalised key (host without `www.`/`m.`, path without trailing slash, query or fragment; path case kept), so the same post cannot back two Launches.
 - An open Review on a Variant that an observed ad put live can still be decided. Request Changes leaves the Variant live; approving the recorded Version clears the flags (D-61).
-- Later: promoted-Post linking and the post-ID resolution job (B3), Legacy Codes and backfill (B3, D-76), and Dynamic Launches (A5b).
+- Later: promoted-Post linking and the post-ID resolution job (B3), Legacy Codes and backfill (B3, D-76), and planning Dynamic Launches. Until then, a Dynamic Ad found by the sync is reported at ad level as its own slice (§8.6).
 
 As built in milestone A5a (D-76):
 - **Resolving.** `resolve_ad` links an Untracked, Mismatched or kept-out ad to a Variant, or keeps it out with a reason. It is open to the Marketing Team (D-55).
@@ -751,7 +751,7 @@ As built in milestone A5a (D-76):
 The **Combination view** covers one ad set over a chosen period, in the account's time zone:
 - **Members** are the Live Variants with matched Ads active in that ad set during the period. Dynamic Ads appear as separate ad-level rows.
 - **Blended Cost per Result** is the ad set's Σ spend ÷ Σ Results for one result indicator.
-- **Spend share** for each Variant is its matched spend in the ad set ÷ the ad set's spend for the period. Dynamic Ad, Untracked and Mismatched spend each get their own slice. The Variant shares plus these three slices always add up to 100% of the ad set's spend.
+- **Spend share** for each Variant is its matched spend in the ad set ÷ the ad set's spend for the period. Dynamic Ad, Untracked and Mismatched spend each get their own slice, and so does kept-out spend since A5a (PD-28). The Variant shares plus these slices always add up to 100% of the ad set's spend.
 - **Diversity** is the count of distinct Avatars, Angles, Formats, Narrative Styles and hook types among the members.
 - **Low share** is captioned "Meta didn't pick it" (D-41).
 
@@ -764,6 +764,20 @@ The **Label view** pools each label item's Variant results across ad sets:
 **Breakdowns** appear per Ad and are pooled only where compatible. The enabled set comes from `core.breakdown_settings`.
 
 Every comparison shows its evidence class. Only a Meta A/B test yields a Controlled Test.
+
+As built in milestone A5b (D-76):
+- `reporting.ad_daily_results` gives every synced ad's current daily paid results, whatever its match state, so the Combination view can account for all of an ad set's spend. Variant results still come only from matched single-Variant ads.
+- `reporting.combination(ad set, from, to)` returns one row per slice and scope: each Variant with matched ads, each Dynamic Ad on its own row (ad level, D-31), then the Untracked, Mismatched and kept-out ads. Kept-out ads, new in A5a, get their own slice so the slices still add up to all of the ad set's spend (PD-28).
+  - A Live Variant whose ads Meta reported no delivery for in the period is still a member, returned with no scope and nothing reported, and shown as "no delivery reported", never as zero.
+  - Missing spend and missing results are counted separately. A slice or total with a missing figure shows "—". Shares need every day's spend, and the blended cost needs every day's spend and results.
+  - Shares are whole percentages rounded to add up to exactly 100. The page compares the scope with the most spend and lists any other scope as not comparable. Its dates default to the last 28 days.
+  - An ad's current match state applies to its whole history: once resolved, its past spend moves with it. Frozen Evidence keeps what it cited.
+- A Variant below 10% of the ad set's spend is captioned "Meta didn't pick it" (threshold proposed, PD-28). Diversity counts the distinct Avatars, Angles, Formats, Narrative Styles and hook types among the members.
+- `reporting.label_results(kind, from, to)` pools matched Variant results by label item and scope, resolving merged labels to the item they were merged into. A Variant with no item of that kind pools under "No …". For Footage, a Variant counts under each item it uses.
+- `reporting.combination_ad_sets(from, to)` lists the ad sets with results in the dates, per currency, for choosing one.
+- Neither view returns Reach. A Reach result is never added up, and neither view gives a cost per result for a Reach result type or when a day's figure is missing.
+- A day re-reported under another result type, attribution, currency or time zone supersedes its earlier copy (`measure.observations.superseded_at`, set when the new revision is published), so the same spend never counts twice. This happens with a new ad set's first days, synced before any leads. All result views read only current copies; frozen Evidence still cites its own revisions.
+- The views aggregate at read time. A partial index on observation days supports the date filters, and query cost on pilot-sized data is checked against the 5-second budget before the pilot (B5).
 
 ## 9. Security, audit, notifications and reliability
 

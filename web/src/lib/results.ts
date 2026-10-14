@@ -91,3 +91,25 @@ export function groupResults(rows: ResultRow[]): ResultGroup[] {
 // A ratio of sums, or null when the denominator is zero or unknown (T-08).
 export const ratio = (numerator: number | null, denominator: number | null) =>
   numerator === null || denominator === null || denominator === 0 ? null : numerator / denominator
+
+// A comparable set of results: one currency, result type, attribution, time zone and channel scope (D-37).
+export type Scoped = { currency: string; result_indicator: string; attribution_setting: string; time_zone: string; channel_scope: string }
+export const scopeKey = (r: Scoped) => [r.currency, r.result_indicator, r.attribution_setting, r.time_zone, r.channel_scope].join('|')
+const channelNames: Record<string, string> = { paid_only: '', organic_only: 'organic', combined: 'paid and organic', unknown: 'channel unknown' }
+export const scopeName = (r: Scoped) =>
+  [r.currency, resultName(r.result_indicator), attributionName(r.attribution_setting), channelNames[r.channel_scope] ?? r.channel_scope, r.time_zone].filter(Boolean).join(' · ')
+
+// Rows grouped by scope, the scope with the most spend first.
+export function byScope<T extends Scoped & { spend: number | null }>(rows: T[]): T[][] {
+  const groups = new Map<string, T[]>()
+  for (const r of rows) groups.set(scopeKey(r), [...(groups.get(scopeKey(r)) ?? []), r])
+  const spend = (g: T[]) => g.reduce((sum, r) => sum + Number(r.spend ?? 0), 0)
+  return [...groups.values()].sort((a, b) => spend(b) - spend(a) || scopeKey(a[0]).localeCompare(scopeKey(b[0])))
+}
+
+// The last n days up to today, as local dates, for a page's default period.
+export function lastDays(n: number): { from: string; to: string } {
+  const local = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const today = new Date()
+  return { from: local(new Date(today.getFullYear(), today.getMonth(), today.getDate() - (n - 1))), to: local(today) }
+}

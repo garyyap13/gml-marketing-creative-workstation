@@ -90,7 +90,7 @@ fieldset.entry.invalid { box-shadow: inset 3px 0 0 var(--danger); padding-left: 
 /* Result figures (FR-08). */
 dl.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 0; }
 dl.metrics dt { font-size: 12px; color: var(--muted); }
-dl.metrics dd { margin: 2px 0 0; font-size: 20px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+dl.metrics dd { margin: 2px 0 0; font-size: 20px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 /* 复盘 workspace (FR-17), after the mockup. */
 .hypothesis { border-left: 3px solid var(--accent); padding: 10px 14px; background: var(--soft); display: grid; gap: 4px; }
@@ -136,6 +136,8 @@ svg.canvas:active { cursor: grabbing; }
 .views a { text-decoration: none; padding: 6px 12px; border-radius: 7px; color: var(--muted); border: 1px solid transparent; }
 .views a[aria-current='page'] { background: var(--soft); color: var(--ink); border-color: var(--line); }
 .wall-filters { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.share-bar { display: block; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.share-bar > span { display: block; height: 100%; background: var(--accent); }
 .wall { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 .tile { display: grid; gap: 6px; align-content: start; text-decoration: none; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; }
 .tile:hover, .tile:focus-visible { border-color: var(--accent); }

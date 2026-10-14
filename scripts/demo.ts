@@ -228,17 +228,22 @@ async function main() {
     { id: metaId(), name: adB.ad_name, video: metaId(), leads: ['10', '10', '10', '10'], clicks: '250' },
   ]
   const campaignId = metaId()
+  const agencyCut = metaId()
   await publishRawMetaSync(accounts.adAccountExternalId, {
     campaigns: [{ id: campaignId, name: 'Morning routine (demo)', objective: 'OUTCOME_LEADS' }],
     adsets: [{ id: adSetId, name: 'Busy professionals 25-34', campaign_id: campaignId, optimization_goal: 'LEAD_GENERATION', attribution_setting: '7d_click_1d_view' }],
-    // A third ad the agency named without a Variant code: Untracked, so it raises the Marketing Team's task.
+    // A third ad the agency named without a Variant code: Untracked, so it raises the Marketing Team's task and shows as
+    // its own slice in the Combination view.
     ads: [...ads.map((ad) => ({ id: ad.id, name: ad.name, adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: ad.video } })),
-      { id: metaId(), name: 'Morning routine agency cut (demo)', adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: metaId() } }],
-    insights: ads.flatMap((ad) => ad.leads.map((leads, i) => ({
+      { id: agencyCut, name: 'Morning routine agency cut (demo)', adset_id: adSetId, effective_status: 'ACTIVE', creative: { video_id: metaId() } }],
+    insights: [...['2026-10-03', '2026-10-04'].map((day) => ({
+      ad_id: agencyCut, adset_id: adSetId, date_start: day, date_stop: day, spend: '30.00', impressions: '1000', reach: '900', inline_link_clicks: '10',
+      attribution_setting: '7d_click_1d_view', results: [{ indicator: 'actions:onsite_conversion.lead_grouped', values: [{ value: '0' }] }],
+    })), ...ads.flatMap((ad) => ad.leads.map((leads, i) => ({
       ad_id: ad.id, adset_id: adSetId, date_start: `2026-10-0${i + 1}`, date_stop: `2026-10-0${i + 1}`,
       spend: '300.00', impressions: '10000', reach: '8000', inline_link_clicks: ad.clicks, attribution_setting: '7d_click_1d_view',
       results: [{ indicator: 'actions:onsite_conversion.lead_grouped', values: [{ value: leads }] }],
-    }))),
+    })))],
   })
 
   // 6. 复盘: Mei starts a 复盘 of B against A; both teams record Findings; Jun's Hypothesis becomes follow-up Variant C.
