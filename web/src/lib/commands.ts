@@ -42,6 +42,9 @@ const reasons: Record<string, string> = {
   verdict_needed: 'Record the Verdict before completing the plan.',
   invalid_transition: 'The plan has moved on. Reload to see where it is.',
   comparator_incompatible: 'Compare with results in the same currency, time zone, attribution and result type.',
+  handed_off_use_rebrief: 'This Brief has been handed off. Start a Rebrief to change it.',
+  launch_closed: 'This Launch has ended or was cancelled, so its thumbnail can no longer change.',
+  already_verified: 'This file has already been checked. Upload it again to replace it.',
   board_archived: 'This board is archived, so nothing on it can change.',
   item_archived: 'That was removed from the board.',
 }

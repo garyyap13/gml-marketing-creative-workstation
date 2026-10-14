@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
+import { BriefAttachments } from '../components/BriefAttachments'
 import { LabelSelect } from '../components/LabelSelect'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { useDraft, useFormKey } from '../lib/forms'
@@ -176,6 +177,7 @@ export function BriefPage() {
         {missing('creatives') && <p className="error" role="alert">{missing('creatives')}</p>}
         {handOff.error && missingCount === 0 && <p className="error" role="alert">{explain(handOff.error)}</p>}
       </form>
+      <BriefAttachments briefId={id} versionId={current.id} editable={editable} frozen={current.state === 'handed_off'} />
       <Creatives briefVersionId={current.id} creatives={brief.data.creatives} />
     </main>
   )

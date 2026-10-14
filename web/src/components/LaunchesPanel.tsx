@@ -4,6 +4,7 @@ import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useLaunches, type Launch, type LaunchAccount, type Review, type Variant, type Version } from '../lib/data'
 import { useFormKey } from '../lib/forms'
 import { money } from '../lib/results'
+import { uploadFile, uploadProblem, usePictureLinks, type StoredFile } from '../lib/uploads'
 import { Button } from './Button'
 
 const statusNames: Record<Launch['status'], string> = { planned: 'Planned', live: 'Live', ended: 'Ended', cancelled: 'Cancelled' }
@@ -45,7 +46,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   )
 }
 
-function LaunchRow({ launch, account, canAct, onChanged }: { launch: Launch; account?: LaunchAccount; canAct: boolean; onChanged: () => Promise<unknown> }) {
+type RowProps = { launch: Launch; account?: LaunchAccount; thumbnail?: StoredFile; picture?: string; canAct: boolean; onChanged: () => Promise<unknown> }
+
+function LaunchRow({ launch, account, thumbnail, picture, canAct, onChanged }: RowProps) {
   const [link, setLink] = useState('')
   const [reason, setReason] = useState('')
   const [step, setStep] = useState<'none' | 'end' | 'cancel'>('none')
@@ -61,6 +64,24 @@ function LaunchRow({ launch, account, canAct, onChanged }: { launch: Launch; acc
     onSuccess: () => { confirmKey.renew(); setStep('none'); return onChanged() },
     onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? onChanged() : undefined),
   })
+  // A thumbnail can be added or replaced while the Launch is planned or live, even after the Variant is live (D-62).
+  const [thumbnailStep, setThumbnailStep] = useState<'uploading' | 'checking' | null>(null)
+  const thumbnailKey = useFormKey()
+  const setThumbnail = useMutation({
+    mutationFn: async (file: File) => {
+      const fileId = await uploadFile('launch_thumbnail', launch.id, file, setThumbnailStep)
+      setThumbnailStep(null)
+      const set = (lockVersion: number) =>
+        run('set_launch_thumbnail', { p_launch_id: launch.id, p_file_id: fileId, p_expected_lock_version: lockVersion, p_idempotency_key: thumbnailKey.key() })
+      // The Launch may have moved on (a sync, say) since the page loaded: try once more with its newest version.
+      return set(launch.lock_version).catch((error) => (error instanceof CommandError && error.currentLockVersion !== undefined
+        ? (thumbnailKey.renew(), set(error.currentLockVersion)) : Promise.reject(error)))
+    },
+    onSuccess: () => { thumbnailKey.renew(); return onChanged() },
+    onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? onChanged() : undefined),
+    onSettled: () => setThumbnailStep(null),
+  })
+  const open = launch.status === 'planned' || launch.status === 'live'
   const where = account ? `${platformNames[account.platform] ?? 'Meta ads'} · ${accountName(account)}` : ''
 
   return (
@@ -88,6 +109,26 @@ function LaunchRow({ launch, account, canAct, onChanged }: { launch: Launch; acc
           <div className="row" style={{ gap: 8 }}><code style={{ flex: '1 1 240px' }}>utm_content={launch.utm_content}</code><CopyButton text={`utm_content=${launch.utm_content}`} label="Copy UTM" /></div>
         </div>
       )}
+      {(picture || (canAct && open)) && (
+        <div className="row" style={{ alignItems: 'end', gap: 12 }}>
+          {picture && thumbnail && (
+            <img className="launch-thumb" src={picture} alt={`${launch.kind === 'post' ? 'Post' : 'Ad'} thumbnail`} width={thumbnail.width ?? undefined} height={thumbnail.height ?? undefined} />
+          )}
+          {canAct && open && (
+            <div className="stack" style={{ flex: '1 1 220px', gap: 4 }}>
+              <label>Thumbnail
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={setThumbnail.isPending}
+                  onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) setThumbnail.mutate(file) }} />
+              </label>
+              <span className="small muted" aria-live="polite">
+                {thumbnailStep === 'uploading' ? 'Uploading…' : thumbnailStep === 'checking' ? 'Checking the picture…'
+                  : picture ? 'Choosing another picture replaces this one.' : 'A JPEG, PNG, WebP or GIF picture, up to 50 MB.'}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {setThumbnail.error && <p className="error" role="alert">{uploadProblem(setThumbnail.error)}</p>}
       {launch.post_link && <a className="small" href={launch.post_link} target="_blank" rel="noreferrer" style={{ overflowWrap: 'anywhere' }}>{launch.post_link}</a>}
       {launch.status === 'cancelled' && launch.cancel_reason && <p className="small muted">Cancelled: {launch.cancel_reason}</p>}
 
@@ -158,6 +199,7 @@ export function LaunchesPanel({ variant, versions, reviews, canPlan }: { variant
     onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? refresh() : undefined),
   })
   const set = (patch: Partial<Fields>) => { planKey.renew(); setFields({ ...fields, ...patch }) }
+  const pictures = usePictureLinks('launch-thumbnails', [...(data.data?.thumbnails.values() ?? [])].map((f) => f.storage_path))
 
   if (data.isPending) return null
   const launches = data.data?.launches ?? []
@@ -177,7 +219,13 @@ export function LaunchesPanel({ variant, versions, reviews, canPlan }: { variant
       {launches.length === 0 && <p className="small muted">No Launches yet.</p>}
       {launches.length > 0 && (
         <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {launches.map((launch) => <LaunchRow key={launch.id} launch={launch} account={accountOf(launch.account_id)} canAct={canPlan} onChanged={refresh} />)}
+          {launches.map((launch) => {
+            const thumbnail = launch.thumbnail_file_id ? data.data?.thumbnails.get(launch.thumbnail_file_id) : undefined
+            return (
+              <LaunchRow key={launch.id} launch={launch} account={accountOf(launch.account_id)} thumbnail={thumbnail}
+                picture={thumbnail ? pictures.data?.get(thumbnail.storage_path) : undefined} canAct={canPlan} onChanged={refresh} />
+            )
+          })}
         </ul>
       )}
 

@@ -414,3 +414,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # Invites a member and creates their confirmed sign-in account (T-09). Callers must be signed in.
 [functions.invite-member]
 verify_jwt = true
+
+# Checks an uploaded Brief attachment or Launch thumbnail (T-05). Callers must be signed in.
+[functions.verify-upload]
+verify_jwt = true

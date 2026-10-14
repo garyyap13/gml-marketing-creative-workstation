@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../tests/support/drive'
 import { inviteThroughFunction, operatorClient, signedOutClient, stack, waitForApi } from '../tests/support/local'
 import { demoAccounts, metaId, publishRawMetaSync } from '../tests/support/meta'
+import { pdf, png } from '../tests/support/files'
 
 const local = new URL(stack().API_URL)
 if (!['127.0.0.1', 'localhost'].includes(local.hostname)) {
@@ -30,6 +31,16 @@ async function call<T = any>(client: SupabaseClient, name: string, args: Record<
   return data as T
 }
 const key = () => randomUUID()
+
+// Uploads a demo file the way the app does: an upload slot, the bytes to local Storage, then the file-verifier.
+async function upload(client: SupabaseClient, kind: string, targetId: string, name: string, bytes: Buffer, mime: string): Promise<string> {
+  const slot = await call(client, 'create_upload_intent', { p_kind: kind, p_target_id: targetId, p_name: name, p_bytes: bytes.length, p_mime: mime, p_idempotency_key: key() })
+  const stored = await client.storage.from(slot.bucket).upload(slot.path, bytes, { contentType: mime })
+  if (stored.error) throw new Error(`upload of ${name} failed: ${stored.error.message}`)
+  const checked = await client.functions.invoke('verify-upload', { body: { p_file_id: slot.id } })
+  if (checked.error || checked.data?.verification_state !== 'ready') throw new Error(`check of ${name} failed: ${checked.data?.failure_reason ?? checked.error?.message}`)
+  return slot.id
+}
 const daysFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
 
 // Signs a demo person in through the API with a generated local password; in the browser they use a magic link or
@@ -134,6 +145,9 @@ async function main() {
     p_brief_version_id: brief.brief_version_id, p_title: 'The 5-minute routine (demo)', p_format_id: format,
     p_creative_owner_id: junId, p_due_date: daysFromToday(10), p_idempotency_key: key(),
   })
+  const script = await upload(mei, 'brief_attachment', brief.id, 'Script v1 (demo).pdf', pdf('Hook: Only five minutes to get ready? Body: one everyday step. CTA: message us.'), 'application/pdf')
+  await call(mei, 'add_brief_attachment', { p_brief_id: brief.id, p_attachment: { file_id: script, label: 'Script v1', role: 'script' }, p_idempotency_key: key() })
+  await call(mei, 'add_brief_attachment', { p_brief_id: brief.id, p_attachment: { link_url: 'https://drive.google.com/drive/folders/DEMO-REFERENCES', label: 'Reference cuts (demo link)', role: 'reference' }, p_idempotency_key: key() })
   await call(mei, 'hand_off_brief', { p_brief_id: brief.id, p_expected_lock_version: saved.lock_version, p_idempotency_key: key() })
 
   // 2. Production: Jun sets the Narrative Style, records the Footage, and makes Variants A and B.
@@ -201,6 +215,11 @@ async function main() {
   const adFields = { account_id: accounts.adAccount, campaign_name: 'Morning routine (demo)', ad_set_name: 'Busy professionals 25-34', planned_budget: 1200, planned_on: '2026-10-01' }
   const adA = await call(mei, 'plan_launch', { p_version_id: a2.version_id, p_kind: 'ad', p_fields: adFields, p_idempotency_key: key() })
   const adB = await call(mei, 'plan_launch', { p_version_id: b1.version_id, p_kind: 'ad', p_fields: adFields, p_idempotency_key: key() })
+  // Thumbnails for the Post of B and the Ad of A; the Variant wall shows each Variant's newest one.
+  for (const [launch, name, colours] of [[post, 'Post B cover (demo).png', [[246, 214, 120], [60, 90, 70]]], [adA, 'Ad A cover (demo).png', [[200, 222, 245], [40, 60, 110]]]] as const) {
+    const cover = await upload(mei, 'launch_thumbnail', launch.id, name, png(540, 675, [...colours[0]], [...colours[1]]), 'image/png')
+    await call(mei, 'set_launch_thumbnail', { p_launch_id: launch.id, p_file_id: cover, p_expected_lock_version: await lockVersion(mei, 'launch', 'launches', launch.id), p_idempotency_key: key() })
+  }
 
   // 5. Results: the Meta stand-in reports four days of the two ads. Same spend; B gets more leads (as in the mockup).
   const adSetId = metaId()

@@ -2,6 +2,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { useQuery } from '@tanstack/react-query'
 import type { LabelItem } from './labels'
 import { supabase } from './supabase'
+import { storedFileColumns, type StoredFile } from './uploads'
 
 // The API returns at most 200 rows per request (config max_rows), so lists are read page by page and every
 // query asks the server for exactly the rows it needs rather than filtering in the browser.
@@ -132,6 +133,25 @@ export function useBrief(id: string) {
         .order('code')
       if (creatives.error) throw creatives.error
       return { brief: brief.data as Brief, versions: versions.data as BriefVersion[], creatives: creatives.data as Creative[] }
+    },
+  })
+}
+
+export type BriefAttachment = {
+  id: string; label: string; role: 'script' | 'reference' | 'rough_material'; link_url: string | null; file_id: string | null; added_by: string; added_at: string
+}
+
+// A Brief version's attachments that haven't been removed, each with its file if it is an upload (D-52).
+export function useBriefAttachments(versionId: string) {
+  return useQuery({
+    queryKey: ['brief-attachments', versionId],
+    queryFn: async () => {
+      const attachments = await selectAll<BriefAttachment>((from, to) =>
+        supabase.schema('brief').from('attachments').select('id, label, role, link_url, file_id, added_by, added_at')
+          .eq('brief_version_id', versionId).is('removed_at', null).order('added_at').order('id').range(from, to))
+      const files = await selectIn<StoredFile>(attachments.map((a) => a.file_id).filter(Boolean) as string[], (chunk, from, to) =>
+        supabase.schema('core').from('files').select(storedFileColumns).in('id', chunk).order('id').range(from, to))
+      return { attachments, files: new Map(files.map((f) => [f.id, f])) }
     },
   })
 }
@@ -421,24 +441,27 @@ export type Launch = {
   ad_name: string | null
   utm_content: string | null
   cancel_reason: string | null
+  thumbnail_file_id: string | null
   created_at: string
   lock_version: number
 }
 
-// A Variant's Launches, and the accounts Launches can use.
+// A Variant's Launches with their thumbnail files, and the accounts Launches can use.
 export function useLaunches(variantId: string) {
   return useQuery({
     queryKey: ['launches', variantId],
     queryFn: async () => {
       const [launches, accounts] = await Promise.all([
         supabase.schema('launch').from('launches')
-          .select('id, kind, version_id, status, origin, approval_flag, account_id, planned_on, caption, post_link, campaign_name, ad_set_name, planned_budget, budget_currency, ad_name, utm_content, cancel_reason, created_at, lock_version')
+          .select('id, kind, version_id, status, origin, approval_flag, account_id, planned_on, caption, post_link, campaign_name, ad_set_name, planned_budget, budget_currency, ad_name, utm_content, cancel_reason, thumbnail_file_id, created_at, lock_version')
           .eq('variant_id', variantId).order('created_at'),
         selectAll<LaunchAccount>((from, to) =>
           supabase.schema('launch').from('accounts').select('id, platform, name, currency, time_zone, source').order('name').order('id').range(from, to)),
       ])
       if (launches.error) throw launches.error
-      return { launches: launches.data as Launch[], accounts }
+      const thumbnails = await selectIn<StoredFile>((launches.data as Launch[]).map((l) => l.thumbnail_file_id).filter(Boolean) as string[], (chunk, from, to) =>
+        supabase.schema('core').from('files').select(storedFileColumns).in('id', chunk).order('id').range(from, to))
+      return { launches: launches.data as Launch[], accounts, thumbnails: new Map(thumbnails.map((f) => [f.id, f])) }
     },
   })
 }
@@ -683,7 +706,7 @@ export function useVariantWall(from: string, to: string) {
       const variants = all.filter((v) => creativeOf.has(v.creative_id))
       const ids = variants.map((v) => v.id)
       const wanted = new Set(ids)
-      const [briefVersions, footageLinks, footage, totals, actions] = await Promise.all([
+      const [briefVersions, footageLinks, footage, totals, actions, thumbnailed] = await Promise.all([
         selectIn<{ id: string; product_id: string | null; avatar_id: string | null; angle_id: string | null }>(
           [...new Set(creatives.map((c) => c.brief_version_id).filter(Boolean) as string[])], (chunk, f, t2) =>
             supabase.schema('brief').from('brief_versions').select('id, product_id, avatar_id, angle_id').in('id', chunk).order('id').range(f, t2)),
@@ -694,8 +717,22 @@ export function useVariantWall(from: string, to: string) {
           .order('variant_id').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t2)),
         selectIn<{ variant_id: string }>(ids, (chunk, f, t2) =>
           supabase.schema('learning').from('plan_actions').select('variant_id').in('variant_id', chunk).order('variant_id').range(f, t2)),
+        selectIn<{ variant_id: string; thumbnail_file_id: string; created_at: string }>(ids, (chunk, f, t2) =>
+          supabase.schema('launch').from('launches').select('variant_id, thumbnail_file_id, created_at').in('variant_id', chunk)
+            .not('thumbnail_file_id', 'is', null).order('created_at').order('id').range(f, t2)),
       ])
+      // Each Variant shows the most recently set of its Launches' thumbnails.
+      const thumbnailFiles = await selectIn<StoredFile>([...new Set(thumbnailed.map((l) => l.thumbnail_file_id))], (chunk, f, t2) =>
+        supabase.schema('core').from('files').select(storedFileColumns).in('id', chunk).order('id').range(f, t2))
+      const fileOf = new Map(thumbnailFiles.map((file) => [file.id, file]))
+      const thumbnails = new Map<string, StoredFile>()
+      for (const launch of thumbnailed) {
+        const file = fileOf.get(launch.thumbnail_file_id)
+        const shown = thumbnails.get(launch.variant_id)
+        if (file && (!shown || (file.attached_at ?? '') > (shown.attached_at ?? ''))) thumbnails.set(launch.variant_id, file)
+      }
       return {
+        thumbnails,
         variants,
         creatives: creativeOf,
         briefVersions: new Map(briefVersions.map((b) => [b.id, b])),

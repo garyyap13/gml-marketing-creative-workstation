@@ -4,6 +4,7 @@ import { CreativeViews } from '../components/CreativeViews'
 import { explain } from '../lib/commands'
 import { useLabels, useVariantWall, variantStates, type Variant, type VariantTotal, type WallData } from '../lib/data'
 import { attributionName, count, money, resultName } from '../lib/results'
+import { usePictureLinks } from '../lib/uploads'
 
 type Scope = { key: string; currency: string; indicator: string; attribution: string; timeZone: string; channel: string }
 const scopeKey = (r: Pick<VariantTotal, 'currency' | 'result_indicator' | 'attribution_setting' | 'time_zone' | 'channel_scope'>) =>
@@ -79,6 +80,7 @@ export function WallPage() {
   }, [scopes, filters.scope])
   const scope = scopes.find((s) => s.key === filters.scope) ?? scopes[0]
   const all = useMemo(() => (data.data ? tiles(data.data, scope, scopeName) : []), [data.data, scope?.key])
+  const pictures = usePictureLinks('launch-thumbnails', [...(data.data?.thumbnails.values() ?? [])].map((f) => f.storage_path))
 
   if (data.isPending) return <main className="page"><p className="muted">Loading…</p></main>
   if (data.error || !data.data) return <main className="page"><p className="error">{explain(data.error)}</p></main>
@@ -107,6 +109,7 @@ export function WallPage() {
   const usedFootage = new Set(d.footageLinks.map((l) => l.footage_id))
   const resultWord = scope ? resultName(scope.indicator).toLowerCase() : 'results'
   const dated = Boolean(filters.from || filters.to)
+  const pictureOf = (variantId: string) => { const file = d.thumbnails.get(variantId); return file ? pictures.data?.get(file.storage_path) : undefined }
 
   return (
     <main className="page" style={{ maxWidth: 'none' }}>
@@ -150,7 +153,9 @@ export function WallPage() {
         {shown.length === 0 && <p className="notice">No Variants match these filters.</p>}
         {shown.map((t) => (
           <Link key={t.variant.id} to={`/variants/${t.variant.id}`} className="tile">
-            <span className={d.fromRetro.has(t.variant.id) ? 'tile-art pending' : 'tile-art'} aria-hidden="true">{t.variant.code.replace('-', ' / ')}</span>
+            {pictureOf(t.variant.id)
+              ? <img className="tile-art tile-picture" src={pictureOf(t.variant.id)} alt="" />
+              : <span className={d.fromRetro.has(t.variant.id) ? 'tile-art pending' : 'tile-art'} aria-hidden="true">{t.variant.code.replace('-', ' / ')}</span>}
             <span className="eyebrow">{t.variant.code}</span>
             <span className="tile-title">{t.title}</span>
             <span className="small muted">{[name(t.variant.hook_type_id), name(t.variant.length_id), name(t.variant.aspect_ratio_id)].filter(Boolean).join(' · ') || 'No labels yet'}</span>
@@ -175,7 +180,7 @@ export function WallPage() {
           </Link>
         ))}
       </section>
-      <p className="small muted">Pictures are placeholders until Launch thumbnails arrive with uploads. Results compare only the chosen currency, result type, attribution, time zone and channel{dated ? ', for the chosen dates' : ', over all dates'}.</p>
+      <p className="small muted">Each picture is the Variant's newest Launch thumbnail; Variants without one show a placeholder. Results compare only the chosen currency, result type, attribution, time zone and channel{dated ? ', for the chosen dates' : ', over all dates'}.</p>
     </main>
   )
 }

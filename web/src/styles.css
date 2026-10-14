@@ -141,6 +141,8 @@ svg.canvas:active { cursor: grabbing; }
 .tile:hover, .tile:focus-visible { border-color: var(--accent); }
 .tile-art { height: 120px; border-radius: 7px; background: var(--soft); display: grid; place-items: center; font-size: 12px; letter-spacing: 1.5px; color: var(--accent); }
 .tile-art.pending { background: var(--wash); color: var(--warn); border: 1px dashed var(--warn); }
+.tile-picture { width: 100%; object-fit: cover; }
+.launch-thumb { width: 96px; height: auto; border-radius: 6px; border: 1px solid var(--line); }
 .tile-title { font-weight: 500; }
 .tile-metric { font-size: 20px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
 
