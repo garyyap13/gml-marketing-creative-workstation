@@ -883,7 +883,9 @@ export type AccountHealth = {
   last_published_at: string | null; generation: number | null; quarantined: number; failed_since: number; ads_seen: number; ads_matched: number
   stale: boolean | null
 }
-export type SyncProblem = { id: string; account_id: string; generation: number; row_locator: string; error: string; resolution: string | null; created_at: string }
+export type SyncProblem = {
+  id: string; account_id: string; generation: number; row_locator: string; error: string; resolution: string | null; created_at: string; run_kind: string
+}
 
 export const PROBLEMS_SHOWN = 50
 
@@ -896,7 +898,7 @@ export function useDataHealth() {
       const count = (state: string) => supabase.schema('meta').from('ads').select('id', { count: 'exact', head: true }).eq('match_state', state)
       const [accounts, problems, untracked, mismatched, flagged] = await Promise.all([
         selectAll<AccountHealth>((from, to) => supabase.schema('reporting').from('data_health').select('*').order('account_name').order('account_id').range(from, to)),
-        supabase.schema('reporting').from('sync_problems').select('id, account_id, generation, row_locator, error, resolution, created_at')
+        supabase.schema('reporting').from('sync_problems').select('id, account_id, generation, row_locator, error, resolution, created_at, run_kind')
           .order('created_at', { ascending: false }).order('id').limit(PROBLEMS_SHOWN),
         count('untracked'), count('mismatched'),
         selectAll<{ id: string; variant_id: string; kind: 'post' | 'ad'; approval_flag: NonNullable<Launch['approval_flag']> }>((from, to) =>
@@ -989,5 +991,54 @@ export function useLabelResults(kind: string, from: string, to: string) {
     queryFn: () => selectAll<LabelResult>((f, t2) => supabase.schema('reporting').rpc('label_results', { p_kind: kind, p_from: from || null, p_to: to || null })
       .order('spend', { ascending: false, nullsFirst: false }).order('label_id').order('currency').order('result_indicator').order('attribution_setting')
       .order('time_zone').order('channel_scope').range(f, t2)),
+  })
+}
+
+export const platformNames: Record<string, string> = {
+  meta_ad_account: 'Meta ads', facebook_page: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', xiaohongshu: 'Xiaohongshu', youtube: 'YouTube',
+}
+export type ManualAccount = { id: string; platform: string; external_id: string; name: string; currency: string | null; time_zone: string | null }
+export type ManualLaunch = { id: string; kind: 'post' | 'ad'; status: Launch['status']; account_id: string; post_link: string | null; variant_id: string; variant_code: string }
+export type ManualResult = {
+  launch_id: string; variant_id: string; variant_code: string; platform: string; account_id: string; account_name: string
+  period_start: string; period_end: string; channel_scope: string; currency: string; result_indicator: string
+  spend: number | null; views: number | null; clicks: number | null; results: number | null; reach: number | null
+  likes: number | null; comments: number | null; shares: number | null; saves: number | null
+  source: 'manual' | 'csv_import'; entered_by: string | null; entered_at: string; file_id: string | null; revision_id: string; observation_id: string
+}
+
+// The accounts whose results are entered by hand, and the live or ended Launches on them (D-61 PD-22, D-76).
+export function useManualAccounts() {
+  return useQuery({
+    queryKey: ['manual-accounts'],
+    queryFn: async () => {
+      const accounts = await selectAll<ManualAccount>((from, to) =>
+        supabase.schema('launch').from('accounts').select('id, platform, external_id, name, currency, time_zone').eq('source', 'manual')
+          .order('name').order('id').range(from, to))
+      const launches = await selectIn<Omit<ManualLaunch, 'variant_code'>>(accounts.map((a) => a.id), (chunk, from, to) =>
+        supabase.schema('launch').from('launches').select('id, kind, status, account_id, post_link, variant_id').in('account_id', chunk)
+          .in('status', ['live', 'ended']).order('created_at').order('id').range(from, to))
+      const codes = await selectIn<{ id: string; code: string }>([...new Set(launches.map((l) => l.variant_id))], (chunk, from, to) =>
+        supabase.schema('creative').from('variants').select('id, code').in('id', chunk).order('id').range(from, to))
+      const codeOf = new Map(codes.map((c) => [c.id, c.code]))
+      return { accounts, launches: launches.map((l) => ({ ...l, variant_code: codeOf.get(l.variant_id) ?? '' })) }
+    },
+  })
+}
+
+// Results entered by hand or imported: the latest entries, or one Variant's, with the CSV files they came from.
+export function useManualResults(variantId?: string) {
+  return useQuery({
+    queryKey: ['manual-results', variantId ?? 'recent'],
+    queryFn: async () => {
+      let query = supabase.schema('reporting').from('manual_results').select('*')
+      if (variantId) query = query.eq('variant_id', variantId)
+      const { data, error } = await query.order('entered_at', { ascending: false }).order('revision_id').limit(variantId ? 200 : 20)
+      if (error) throw error
+      const rows = data as ManualResult[]
+      const files = await selectIn<{ id: string; name: string }>([...new Set(rows.map((r) => r.file_id).filter(Boolean) as string[])], (chunk, from, to) =>
+        supabase.schema('core').from('files').select('id, name').in('id', chunk).order('id').range(from, to))
+      return { rows, fileName: new Map(files.map((f) => [f.id, f.name])) }
+    },
   })
 }

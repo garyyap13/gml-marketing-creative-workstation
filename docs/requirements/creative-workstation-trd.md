@@ -280,7 +280,7 @@ The following v1.0 tables are removed (D-27, ADR 0004): `distribution.package_ve
 | `ingest.raw_responses` | → run, request parameters, page cursor, checksum, received time, payload | Immutable. Replays deduplicate. Never exposed (D-06, D-08) |
 | `ingest.quarantine_rows` | → raw response or CSV import, row locator, error, resolution | No silent coercion |
 | `ingest.csv_imports` | → `core.files` (`csv_import`, private import area); platform; account; uploader; column mapping; report context; validation summary; state | Provenance on every revision (D-36, D-59) |
-| `ingest.manual_entries` | actor; platform; account; post or ad ID or Variant code; period; metric values; currency; entered at | Append-only. Each creates observation revisions with source `manual` (D-36, D-61) |
+| `ingest.manual_entries` | actor; platform; account; post or ad ID or Variant code; period; metric values; currency; entered at | Append-only. Each creates observation revisions with source `manual` (D-36, D-61). As built (A5c): no separate table; each entry is a run of kind `manual_entry` recording the actor, plus a published revision (§8.3) |
 | `measure.reporting_entities` | typed reference to a Meta ad, ad set, campaign or post, or a manual entity for another platform | Typed unique registry |
 | `measure.metric_definitions` | source field, semantic key, version, unit, numerator and denominator, aggregation rule | Immutable versions |
 | `measure.report_scopes` | account, entity level, channel scope, period kind, time zone, currency, attribution setting, breakdown schema, definition version | Canonical non-null identity |
@@ -517,7 +517,7 @@ A command that queues work returns a job ID. Success is not implied until the jo
 - Working files are links on the Variant, in the same Drive (D-07 follow-up).
   - V1 stores only the pasted link. Working files get no Drive picker and no Drive API access, and access is governed by Drive's own sharing (D-62).
   - A working-file link must never be treated as an immutable submitted Version.
-- `create_upload_intent` returns a signed upload path tied to one file kind and target. The targets are an `editing` Brief version for attachments, a Launch for thumbnails (allowed while the Variant is live, D-62), or the caller for a CSV import. The browser cannot write to arbitrary paths.
+- `create_upload_intent` returns a signed upload path tied to one file kind and target. The targets are an `editing` Brief version for attachments, a Launch for thumbnails (allowed while the Variant is live, D-62), or, as built (A5c), a TikTok, Xiaohongshu or YouTube account entered by hand for a CSV import. The browser cannot write to arbitrary paths.
 - Uploads and Drive registrations move from pending to verifying, then to ready or failed. A file becomes attached when a command links it to a record.
 
 For Storage uploads, the file-verifier Edge Function (D-58) streams the object and checks:
@@ -525,7 +525,7 @@ For Storage uploads, the file-verifier Edge Function (D-58) streams the object a
 - the MIME type, sniffed from the content;
 - the SHA-256 checksum;
 - the dimensions of images, including Launch thumbnails;
-- UTF-8 text and a parseable header for CSV files.
+- UTF-8 text for CSV files; the import checks the header and rows (§8.3).
 
 Drive registrations are verified from Drive's metadata instead (T-19).
 
@@ -535,7 +535,7 @@ Proposed limits (sizing stays proposed, D-58):
 - 50 MiB per image, including Launch thumbnails (D-47);
 - 1 GiB per Version video, checked on Drive's metadata as a sanity check rather than a storage limit (D-47, D-65);
 - 25 MiB per Brief attachment (D-52);
-- 20 MiB per CSV file.
+- 20 MiB per CSV file. As built (A5c), 5 MiB and 5,000 rows, what one import can process in one go (proposed, D-58).
 
 The chosen Supabase plan's per-file limit must exceed the Storage limits. Version video no longer passes through Storage (D-65), so the plan is re-evaluated before provisioning (D-06).
 
@@ -662,6 +662,24 @@ Validation and provenance:
 - Imported or manual data is never labelled as API data.
 
 If a CSV overlaps API data for the same scope, one authoritative dataset is selected and the rows are never unioned.
+
+As built in milestone A5c (D-76):
+- **Accounts.** `add_platform_account(platform, handle, name, currency, time zone)` adds a TikTok, Xiaohongshu or YouTube account with source `manual`. Post Launches on it are planned and confirmed as usual.
+- **Entries.** Results attach to a live or ended Launch on such an account. The period must have ended, or end today in the account's time zone. `enter_manual_results(launch, from, to, channel, values)` takes the place of the planned `(platform, account, entity_ref, period, values, currency)` form; the account and its currency come from the Launch.
+  - Each entry is that period's total, in a scope of its own: period kind `range`, the account's time zone and currency, attribution not applicable, and the channel (organic, paid or both) and result type the person gives. Entries are never split into days or added to daily or other periods.
+  - The figures are spend (paid or both only, at most two decimals), views or impressions, clicks, and Results with their type (leads, messages, purchases, profile visits, link clicks or none), plus optional reach, likes, comments, shares and saves. Counts are whole numbers. Spend missing from an organic entry is recorded as not applicable.
+  - Each entry is a published revision in a run of kind `manual_entry` that records who entered it. Entering the same Launch and period again adds a correcting revision, unless nothing changed. Changing the result type supersedes the earlier copy, and changing it back makes the original current again (`app.make_current`).
+  - `withdraw_manual_result(observation, reason)` withdraws an entry made on the wrong Launch, dates or channel. It is marked superseded, with the actor and reason in the activity log; nothing is deleted.
+  - In the web form, only commas between groups of three digits are read as thousands separators; anything else, such as "12,50", is refused rather than guessed.
+- **CSV.** The file is uploaded as kind `csv_import` for one account, to the private `csv-imports` bucket, and checked like any upload.
+  - The `import-csv` Edge Function calls `import_csv(file)` as the member who uploaded the file, which opens the import once per file and takes the place of the planned platform, account and mapping arguments. An import that stops before finishing records why. If it is still pending after 15 minutes, it can be opened again. It then reads the file with the secret key, parses it as RFC 4180, and passes the rows to `worker.record_csv_import`, which members cannot call. The recorded rows therefore always come from the checked file.
+  - Rows use the template's columns: `post_link` or `variant_code`, `period_start`, `period_end`, `channel`, `currency`, then the figures. Dates are YYYY-MM-DD and numbers have no thousands separators or currency signs, so locale formats are refused rather than guessed. A currency other than the account's is refused.
+  - Each usable row is recorded as above in a run of kind `csv_import` that names the file and the member. Every other row goes to `ingest.quarantine_rows` with its line number and reason, and data health lists it. A second row for the same Launch, period and channel in one file is set aside, never added. So is a row whose post link and Variant code point at different Launches.
+  - A file is refused as a whole if it lacks the template's columns, has columns the template doesn't, repeats a column, has more than 5,000 rows or contains a NUL character. Rows of nothing but commas are skipped.
+  - The same rows imported again change nothing (AC-07).
+  - Mapping each platform's native export waits for sample files (D-76).
+  - Later: Ads on TikTok and other platforms, which only Meta ad accounts can hold today, and citing entered results as 复盘 Evidence.
+- **Views.** `reporting.manual_results` gives each Launch's current entry per period with its source, the member and the file. `reporting.csv_imports` gives each import's outcome and counts. The Variant page lists a Variant's entries under "Results on other platforms".
 
 ### 8.4 Reporting views and reproducibility
 

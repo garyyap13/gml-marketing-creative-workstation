@@ -418,3 +418,7 @@ verify_jwt = true
 # Checks an uploaded Brief attachment or Launch thumbnail (T-05). Callers must be signed in.
 [functions.verify-upload]
 verify_jwt = true
+
+# Imports a CSV of results made from the template (TRD §8.3). Callers must be signed in.
+[functions.import-csv]
+verify_jwt = true

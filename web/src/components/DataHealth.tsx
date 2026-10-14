@@ -49,8 +49,8 @@ export function DataHealth() {
               return (
                 <tr key={a.account_id}>
                   <td>{shown(a)}<br /><span className="muted">{platforms[a.platform] ?? a.platform}</span></td>
-                  <td>{a.last_published_at ? new Date(a.last_published_at).toLocaleString() : '—'}</td>
-                  <td>{a.last_published_at ? rows(a.quarantined) : '—'}</td>
+                  <td>{a.last_published_at ? `${a.platform === 'meta_ad_account' ? '' : 'Entered '}${new Date(a.last_published_at).toLocaleString()}` : '—'}</td>
+                  <td>{a.last_published_at && a.platform === 'meta_ad_account' ? rows(a.quarantined) : '—'}</td>
                   <td>{a.platform === 'meta_ad_account' ? coverage(a) : '—'}</td>
                   <td><span className={s.tone ? `tag ${s.tone}` : 'tag'}>{s.text}</span></td>
                 </tr>
@@ -69,7 +69,7 @@ export function DataHealth() {
                 <span>{p.error}</span>
                 <br />
                 <span className="muted">
-                  {shown(d.accounts.find((a) => a.account_id === p.account_id))} · sync {p.generation} · {p.row_locator} · {new Date(p.created_at).toLocaleString()}
+                  {shown(d.accounts.find((a) => a.account_id === p.account_id))} · {p.run_kind === 'csv_import' ? 'CSV import' : `sync ${p.generation}`} · {p.row_locator} · {new Date(p.created_at).toLocaleString()}
                 </span>
               </li>
             ))}

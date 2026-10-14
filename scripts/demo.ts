@@ -221,6 +221,21 @@ async function main() {
     await call(mei, 'set_launch_thumbnail', { p_launch_id: launch.id, p_file_id: cover, p_expected_lock_version: await lockVersion(mei, 'launch', 'launches', launch.id), p_idempotency_key: key() })
   }
 
+  // Other platforms: a TikTok account, a Post of B there, and its first week entered by hand (D-76).
+  const tiktok = await call(mei, 'add_platform_account', {
+    p_platform: 'tiktok', p_handle: '@gmlstudio.demo', p_name: 'GML on TikTok (demo)', p_currency: 'MYR', p_time_zone: 'Asia/Kuala_Lumpur', p_idempotency_key: key(),
+  })
+  const tiktokPost = await call(mei, 'plan_launch', {
+    p_version_id: b1.version_id, p_kind: 'post', p_fields: { account_id: tiktok.id, caption: 'Five minutes is all it takes.', planned_on: '2026-10-01' }, p_idempotency_key: key(),
+  })
+  await call(mei, 'confirm_post_live', {
+    p_launch_id: tiktokPost.id, p_post_link: 'https://www.tiktok.com/@gmlstudio.demo/video/7420000000000000001', p_expected_lock_version: tiktokPost.lock_version, p_idempotency_key: key(),
+  })
+  await call(mei, 'enter_manual_results', {
+    p_launch_id: tiktokPost.id, p_from: '2026-10-01', p_to: '2026-10-07', p_channel: 'organic_only', p_idempotency_key: key(),
+    p_values: { views: 18400, clicks: 260, results: 9, result_type: 'messages', likes: 1200, comments: 85, shares: 40, saves: 310 },
+  })
+
   // 5. Results: the Meta stand-in reports four days of the two ads. Same spend; B gets more leads (as in the mockup).
   const adSetId = metaId()
   const ads = [
@@ -297,6 +312,7 @@ Demo loaded: ${creative.code} "The 5-minute routine (demo)".
 
 Results:
     Ads to resolve   ${appUrl}/results?section=resolve  (one Untracked ad named without a Variant code)
+    Enter results    ${appUrl}/results?section=enter  (a TikTok account and one week entered by hand)
     Data health      ${appUrl}/results?section=health
 
 Canvas views:

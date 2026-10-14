@@ -9,6 +9,12 @@ const indicators: Record<string, string> = {
   'actions:offsite_conversion.fb_pixel_purchase': 'Purchases',
   'actions:link_click': 'Link clicks',
   'reach': 'Reach',
+  // Result types entered by hand for other platforms (D-76).
+  'leads': 'Leads',
+  'messages': 'Messaging conversations',
+  'purchases': 'Purchases',
+  'profile_visits': 'Profile visits',
+  'link_clicks': 'Link clicks',
 }
 export const resultName = (indicator: string) => indicators[indicator] ?? (indicator === 'none' ? 'Results' : indicator)
 

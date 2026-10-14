@@ -52,7 +52,7 @@ function family(b: Uint8Array): Pick<Described, 'family' | 'width' | 'height'> {
   const head = b.subarray(0, 65536)
   if (head.includes(0)) return { family: 'other' }
   // Anything that opens like markup is a web page, never plain text: browsers could run it.
-  if (new TextDecoder('utf-8').decode(b.subarray(0, 1024)).replace(/^﻿/, '').trimStart().startsWith('<')) return { family: 'html' }
+  if (new TextDecoder('utf-8').decode(b.subarray(0, 1024)).replace(/^\ufeff/, '').trimStart().startsWith('<')) return { family: 'html' }
   // Checked a megabyte at a time, so a large file never becomes one huge string.
   const decoder = new TextDecoder('utf-8', { fatal: true })
   try {

@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { LabelSelect } from '../components/LabelSelect'
 import { LaunchesPanel } from '../components/LaunchesPanel'
+import { OtherPlatformResults } from '../components/OtherPlatformResults'
 import { ResultsPanel } from '../components/ResultsPanel'
 import { StartRetroPanel } from '../components/StartRetroPanel'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
@@ -186,6 +187,7 @@ export function VariantPage() {
       </section>
 
       {variant.live_at && <ResultsPanel variantId={variant.id} />}
+      {variant.live_at && <OtherPlatformResults variantId={variant.id} />}
       {variant.live_at && <StartRetroPanel variant={variant} versions={versions} />}
       <LaunchesPanel variant={variant} versions={versions} reviews={reviews} canPlan={me.team === 'marketing'} />
 

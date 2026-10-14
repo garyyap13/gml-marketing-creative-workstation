@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { CommandError, explain, newKey, run, runFunction } from './commands'
 import { supabase } from './supabase'
 
-export type UploadKind = 'brief_attachment' | 'launch_thumbnail'
+export type UploadKind = 'brief_attachment' | 'launch_thumbnail' | 'csv_import'
 export type StoredFile = {
   id: string; name: string; bytes: number; mime: string; storage_bucket: string; storage_path: string; width: number | null; height: number | null; attached_at: string | null
 }
