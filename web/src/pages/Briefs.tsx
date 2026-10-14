@@ -1,12 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { explain, fieldError, run } from '../lib/commands'
 import { useFormKey } from '../lib/forms'
 import { useBriefs, useMembers } from '../lib/data'
 import { useMember } from '../lib/session'
+import { describedBy, FieldError } from '../components/FieldError'
 
 export function Briefs() {
+  const errorIds = useId()
   const me = useMember()
   const briefs = useBriefs()
   const members = useMembers()
@@ -30,8 +32,8 @@ export function Briefs() {
       {me.team === 'marketing' && (
         <form className="panel row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); create.mutate() }}>
           <label style={{ flex: '1 1 240px' }}>New Brief title
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A simpler morning routine" />
-            {fieldError(create.error, 'title') && <span className="error">{fieldError(create.error, 'title')}</span>}
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A simpler morning routine" {...describedBy(fieldError(create.error, 'title'), `${errorIds}-title`)} />
+            <FieldError id={`${errorIds}-title`} error={fieldError(create.error, 'title')} />
           </label>
           <button type="submit" className="primary" disabled={create.isPending}>Create Brief</button>
           {create.error && !fieldError(create.error, 'title') && <p className="error" role="alert">{explain(create.error)}</p>}

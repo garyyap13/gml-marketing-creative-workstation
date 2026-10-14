@@ -7,6 +7,7 @@ import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { useDraft, useFormKey } from '../lib/forms'
 import { useBrief, useLabels, useMembers, type BriefVersion, type Creative } from '../lib/data'
 import { useMember } from '../lib/session'
+import { describedBy, FieldError, formProblem } from '../components/FieldError'
 
 type Fields = Pick<BriefVersion, 'product_id' | 'avatar_id' | 'angle_id' | 'funnel_stage_id' | 'initiative_id' | 'key_message' | 'cta' | 'cta_none' | 'hypothesis'>
 
@@ -36,13 +37,14 @@ function RebriefPanel({ briefId, lockVersion, nextVersion, onDone }: { briefId: 
       ) : (
         <form className="stack" onSubmit={(e: FormEvent) => { e.preventDefault(); start.mutate() }}>
           <label>Why is the Brief changing?
-            <textarea rows={2} maxLength={1000} autoFocus value={reason} onChange={(e) => { key.renew(); setReason(e.target.value) }} placeholder="The offer changed to a free trial" />
+            <textarea rows={2} maxLength={1000} autoFocus value={reason} onChange={(e) => { key.renew(); setReason(e.target.value) }} placeholder="The offer changed to a free trial"
+              {...describedBy(fieldError(start.error, 'reason'), `${headingId}-error`)} />
           </label>
           <div className="row">
             <button type="submit" className="primary" disabled={start.isPending}>Start Rebrief</button>
             <button type="button" onClick={close}>Keep this version</button>
           </div>
-          {start.error && <p className="error" role="alert">{fieldError(start.error, 'reason') ?? explain(start.error)}</p>}
+          {start.error && <p id={`${headingId}-error`} className="error" role="alert">{fieldError(start.error, 'reason') ?? explain(start.error)}</p>}
         </form>
       )}
     </section>
@@ -108,6 +110,7 @@ function MoveUp({ creative, target, onMoved }: { creative: Creative; target: Bri
 }
 
 function Creatives({ briefVersionId, versions, creatives }: { briefVersionId: string; versions: BriefVersion[]; creatives: Creative[] }) {
+  const errorIds = useId()
   const me = useMember()
   const members = useMembers()
   const labels = useLabels()
@@ -162,37 +165,36 @@ function Creatives({ briefVersionId, versions, creatives }: { briefVersionId: st
       </ul>
       <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); add.mutate(form) }}>
         <label style={{ flex: '2 1 180px' }}>Title
-          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} {...describedBy(fieldError(add.error, 'title'), `${errorIds}-title`)} />
+          <FieldError id={`${errorIds}-title`} error={fieldError(add.error, 'title')} />
         </label>
         <label style={{ flex: '1 1 150px' }}>Format{me.team === 'creative' ? ' (Marketing confirms)' : ''}
-          <select value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value })}>
+          <select value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value })} {...describedBy(fieldError(add.error, 'format_id'), `${errorIds}-format`)}>
             <option value="">Choose…</option>
             {labels.data?.filter((l) => l.kind === 'format').map((l) => <option key={l.id} value={l.id}>{`${l.name} · ${l.media_kind}`}</option>)}
           </select>
+          <FieldError id={`${errorIds}-format`} error={fieldError(add.error, 'format_id')} />
         </label>
         <label style={{ flex: '1 1 140px' }}>Creative Owner
-          <select value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })}>
+          <select value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} {...describedBy(fieldError(add.error, 'creative_owner_id'), `${errorIds}-owner`)}>
             <option value="">Choose…</option>
             {members.data?.filter((m) => m.team === 'creative' && m.active).map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
           </select>
+          <FieldError id={`${errorIds}-owner`} error={fieldError(add.error, 'creative_owner_id')} />
         </label>
         <label style={{ flex: '1 1 140px' }}>Due date
-          <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
+          <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} {...describedBy(fieldError(add.error, 'due_date'), `${errorIds}-due`)} />
+          <FieldError id={`${errorIds}-due`} error={fieldError(add.error, 'due_date')} />
         </label>
         <button type="submit" disabled={add.isPending}>Add Creative</button>
       </form>
-      {add.error && (
-        <p className="error" role="alert">
-          {add.error instanceof CommandError && Object.keys(add.error.fieldErrors).length > 0
-            ? Object.values(add.error.fieldErrors).join('. ')
-            : explain(add.error)}
-        </p>
-      )}
+      {add.error && <p className="error" role="alert">{formProblem(add.error, ['title', 'format_id', 'creative_owner_id', 'due_date'])}</p>}
     </section>
   )
 }
 
 export function BriefPage() {
+  const errorIds = useId()
   const { id = '' } = useParams()
   const me = useMember()
   const brief = useBrief(id)
@@ -230,7 +232,8 @@ export function BriefPage() {
   const editable = current.state === 'editing' && me.team === 'marketing'
   const previous = [...brief.data.versions].reverse().find((v) => v.state === 'handed_off')
   const draftInProgress = current.state === 'editing' && Boolean(previous)
-  const missing = (field: string) => fieldError(handOff.error, field)
+  // Hand-off and save both report fields; each shows at its field.
+  const missing = (field: string) => fieldError(handOff.error, field) ?? fieldError(save.error, field)
   const set = (patch: Partial<Fields>) => { setSaved(false); setFields({ ...fields, ...patch }) }
   const missingCount = handOff.error instanceof CommandError ? Object.keys(handOff.error.fieldErrors).length : 0
 
@@ -258,13 +261,13 @@ export function BriefPage() {
           <LabelSelect kind="initiative" label="Initiative" optional value={fields.initiative_id} onChange={(v) => set({ initiative_id: v })} disabled={!editable} />
         </div>
         <label>Key message
-          <input value={fields.key_message ?? ''} disabled={!editable} onChange={(e) => set({ key_message: e.target.value })} />
-          {missing('key_message') && <span className="error">{missing('key_message')}</span>}
+          <input value={fields.key_message ?? ''} disabled={!editable} onChange={(e) => set({ key_message: e.target.value })} {...describedBy(missing('key_message'), `${errorIds}-key-message`)} />
+          <FieldError id={`${errorIds}-key-message`} error={missing('key_message')} />
         </label>
         <div className="row" style={{ alignItems: 'end' }}>
           <label style={{ flex: '1 1 240px' }}>CTA
-            <input value={fields.cta ?? ''} disabled={!editable || fields.cta_none} onChange={(e) => set({ cta: e.target.value, cta_none: false })} />
-            {missing('cta') && <span className="error">{missing('cta')}</span>}
+            <input value={fields.cta ?? ''} disabled={!editable || fields.cta_none} onChange={(e) => set({ cta: e.target.value, cta_none: false })} {...describedBy(missing('cta'), `${errorIds}-cta`)} />
+            <FieldError id={`${errorIds}-cta`} error={missing('cta')} />
           </label>
           <label className="row" style={{ gap: 6 }}>
             <input type="checkbox" style={{ width: 'auto' }} disabled={!editable} checked={fields.cta_none} onChange={(e) => set({ cta_none: e.target.checked, cta: e.target.checked ? null : fields.cta })} />

@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Button } from '../components/Button'
 import { explain, fieldError, run } from '../lib/commands'
 import { useLinkTargets, useMembers, useWhiteboards, type Whiteboard } from '../lib/data'
 import { useFormKey } from '../lib/forms'
+import { describedBy, FieldError } from '../components/FieldError'
 
 function BoardList({ boards, home, author }: { boards: Whiteboard[]; home: (b: Whiteboard) => string | null; author: (memberId: string) => string }) {
   return (
@@ -24,6 +25,7 @@ function BoardList({ boards, home, author }: { boards: Whiteboard[]; home: (b: W
 
 // Every whiteboard, and a form to start one (D-75).
 export function BoardsPage() {
+  const errorIds = useId()
   const boards = useWhiteboards()
   const targets = useLinkTargets()
   const members = useMembers()
@@ -61,8 +63,8 @@ export function BoardsPage() {
         <p className="small muted">Whiteboards for ideas: sticky notes and frames both teams can arrange, linked to Briefs, Creatives, Variants, Footage and Findings.</p>
       </div>
       <form aria-label="New board" className="panel row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); create.mutate() }}>
-        <label style={{ flex: '1 1 240px' }}>Title<input maxLength={120} value={title} onChange={(e) => { key.renew(); setTitle(e.target.value) }} placeholder="Morning routine ideas" />
-          {fieldError(create.error, 'title') && <span className="error">{fieldError(create.error, 'title')}</span>}
+        <label style={{ flex: '1 1 240px' }}>Title<input maxLength={120} value={title} onChange={(e) => { key.renew(); setTitle(e.target.value) }} placeholder="Morning routine ideas" {...describedBy(fieldError(create.error, 'title'), `${errorIds}-title`)} />
+          <FieldError id={`${errorIds}-title`} error={fieldError(create.error, 'title')} />
         </label>
         <label style={{ flex: '1 1 240px' }}>Attach to
           <select value={attach} onChange={(e) => { key.renew(); setAttach(e.target.value) }}>

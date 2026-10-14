@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { LabelSelect } from '../components/LabelSelect'
-import { CommandError, explain, run } from '../lib/commands'
+import { formProblem } from '../components/FieldError'
+import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useFormKey } from '../lib/forms'
 import { stageNames, useCreative, useFootage, useLabels, useMembers, variantStates } from '../lib/data'
 import { useMember } from '../lib/session'
@@ -44,9 +45,9 @@ function AddVariant({ creativeId, isVideo }: { creativeId: string; isVideo: bool
       <h2 id={headingId}>Add a Variant</h2>
       <form className="stack" onSubmit={(e: FormEvent) => { e.preventDefault(); add.mutate() }}>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-          {isVideo && <LabelSelect kind="hook_type" label="Hook type" value={labels.hook_type_id} onChange={(v) => setLabels({ ...labels, hook_type_id: v })} />}
-          <LabelSelect kind="length" label="Length" value={labels.length_id} onChange={(v) => setLabels({ ...labels, length_id: v })} />
-          <LabelSelect kind="aspect_ratio" label="Aspect ratio" value={labels.aspect_ratio_id} onChange={(v) => setLabels({ ...labels, aspect_ratio_id: v })} />
+          {isVideo && <LabelSelect kind="hook_type" label="Hook type" value={labels.hook_type_id} onChange={(v) => setLabels({ ...labels, hook_type_id: v })} error={fieldError(add.error, 'hook_type_id')} />}
+          <LabelSelect kind="length" label="Length" value={labels.length_id} onChange={(v) => setLabels({ ...labels, length_id: v })} error={fieldError(add.error, 'length_id')} />
+          <LabelSelect kind="aspect_ratio" label="Aspect ratio" value={labels.aspect_ratio_id} onChange={(v) => setLabels({ ...labels, aspect_ratio_id: v })} error={fieldError(add.error, 'aspect_ratio_id')} />
         </div>
         <fieldset style={{ border: 0, padding: 0, margin: 0 }} className="stack">
           <legend className="small muted">Footage used</legend>
@@ -64,11 +65,7 @@ function AddVariant({ creativeId, isVideo }: { creativeId: string; isVideo: bool
           <span className="small muted">Labels and Footage can be changed on the Variant's page until the Creative first goes live.</span>
           <button type="submit" className="primary" disabled={add.isPending}>Add Variant</button>
         </div>
-        {add.error && (
-          <p className="error" role="alert">
-            {add.error instanceof CommandError && Object.keys(add.error.fieldErrors).length ? Object.values(add.error.fieldErrors).join('. ') : explain(add.error)}
-          </p>
-        )}
+        {add.error && <p className="error" role="alert">{formProblem(add.error, ['hook_type_id', 'length_id', 'aspect_ratio_id'])}</p>}
         {notice && <p className="error" role="alert">{notice}</p>}
       </form>
     </section>

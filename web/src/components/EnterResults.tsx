@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { uploadFile, uploadProblem } from '../lib/uploads'
 import { Button } from './Button'
 import { ManualResultsTable } from './ManualResultsTable'
+import { describedBy, FieldError } from './FieldError'
 
 const platforms: [string, string][] = [['tiktok', 'TikTok'], ['xiaohongshu', 'Xiaohongshu'], ['youtube', 'YouTube']]
 const resultTypes: [string, string][] = [['none', 'No results'], ['leads', 'Leads'], ['messages', 'Messaging conversations'], ['purchases', 'Purchases'],
@@ -35,6 +36,7 @@ const problems = (error: unknown) =>
 
 // The TikTok, Xiaohongshu and YouTube accounts whose results the Marketing Team enters (D-61 PD-22).
 function ManualAccounts({ canEdit }: { canEdit: boolean }) {
+  const errorIds = useId()
   const accounts = useManualAccounts()
   const queryClient = useQueryClient()
   const headingId = useId()
@@ -71,17 +73,17 @@ function ManualAccounts({ canEdit }: { canEdit: boolean }) {
               {platforms.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
             </select>
           </label>
-          <label>Handle<input maxLength={100} value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="@gmlstudio" />
-            {fieldError(add.error, 'handle') && <span className="error">{fieldError(add.error, 'handle')}</span>}
+          <label>Handle<input maxLength={100} value={form.handle} onChange={(e) => set({ handle: e.target.value })} placeholder="@gmlstudio" {...describedBy(fieldError(add.error, 'handle'), `${errorIds}-handle`)} />
+            <FieldError id={`${errorIds}-handle`} error={fieldError(add.error, 'handle')} />
           </label>
-          <label>Name<input maxLength={120} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="GML on TikTok" />
-            {fieldError(add.error, 'name') && <span className="error">{fieldError(add.error, 'name')}</span>}
+          <label>Name<input maxLength={120} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="GML on TikTok" {...describedBy(fieldError(add.error, 'name'), `${errorIds}-name`)} />
+            <FieldError id={`${errorIds}-name`} error={fieldError(add.error, 'name')} />
           </label>
-          <label>Currency<input maxLength={3} value={form.currency} onChange={(e) => set({ currency: e.target.value })} />
-            {fieldError(add.error, 'currency') && <span className="error">{fieldError(add.error, 'currency')}</span>}
+          <label>Currency<input maxLength={3} value={form.currency} onChange={(e) => set({ currency: e.target.value })} {...describedBy(fieldError(add.error, 'currency'), `${errorIds}-currency`)} />
+            <FieldError id={`${errorIds}-currency`} error={fieldError(add.error, 'currency')} />
           </label>
-          <label>Time zone<input value={form.timeZone} onChange={(e) => set({ timeZone: e.target.value })} />
-            {fieldError(add.error, 'time_zone') && <span className="error">{fieldError(add.error, 'time_zone')}</span>}
+          <label>Time zone<input value={form.timeZone} onChange={(e) => set({ timeZone: e.target.value })} {...describedBy(fieldError(add.error, 'time_zone'), `${errorIds}-time-zone`)} />
+            <FieldError id={`${errorIds}-time-zone`} error={fieldError(add.error, 'time_zone')} />
           </label>
           <Button type="submit" busy={add.isPending}>Add account</Button>
           {add.error && !(add.error instanceof CommandError && Object.keys(add.error.fieldErrors).length) && <p className="error" role="alert">{explain(add.error)}</p>}
@@ -93,6 +95,7 @@ function ManualAccounts({ canEdit }: { canEdit: boolean }) {
 
 // One live or ended Launch's figures for one period, entered by hand (D-76). Entering the same period again corrects it.
 function EnterForm({ onSaved }: { onSaved: () => Promise<unknown> }) {
+  const errorIds = useId()
   const accounts = useManualAccounts()
   const key = useFormKey()
   const blank = Object.fromEntries(figures.map((f) => [f, ''])) as Record<Figure, string>
@@ -130,18 +133,18 @@ function EnterForm({ onSaved }: { onSaved: () => Promise<unknown> }) {
       <p className="small muted">One Launch's totals for a period, as the platform reports them. Each entry stays that period's total; entering the same period again corrects it.</p>
       <div className="wall-filters">
         <label style={{ gridColumn: '1 / -1' }}>Launch
-          <select value={form.launch} onChange={(e) => set({ launch: e.target.value })}>
+          <select value={form.launch} onChange={(e) => set({ launch: e.target.value })} {...describedBy(error('launch_id'), `${errorIds}-launch-id`)}>
             <option value="">Choose a live Launch…</option>
             {accounts.data?.launches.map((l) => {
               const a = accountOf(l.account_id)
               return <option key={l.id} value={l.id}>{l.variant_code} · {platformNames[a?.platform ?? '']} · {a?.name}{l.post_link ? ` · post ${shortLink(l.post_link)}` : ''}</option>
             })}
           </select>
-          {error('launch_id') && <span className="error">{error('launch_id')}</span>}
+          <FieldError id={`${errorIds}-launch-id`} error={error('launch_id')} />
         </label>
-        <label>From<input type="date" value={form.from} onChange={(e) => set({ from: e.target.value })} /></label>
-        <label>To<input type="date" value={form.to} onChange={(e) => set({ to: e.target.value })} />
-          {error('period') && <span className="error">{error('period')}</span>}
+        <label>From<input type="date" value={form.from} onChange={(e) => set({ from: e.target.value })} {...describedBy(error('period'), `${errorIds}-period`)} /></label>
+        <label>To<input type="date" value={form.to} onChange={(e) => set({ to: e.target.value })} {...describedBy(error('period'), `${errorIds}-period`)} />
+          <FieldError id={`${errorIds}-period`} error={error('period')} />
         </label>
         <label>Organic or paid
           <select value={form.channel} onChange={(e) => set({ channel: e.target.value })}>
@@ -153,10 +156,10 @@ function EnterForm({ onSaved }: { onSaved: () => Promise<unknown> }) {
         {field('clicks')}
         {field('results')}
         <label>Result type
-          <select value={form.resultType} onChange={(e) => set({ resultType: e.target.value })}>
+          <select value={form.resultType} onChange={(e) => set({ resultType: e.target.value })} {...describedBy(error('result_type'), `${errorIds}-result-type`)}>
             {resultTypes.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
           </select>
-          {error('result_type') && <span className="error">{error('result_type')}</span>}
+          <FieldError id={`${errorIds}-result-type`} error={error('result_type')} />
         </label>
       </div>
       <details open={optionalError || undefined}>

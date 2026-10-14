@@ -4,7 +4,8 @@ import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { ContentTimeline, title } from '../components/ContentTimeline'
 import { DrivePreview } from '../components/DrivePreview'
-import { CommandError, explain, run } from '../lib/commands'
+import { describedBy, FieldError, formProblem } from '../components/FieldError'
+import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useLabels, useMembers, usePlan, useVideoContent, type ContentSection, type Finding, type PlanEvidence } from '../lib/data'
 import { useFormKey } from '../lib/forms'
 import { attributionName, count, dateRange, money, ratio, resultName } from '../lib/results'
@@ -222,6 +223,7 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
   const me = useMember()
   // Due and check dates count from the team's today, as link_plan_action and record_verdict do (D-78).
   const today = useTeamToday()
+  const errorIds = useId()
   const members = useMembers()
   const actionKey = useFormKey()
   const verdictKey = useFormKey()
@@ -253,6 +255,10 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
     onSuccess: () => { actionKey.renew(); setForm((f) => ({ ...f, findingId: '', change: '', criterion: '' })); return refresh() },
     onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? refresh() : undefined),
   })
+  // Each follow-up field's error shows at the field and is read with it.
+  const followUpFields = ['finding_id', 'intended_change', 'owner_id', 'due_date', 'check_date', 'minimum_spend', 'success_criterion']
+  const tie = (field: string) => describedBy(fieldError(link.error, field), `${errorIds}-${field}`)
+  const shown = (field: string) => <FieldError id={`${errorIds}-${field}`} error={fieldError(link.error, field)} />
   const record = useMutation({
     mutationFn: () => run('record_verdict', { p_plan_id: plan.id, p_verdict: verdict.value || null, p_note: verdict.note || null, p_expected_lock_version: plan.lock_version, p_idempotency_key: verdictKey.key() }),
     onSuccess: () => { verdictKey.renew(); return refresh() },
@@ -294,25 +300,27 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
           onSubmit={(e: FormEvent) => { e.preventDefault(); link.mutate() }}>
           <h3>Turn a finding into a test</h3>
           <label>Finding
-            <select value={form.findingId} onChange={(e) => setF({ findingId: e.target.value })}>
+            <select value={form.findingId} onChange={(e) => setF({ findingId: e.target.value })} {...tie('finding_id')}>
               <option value="">Choose…</option>
               {current.map((f) => <option key={f.id} value={f.id}>{f.kind === 'observation' ? 'Observation' : 'Hypothesis'}: {f.body.slice(0, 80)}</option>)}
             </select>
+            {shown('finding_id')}
           </label>
           <p className="small muted">New Variant of {data.creative.code}, starting from {data.variant.code}'s labels.</p>
-          <label>Change to make<textarea rows={2} maxLength={2000} value={form.change} onChange={(e) => setF({ change: e.target.value })} /></label>
+          <label>Change to make<textarea rows={2} maxLength={2000} value={form.change} onChange={(e) => setF({ change: e.target.value })} {...tie('intended_change')} />{shown('intended_change')}</label>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
             <label>Made by
-              <select value={form.ownerId} onChange={(e) => setF({ ownerId: e.target.value })}>
+              <select value={form.ownerId} onChange={(e) => setF({ ownerId: e.target.value })} {...tie('owner_id')}>
                 <option value="">Choose…</option>
                 {creativeMembers.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
               </select>
+              {shown('owner_id')}
             </label>
-            <label>Due date<input type="date" min={today} value={form.due} onChange={(e) => setF({ due: e.target.value })} /></label>
-            <label>Check date<input type="date" min={form.due || today} value={form.check} onChange={(e) => setF({ check: e.target.value })} /></label>
-            <label>Minimum test spend ({currency})<input inputMode="decimal" value={form.spend} onChange={(e) => setF({ spend: e.target.value })} /></label>
+            <label>Due date<input type="date" min={today} value={form.due} onChange={(e) => setF({ due: e.target.value })} {...tie('due_date')} />{shown('due_date')}</label>
+            <label>Check date<input type="date" min={form.due || today} value={form.check} onChange={(e) => setF({ check: e.target.value })} {...tie('check_date')} />{shown('check_date')}</label>
+            <label>Minimum test spend ({currency})<input inputMode="decimal" value={form.spend} onChange={(e) => setF({ spend: e.target.value })} {...tie('minimum_spend')} />{shown('minimum_spend')}</label>
           </div>
-          <label>Success criterion<input maxLength={1000} value={form.criterion} onChange={(e) => setF({ criterion: e.target.value })} placeholder="Cost per lead below RM30 at similar spend" /></label>
+          <label>Success criterion<input maxLength={1000} value={form.criterion} onChange={(e) => setF({ criterion: e.target.value })} placeholder="Cost per lead below RM30 at similar spend" {...tie('success_criterion')} />{shown('success_criterion')}</label>
           {baseline && (
             <p className="small muted">
               Frozen baseline: {data.variant.code} / v{data.version.version_number}{data.annotationRevisionNumber ? ` · annotations r${data.annotationRevisionNumber}` : ''}
@@ -320,7 +328,7 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
               {baseline.totals?.results != null && ` · ${count(baseline.totals.results)} ${resultName(baseline.scope?.result_indicator ?? 'none').toLowerCase()}`}
             </p>
           )}
-          {link.error && <p className="error" role="alert">{errorText(link.error)}</p>}
+          {link.error && <p className="error" role="alert">{formProblem(link.error, followUpFields)}</p>}
           <div className="row" style={{ justifyContent: 'end' }}><Button type="submit" className="primary" busy={link.isPending}>Create follow-up Variant</Button></div>
         </form>
       )}

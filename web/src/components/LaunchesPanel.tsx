@@ -6,6 +6,7 @@ import { useFormKey } from '../lib/forms'
 import { money } from '../lib/results'
 import { uploadFile, uploadProblem, usePictureLinks, type StoredFile } from '../lib/uploads'
 import { Button } from './Button'
+import { describedBy, FieldError } from './FieldError'
 
 const statusNames: Record<Launch['status'], string> = { planned: 'Planned', live: 'Live', ended: 'Ended', cancelled: 'Cancelled' }
 const flagNames: Record<NonNullable<Launch['approval_flag']>, string> = {
@@ -161,6 +162,7 @@ function LaunchRow({ launch, account, thumbnail, picture, canAct, onChanged }: R
 
 // Marketing plans Posts and Ads for the approved Version and records them going live (FR-06; D-27–D-30, D-54).
 export function LaunchesPanel({ variant, versions, reviews, canPlan }: { variant: Variant; versions: Version[]; reviews: Review[]; canPlan: boolean }) {
+  const errorIds = useId()
   const data = useLaunches(variant.id)
   const queryClient = useQueryClient()
   const headingId = useId()
@@ -252,32 +254,32 @@ export function LaunchesPanel({ variant, versions, reviews, canPlan }: { variant
             {fields.kind === 'post' ? (
               <>
                 <label>Page or account
-                  <select value={fields.accountId} onChange={(e) => set({ accountId: e.target.value })}>
+                  <select value={fields.accountId} onChange={(e) => set({ accountId: e.target.value })} {...describedBy(fieldError(plan.error, 'account_id'), `${errorIds}-account-id`)}>
                     <option value="">Choose…</option>
                     {postAccounts.map((a) => <option key={a.id} value={a.id}>{accountName(a)}</option>)}
                   </select>
-                  {fieldError(plan.error, 'account_id') && <span className="error">{fieldError(plan.error, 'account_id')}</span>}
+                  <FieldError id={`${errorIds}-account-id`} error={fieldError(plan.error, 'account_id')} />
                 </label>
                 <label style={{ gridColumn: '1 / -1' }}>Caption<textarea rows={2} maxLength={2200} value={fields.caption} onChange={(e) => set({ caption: e.target.value })} /></label>
               </>
             ) : (
               <>
                 <label>Ad account
-                  <select value={fields.accountId} onChange={(e) => set({ accountId: e.target.value })}>
+                  <select value={fields.accountId} onChange={(e) => set({ accountId: e.target.value })} {...describedBy(fieldError(plan.error, 'account_id'), `${errorIds}-account-id`)}>
                     <option value="">Choose…</option>
                     {adAccounts.map((a) => <option key={a.id} value={a.id}>{accountName(a)}</option>)}
                   </select>
-                  {fieldError(plan.error, 'account_id') && <span className="error">{fieldError(plan.error, 'account_id')}</span>}
+                  <FieldError id={`${errorIds}-account-id`} error={fieldError(plan.error, 'account_id')} />
                 </label>
-                <label>Campaign<input maxLength={200} value={fields.campaign} onChange={(e) => set({ campaign: e.target.value })} />
-                  {fieldError(plan.error, 'campaign_name') && <span className="error">{fieldError(plan.error, 'campaign_name')}</span>}
+                <label>Campaign<input maxLength={200} value={fields.campaign} onChange={(e) => set({ campaign: e.target.value })} {...describedBy(fieldError(plan.error, 'campaign_name'), `${errorIds}-campaign-name`)} />
+                  <FieldError id={`${errorIds}-campaign-name`} error={fieldError(plan.error, 'campaign_name')} />
                 </label>
-                <label>Ad set<input maxLength={200} value={fields.adSet} onChange={(e) => set({ adSet: e.target.value })} />
-                  {fieldError(plan.error, 'ad_set_name') && <span className="error">{fieldError(plan.error, 'ad_set_name')}</span>}
+                <label>Ad set<input maxLength={200} value={fields.adSet} onChange={(e) => set({ adSet: e.target.value })} {...describedBy(fieldError(plan.error, 'ad_set_name'), `${errorIds}-ad-set-name`)} />
+                  <FieldError id={`${errorIds}-ad-set-name`} error={fieldError(plan.error, 'ad_set_name')} />
                 </label>
                 <label>Planned budget{chosen?.currency ? ` (${chosen.currency})` : ''}
-                  <input inputMode="decimal" value={fields.budget} onChange={(e) => set({ budget: e.target.value })} />
-                  {fieldError(plan.error, 'planned_budget') && <span className="error">{fieldError(plan.error, 'planned_budget')}</span>}
+                  <input inputMode="decimal" value={fields.budget} onChange={(e) => set({ budget: e.target.value })} {...describedBy(fieldError(plan.error, 'planned_budget'), `${errorIds}-planned-budget`)} />
+                  <FieldError id={`${errorIds}-planned-budget`} error={fieldError(plan.error, 'planned_budget')} />
                 </label>
                 <label style={{ gridColumn: '1 / -1' }}>Ad copy<textarea rows={2} maxLength={2000} value={fields.adCopy} onChange={(e) => set({ adCopy: e.target.value })} /></label>
               </>

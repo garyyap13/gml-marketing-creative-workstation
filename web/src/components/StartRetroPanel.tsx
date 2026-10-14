@@ -5,6 +5,7 @@ import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useCreative, useLaunches, usePlans, type Variant, type Version } from '../lib/data'
 import { useFormKey } from '../lib/forms'
 import { Button } from './Button'
+import { describedBy } from './FieldError'
 
 const planStates: Record<string, string> = { proposed: 'Proposed', accepted: 'Accepted', in_progress: 'In progress', completed: 'Completed', cancelled: 'Cancelled' }
 
@@ -35,6 +36,8 @@ export function StartRetroPanel({ variant, versions }: { variant: Variant; versi
   })
   const set = (patch: Partial<typeof fields>) => { key.renew(); setFields({ ...fields, ...patch }) }
   const others = creative.data?.variants.filter((v) => v.id !== variant.id && v.live_at) ?? []
+  // The dates, comparison and question each have their error tied to them.
+  const tie = (field: string) => describedBy(fieldError(start.error, field), `${headingId}-${field}`)
   const general = start.error && !(start.error instanceof CommandError && Object.keys(start.error.fieldErrors).some((f) => ['evidence', 'comparator_variant_id', 'hypothesis'].includes(f)))
     ? (start.error instanceof CommandError && Object.values(start.error.fieldErrors).join('. ')) || explain(start.error) : null
 
@@ -61,19 +64,19 @@ export function StartRetroPanel({ variant, versions }: { variant: Variant; versi
                 {shown.map((v) => <option key={v.id} value={v.id}>Version {v.version_number}</option>)}
               </select>
             </label>
-            <label>Results from<input type="date" value={fields.from} onChange={(e) => set({ from: e.target.value })} /></label>
-            <label>Results to<input type="date" value={fields.to} onChange={(e) => set({ to: e.target.value })} /></label>
+            <label>Results from<input type="date" value={fields.from} onChange={(e) => set({ from: e.target.value })} {...tie('evidence')} /></label>
+            <label>Results to<input type="date" value={fields.to} onChange={(e) => set({ to: e.target.value })} {...tie('evidence')} /></label>
             <label>Compare with (optional)
-              <select value={fields.comparatorId} onChange={(e) => set({ comparatorId: e.target.value })}>
+              <select value={fields.comparatorId} onChange={(e) => set({ comparatorId: e.target.value })} {...tie('comparator_variant_id')}>
                 <option value="">No comparison</option>
                 {others.map((v) => <option key={v.id} value={v.id}>{v.code}</option>)}
               </select>
             </label>
           </div>
           <label>What this 复盘 asks (optional)
-            <textarea rows={2} maxLength={2000} value={fields.hypothesis} onChange={(e) => set({ hypothesis: e.target.value })} placeholder="Did showing the product earlier bring more enquiries?" />
+            <textarea rows={2} maxLength={2000} value={fields.hypothesis} onChange={(e) => set({ hypothesis: e.target.value })} placeholder="Did showing the product earlier bring more enquiries?" {...tie('hypothesis')} />
           </label>
-          {['evidence', 'comparator_variant_id', 'hypothesis'].map((f) => fieldError(start.error, f) && <p key={f} className="error" role="alert">{fieldError(start.error, f)}</p>)}
+          {['evidence', 'comparator_variant_id', 'hypothesis'].map((f) => fieldError(start.error, f) && <p key={f} id={`${headingId}-${f}`} className="error" role="alert">{fieldError(start.error, f)}</p>)}
           {general && <p className="error" role="alert">{general}</p>}
           <div className="row spread">
             <span className="small muted">The results, the Version's file and its annotations are frozen as the 复盘's Evidence.</span>

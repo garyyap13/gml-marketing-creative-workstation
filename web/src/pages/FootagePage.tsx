@@ -5,6 +5,7 @@ import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { rebase, useDraft, useFormKey } from '../lib/forms'
 import { footageSources, useFootage, useLabels, type Footage } from '../lib/data'
 import { useMember } from '../lib/session'
+import { describedBy, FieldError } from '../components/FieldError'
 
 const empty = { title: '', source: 'own_shoot', shotOn: '', presenter: null as string | null, link: '', usableUntil: '' }
 
@@ -16,6 +17,7 @@ const editable = (f: Footage) => ({
 // keeps its links as history but isn't offered for new ones. A save sends only what this person changed since the form
 // opened, with the lock version it opened with, so a change someone made meanwhile returns a conflict, not an undo.
 function EditFootage({ footage, canArchive, onDone }: { footage: Footage; canArchive: boolean; onDone: () => void }) {
+  const errorIds = useId()
   const queryClient = useQueryClient()
   const [opened, setOpened] = useState(footage)
   const [form, setForm] = useState(() => editable(footage))
@@ -57,24 +59,24 @@ function EditFootage({ footage, canArchive, onDone }: { footage: Footage; canArc
   return (
     <form aria-label={`Edit ${footage.code}`} className="stack" onSubmit={(e: FormEvent) => { e.preventDefault(); save.mutate() }}>
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
-        <label>Title<input autoFocus value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-          {error('title') && <span className="error">{error('title')}</span>}
+        <label>Title<input autoFocus value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} {...describedBy(error('title'), `${errorIds}-title`)} />
+          <FieldError id={`${errorIds}-title`} error={error('title')} />
         </label>
         <label>Source
-          <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
+          <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} {...describedBy(error('source'), `${errorIds}-source`)}>
             {Object.entries(footageSources).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
           </select>
-          {error('source') && <span className="error">{error('source')}</span>}
+          <FieldError id={`${errorIds}-source`} error={error('source')} />
         </label>
-        <label>Shot or received<input type="date" value={form.shotOn} onChange={(e) => setForm({ ...form, shotOn: e.target.value })} />
-          {error('shot_on') && <span className="error">{error('shot_on')}</span>}
+        <label>Shot or received<input type="date" value={form.shotOn} onChange={(e) => setForm({ ...form, shotOn: e.target.value })} {...describedBy(error('shot_on'), `${errorIds}-shot-on`)} />
+          <FieldError id={`${errorIds}-shot-on`} error={error('shot_on')} />
         </label>
         <LabelSelect kind="presenter" label="Presenter" optional value={form.presenter} onChange={(v) => setForm({ ...form, presenter: v })} error={error('presenter_id')} />
-        <label>Drive folder link<input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
-          {error('drive_folder_link') && <span className="error">{error('drive_folder_link')}</span>}
+        <label>Drive folder link<input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} {...describedBy(error('drive_folder_link'), `${errorIds}-drive-folder-link`)} />
+          <FieldError id={`${errorIds}-drive-folder-link`} error={error('drive_folder_link')} />
         </label>
-        <label>Usable until<input type="date" value={form.usableUntil} onChange={(e) => setForm({ ...form, usableUntil: e.target.value })} />
-          {error('usable_until') && <span className="error">{error('usable_until')}</span>}
+        <label>Usable until<input type="date" value={form.usableUntil} onChange={(e) => setForm({ ...form, usableUntil: e.target.value })} {...describedBy(error('usable_until'), `${errorIds}-usable-until`)} />
+          <FieldError id={`${errorIds}-usable-until`} error={error('usable_until')} />
         </label>
       </div>
       <div className="row spread">
@@ -101,6 +103,7 @@ function EditFootage({ footage, canArchive, onDone }: { footage: Footage; canArc
 }
 
 export function FootagePage() {
+  const errorIds = useId()
   const footage = useFootage()
   const labels = useLabels()
   const queryClient = useQueryClient()
@@ -140,14 +143,14 @@ export function FootagePage() {
         <form className="stack" onSubmit={(e: FormEvent) => { e.preventDefault(); add.mutate(form) }}>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
             <label>Title
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Kitchen shoot with Aina" />
-              {fieldError(add.error, 'title') && <span className="error">{fieldError(add.error, 'title')}</span>}
+              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Kitchen shoot with Aina" {...describedBy(fieldError(add.error, 'title'), `${errorIds}-title`)} />
+              <FieldError id={`${errorIds}-title`} error={fieldError(add.error, 'title')} />
             </label>
             <label>Source
-              <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}>
+              <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} {...describedBy(fieldError(add.error, 'source'), `${errorIds}-source`)}>
                 {Object.entries(footageSources).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
               </select>
-              {fieldError(add.error, 'source') && <span className="error">{fieldError(add.error, 'source')}</span>}
+              <FieldError id={`${errorIds}-source`} error={fieldError(add.error, 'source')} />
             </label>
             <label>Shot or received
               <input type="date" value={form.shotOn} onChange={(e) => setForm({ ...form, shotOn: e.target.value })} />
@@ -156,8 +159,8 @@ export function FootagePage() {
           </div>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)' }}>
             <label>Drive folder link
-              <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://drive.google.com/drive/folders/…" />
-              {fieldError(add.error, 'drive_folder_link') && <span className="error">{fieldError(add.error, 'drive_folder_link')}</span>}
+              <input value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} placeholder="https://drive.google.com/drive/folders/…" {...describedBy(fieldError(add.error, 'drive_folder_link'), `${errorIds}-drive-folder-link`)} />
+              <FieldError id={`${errorIds}-drive-folder-link`} error={fieldError(add.error, 'drive_folder_link')} />
             </label>
             <label>Usable until (optional)
               <input type="date" value={form.usableUntil} onChange={(e) => setForm({ ...form, usableUntil: e.target.value })} />

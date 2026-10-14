@@ -119,6 +119,7 @@ function EditMember({ member, onDone }: { member: MemberRow; onDone: () => void 
 }
 
 function Members() {
+  const errorIds = useId()
   const me = useMember()
   const members = useMembers()
   const queryClient = useQueryClient()
@@ -182,12 +183,12 @@ function Members() {
       {me.is_admin && (
         <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); invite.mutate(form) }}>
           <label style={{ flex: '2 1 180px' }}>Email
-            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@gmail.com" />
-            {fieldError(invite.error, 'email') && <span className="error">{fieldError(invite.error, 'email')}</span>}
+            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@gmail.com" {...describedBy(fieldError(invite.error, 'email'), `${errorIds}-email`)} />
+            <FieldError id={`${errorIds}-email`} error={fieldError(invite.error, 'email')} />
           </label>
           <label style={{ flex: '1 1 120px' }}>Name
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            {fieldError(invite.error, 'display_name') && <span className="error">{fieldError(invite.error, 'display_name')}</span>}
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} {...describedBy(fieldError(invite.error, 'display_name'), `${errorIds}-display-name`)} />
+            <FieldError id={`${errorIds}-display-name`} error={fieldError(invite.error, 'display_name')} />
           </label>
           <label style={{ flex: '1 1 120px' }}>Team
             <select value={form.team} onChange={(e) => setForm({ ...form, team: e.target.value })}>
@@ -248,7 +249,7 @@ function LabelList({ kind, name, team }: { kind: LabelKind; name: string; team: 
       {me.team === team && (
         <form className="row" onSubmit={(e: FormEvent) => { e.preventDefault(); add.mutate(draft) }}>
           <label style={{ flex: '1 1 160px' }}>New {name}
-            <input value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} />
+            <input value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} {...describedBy(fieldError(add.error, 'name'), `${headingId}-name-error`)} />
           </label>
           {kind === 'format' && (
             <label style={{ flex: '0 1 120px' }}>Media
@@ -262,7 +263,7 @@ function LabelList({ kind, name, team }: { kind: LabelKind; name: string; team: 
           <button type="submit" style={{ alignSelf: 'end' }} disabled={add.isPending}>Add</button>
         </form>
       )}
-      {add.error && <p className="error" role="alert">{fieldError(add.error, 'name') ?? explain(add.error)}</p>}
+      {add.error && <p id={`${headingId}-name-error`} className="error" role="alert">{fieldError(add.error, 'name') ?? explain(add.error)}</p>}
     </section>
   )
 }
@@ -292,12 +293,12 @@ function TeamTimeZone() {
       {me.is_admin ? (
         <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); save.mutate() }}>
           <label style={{ flex: '1 1 240px' }}>Time zone
-            <input list={`${headingId}-zones`} value={shown} onChange={(e) => { setSaved(false); setZone(e.target.value) }} />
+            <input list={`${headingId}-zones`} value={shown} onChange={(e) => { setSaved(false); setZone(e.target.value) }} {...describedBy(fieldError(save.error, 'time_zone'), `${headingId}-error`)} />
             <datalist id={`${headingId}-zones`}>{zones.map((z) => <option key={z} value={z} />)}</datalist>
           </label>
           <button type="submit" disabled={save.isPending || !settings.data}>Save time zone</button>
           <span className="small muted" aria-live="polite">{saved ? 'Saved.' : ''}</span>
-          {save.error && <p className="error" role="alert" style={{ flexBasis: '100%' }}>{fieldError(save.error, 'time_zone') ?? explain(save.error)}</p>}
+          {save.error && <p id={`${headingId}-error`} className="error" role="alert" style={{ flexBasis: '100%' }}>{fieldError(save.error, 'time_zone') ?? explain(save.error)}</p>}
         </form>
       ) : <p>{settings.data?.time_zone}</p>}
     </section>

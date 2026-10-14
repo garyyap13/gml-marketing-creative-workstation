@@ -4,7 +4,7 @@ import { Link, useMatch, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { ContentTimeline, segments, shortName } from '../components/ContentTimeline'
 import { DrivePreview } from '../components/DrivePreview'
-import { describedBy } from '../components/FieldError'
+import { describedBy, FieldError } from '../components/FieldError'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { useFormKey } from '../lib/forms'
 import { useMembers, useReview, useVideoContent, type Comment, type ContentSection } from '../lib/data'
@@ -113,6 +113,7 @@ function Replies({ comment, replies, author, onSent }: { comment: Comment; repli
 }
 
 export function ReviewPage() {
+  const errorIds = useId()
   const { id = '' } = useParams()
   const canvas = useMatch('/reviews/:id/canvas') !== null
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -249,7 +250,7 @@ export function ReviewPage() {
             <div className="row" style={{ alignItems: 'end' }}>
               {isVideo && (
                 <>
-                  <label style={{ flex: '0 1 110px' }}>At<input value={draft.at} onChange={(e) => setDraft({ ...draft, at: e.target.value })} placeholder="0:20" /></label>
+                  <label style={{ flex: '0 1 110px' }}>At<input value={draft.at} onChange={(e) => setDraft({ ...draft, at: e.target.value })} placeholder="0:20" {...describedBy(fieldError(addComment.error, 'anchor'), `${errorIds}-comment`)} /></label>
                   <label style={{ flex: '0 1 130px' }}>Until (optional)<input value={draft.until} onChange={(e) => setDraft({ ...draft, until: e.target.value })} placeholder="0:24" /></label>
                 </>
               )}
@@ -263,9 +264,9 @@ export function ReviewPage() {
                 </label>
               </fieldset>
             </div>
-            <label>Comment<textarea rows={2} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} /></label>
+            <label>Comment<textarea rows={2} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} {...describedBy(fieldError(addComment.error, 'body'), `${errorIds}-comment`)} /></label>
             <div className="row spread">
-              <span className="error">{fieldError(addComment.error, 'anchor') ?? fieldError(addComment.error, 'body') ?? (addComment.error && !(addComment.error instanceof CommandError && Object.keys(addComment.error.fieldErrors).length) ? explain(addComment.error) : '')}</span>
+              <span id={`${errorIds}-comment`} className="error">{fieldError(addComment.error, 'anchor') ?? fieldError(addComment.error, 'body') ?? (addComment.error && !(addComment.error instanceof CommandError && Object.keys(addComment.error.fieldErrors).length) ? explain(addComment.error) : '')}</span>
               <Button type="submit" busy={addComment.isPending}>Add comment</Button>
             </div>
           </form>
@@ -288,8 +289,8 @@ export function ReviewPage() {
           )}
           {approvalInEffect && me.is_approver && (
             <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); withdraw.mutate(reason) }}>
-              <label style={{ flex: '1 1 260px' }}>Reason for withdrawing<input value={reason} onChange={(e) => setReason(e.target.value)} />
-                {fieldError(withdraw.error, 'reason') && <span className="error">{fieldError(withdraw.error, 'reason')}</span>}
+              <label style={{ flex: '1 1 260px' }}>Reason for withdrawing<input value={reason} onChange={(e) => setReason(e.target.value)} {...describedBy(fieldError(withdraw.error, 'reason'), `${errorIds}-reason`)} />
+                <FieldError id={`${errorIds}-reason`} error={fieldError(withdraw.error, 'reason')} />
               </label>
               <Button type="submit" busy={withdraw.isPending}>Withdraw approval</Button>
             </form>

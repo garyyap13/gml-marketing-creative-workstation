@@ -1,11 +1,12 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { explain, fieldError, run } from '../lib/commands'
 import { platformNames, useMembers, type ManualResult } from '../lib/data'
 import { useFormKey } from '../lib/forms'
 import { count, dateRange, money, resultName } from '../lib/results'
 import { Button } from './Button'
+import { describedBy } from './FieldError'
 
 const channels: Record<string, string> = { organic_only: 'Organic', paid_only: 'Paid', combined: 'Both' }
 const figure = (value: number | null) => (value === null ? '—' : count(Number(value)))
@@ -18,6 +19,7 @@ function Withdraw({ row, onWithdrawn }: { row: ManualResult; onWithdrawn: () => 
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const key = useFormKey()
+  const errorId = useId()
   const withdraw = useMutation({
     mutationFn: () => run('withdraw_manual_result', { p_observation_id: row.observation_id, p_reason: reason, p_idempotency_key: key.key() }),
     onSuccess: () => { key.renew(); return onWithdrawn() },
@@ -25,12 +27,12 @@ function Withdraw({ row, onWithdrawn }: { row: ManualResult; onWithdrawn: () => 
   if (!open) return <button className="small" onClick={() => setOpen(true)} aria-label={`Withdraw ${dateRange(row.period_start, row.period_end)} for ${row.variant_code}`}>Withdraw…</button>
   return (
     <form className="stack" style={{ gap: 4 }} onSubmit={(e: FormEvent) => { e.preventDefault(); withdraw.mutate() }}>
-      <label className="small">Why withdraw it?<input maxLength={500} value={reason} onChange={(e) => { key.renew(); setReason(e.target.value) }} /></label>
+      <label className="small">Why withdraw it?<input maxLength={500} value={reason} onChange={(e) => { key.renew(); setReason(e.target.value) }} {...describedBy(fieldError(withdraw.error, 'reason'), errorId)} /></label>
       <span className="row" style={{ gap: 4 }}>
         <Button type="submit" busy={withdraw.isPending}>Withdraw</Button>
         <button type="button" onClick={() => setOpen(false)}>Keep it</button>
       </span>
-      {withdraw.error && <span className="error small" role="alert">{fieldError(withdraw.error, 'reason') ?? explain(withdraw.error)}</span>}
+      {withdraw.error && <span id={errorId} className="error small" role="alert">{fieldError(withdraw.error, 'reason') ?? explain(withdraw.error)}</span>}
     </form>
   )
 }

@@ -95,6 +95,7 @@ function fileState(file: FileRow) {
 }
 
 export function VariantPage() {
+  const errorIds = useId()
   const { id = '' } = useParams()
   const me = useMember()
   const data = useVariant(id)
@@ -226,8 +227,8 @@ export function VariantPage() {
           })}
           <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); register.mutate(link) }}>
             <label style={{ flex: '1 1 300px' }}>Drive link to the Version file
-              <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://drive.google.com/file/d/…/view" />
-              {fieldError(register.error, 'drive_ref') && <span className="error">{fieldError(register.error, 'drive_ref')}</span>}
+              <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://drive.google.com/file/d/…/view" {...describedBy(fieldError(register.error, 'drive_ref'), `${errorIds}-drive-ref`)} />
+              <FieldError id={`${errorIds}-drive-ref`} error={fieldError(register.error, 'drive_ref')} />
             </label>
             <Button type="submit" busy={register.isPending}>Register file</Button>
           </form>
