@@ -1,24 +1,28 @@
+import { lazy } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { Layout } from './components/Layout'
 import { rememberReturnPath, returnPath, useSession } from './lib/session'
-import { Board } from './pages/Board'
-import { BoardsPage } from './pages/BoardsPage'
-import { BriefPage } from './pages/BriefPage'
-import { Briefs } from './pages/Briefs'
-import { CreativeCanvasPage } from './pages/CreativeCanvasPage'
-import { CreativePage } from './pages/CreativePage'
-import { FootagePage } from './pages/FootagePage'
-import { VariantPage } from './pages/VariantPage'
-import { VideoContentPage } from './pages/VideoContentPage'
-import { WallPage } from './pages/WallPage'
-import { WhiteboardPage } from './pages/WhiteboardPage'
 import { MyTasks } from './pages/MyTasks'
-import { PlanPage } from './pages/PlanPage'
-import { PlansPage } from './pages/PlansPage'
-import { ResultsPage } from './pages/ResultsPage'
-import { ReviewPage } from './pages/ReviewPage'
-import { Settings } from './pages/Settings'
 import { SignIn } from './pages/SignIn'
+
+// Every page but sign-in and My Tasks is fetched when it first opens, so signing in does not wait for the canvas,
+// results and whiteboard code. Layout shows the wait and any failure to load.
+const BoardsPage = lazy(() => import('./pages/BoardsPage').then((m) => ({ default: m.BoardsPage })))
+const Board = lazy(() => import('./pages/Board').then((m) => ({ default: m.Board })))
+const BriefPage = lazy(() => import('./pages/BriefPage').then((m) => ({ default: m.BriefPage })))
+const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })))
+const CreativeCanvasPage = lazy(() => import('./pages/CreativeCanvasPage').then((m) => ({ default: m.CreativeCanvasPage })))
+const CreativePage = lazy(() => import('./pages/CreativePage').then((m) => ({ default: m.CreativePage })))
+const FootagePage = lazy(() => import('./pages/FootagePage').then((m) => ({ default: m.FootagePage })))
+const PlanPage = lazy(() => import('./pages/PlanPage').then((m) => ({ default: m.PlanPage })))
+const PlansPage = lazy(() => import('./pages/PlansPage').then((m) => ({ default: m.PlansPage })))
+const ResultsPage = lazy(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })))
+const ReviewPage = lazy(() => import('./pages/ReviewPage').then((m) => ({ default: m.ReviewPage })))
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
+const VariantPage = lazy(() => import('./pages/VariantPage').then((m) => ({ default: m.VariantPage })))
+const VideoContentPage = lazy(() => import('./pages/VideoContentPage').then((m) => ({ default: m.VideoContentPage })))
+const WallPage = lazy(() => import('./pages/WallPage').then((m) => ({ default: m.WallPage })))
+const WhiteboardPage = lazy(() => import('./pages/WhiteboardPage').then((m) => ({ default: m.WhiteboardPage })))
 
 function RememberAndSignIn() {
   const location = useLocation()
