@@ -243,6 +243,7 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Scope.** Starting a Rebrief and moving a Creative up from the Brief page; replies to review comments; editing members, never leaving the workstation without an active Admin; editing and archiving Footage; the team time zone; reading Windows-1252 subtitle files; loading each page's code only when it opens; and tying field errors to their fields for screen readers.
   - **Team time zone.** "Today" for due dates, Verdict check dates and other team-wide dates is Asia/Kuala_Lumpur's today, and the Admin can change the time zone in Settings. Results entered for an account keep that account's own time zone.
   - **Commits.** Each polish item is committed on the working branch once its tests, review and docs pass; nothing is pushed.
+- **D-79** Archiving Footage (formerly PD-29). The owner confirmed on 2026-10-14 that Footage is archived by the member who added it or by the Admin, as a Brief or Creative is archived by its owner (D-61). Archived Footage stays on the Variants that already use it, as history, but can't be added to more.
 
 ## Open
 

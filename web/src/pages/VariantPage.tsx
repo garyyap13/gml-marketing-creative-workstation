@@ -7,6 +7,7 @@ import { LaunchesPanel } from '../components/LaunchesPanel'
 import { OtherPlatformResults } from '../components/OtherPlatformResults'
 import { ResultsPanel } from '../components/ResultsPanel'
 import { StartRetroPanel } from '../components/StartRetroPanel'
+import { describedBy, FieldError } from '../components/FieldError'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { stageNames, stageTrack, useFootage, useLabels, useVariant, variantStates, type FileRow, type Variant } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -15,10 +16,14 @@ import { useMember } from '../lib/session'
 const fileLabel = (file: FileRow) => file.name ?? `Drive file ${file.drive_file_id.slice(0, 8)}…`
 
 // The Creative Team sets a Variant's labels and Footage until the Creative first goes live (D-13, D-14, D-71).
-function LabelsAndFootage({ variant, footageIds, isVideo }: { variant: Variant; footageIds: string[]; isVideo: boolean }) {
+type LinkedFootage = { id: string; code: string; title: string; archived: boolean }
+const footageName = (f: LinkedFootage) => `${f.code} · ${f.title}${f.archived ? ' (archived)' : ''}`
+
+function LabelsAndFootage({ variant, footageIds, linked, isVideo }: { variant: Variant; footageIds: string[]; linked: LinkedFootage[]; isVideo: boolean }) {
   const footage = useFootage()
   const queryClient = useQueryClient()
   const headingId = useId()
+  const footageErrorId = useId()
   const initial = { hook_type_id: variant.hook_type_id, length_id: variant.length_id, aspect_ratio_id: variant.aspect_ratio_id }
   const [labels, setLabels] = useState(initial)
   const [chosen, setChosen] = useState<string[]>(footageIds)
@@ -36,6 +41,8 @@ function LabelsAndFootage({ variant, footageIds, isVideo }: { variant: Variant; 
     onSuccess: () => { setSaved(true) },
     onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: ['variant', variant.id] }), queryClient.invalidateQueries({ queryKey: ['footage'] })]),
   })
+  // The library, plus Footage archived after this Variant linked it, which can stay or be let go but not added again.
+  const choices: LinkedFootage[] = [...(footage.data ?? []).map((f) => ({ id: f.id, code: f.code, title: f.title, archived: false })), ...linked.filter((f) => f.archived)]
   const toggle = (id: string) => { setSaved(false); setChosen((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id])) }
   const set = (patch: Partial<typeof labels>) => { setSaved(false); setLabels({ ...labels, ...patch }) }
 
@@ -49,15 +56,17 @@ function LabelsAndFootage({ variant, footageIds, isVideo }: { variant: Variant; 
       </div>
       <fieldset style={{ border: 0, padding: 0, margin: 0 }} className="stack">
         <legend className="small muted">Footage used</legend>
-        {footage.data?.length === 0 && <span className="small muted">No footage in the library yet</span>}
+        {footage.data && choices.length === 0 && <span className="small muted">No footage in the library yet</span>}
         <div className="row">
-          {footage.data?.map((f) => (
+          {choices.map((f) => (
             <label key={f.id} className="row" style={{ gap: 6, color: 'var(--ink)' }}>
-              <input type="checkbox" style={{ width: 'auto' }} checked={chosen.includes(f.id)} onChange={() => toggle(f.id)} />
-              {f.code} · {f.title}
+              <input type="checkbox" style={{ width: 'auto' }} checked={chosen.includes(f.id)} onChange={() => toggle(f.id)}
+                {...describedBy(fieldError(save.error, 'footage_ids'), footageErrorId)} />
+              {footageName(f)}
             </label>
           ))}
         </div>
+        <FieldError id={footageErrorId} error={fieldError(save.error, 'footage_ids')} standalone />
       </fieldset>
       <div className="row spread">
         <span className="small muted" aria-live="polite">{saved ? 'Saved' : 'Labels and Footage lock when the Creative first goes live.'}</span>
@@ -90,7 +99,6 @@ export function VariantPage() {
   const me = useMember()
   const data = useVariant(id)
   const labels = useLabels()
-  const footage = useFootage()
   const queryClient = useQueryClient()
   const [link, setLink] = useState('')
   const [confirmReplace, setConfirmReplace] = useState(false)
@@ -134,7 +142,7 @@ export function VariantPage() {
 
   if (data.isPending) return <main className="page"><p className="muted">Loading…</p></main>
   if (data.error) return <main className="page"><p className="error">{explain(data.error)}</p></main>
-  const { variant, creative, versions, reviews, footageIds } = data.data
+  const { variant, creative, versions, reviews, footageIds, linkedFootage } = data.data
   const name = (labelId: string | null) => labels.data?.find((l) => l.id === labelId)?.name
   const isCreative = me.team === 'creative'
   const inProduction = variant.state === 'in_production' || variant.state === 'changes_requested'
@@ -164,7 +172,7 @@ export function VariantPage() {
           ))}
         </div>
         {!(isCreative && variant.live_at === null) && (
-          <div className="small">Footage used: {footageIds.length ? footage.data?.filter((f) => footageIds.includes(f.id)).map((f) => `${f.code} · ${f.title}`).join(', ') : <span className="muted">none recorded</span>}</div>
+          <div className="small">Footage used: {linkedFootage.length ? linkedFootage.map(footageName).join(', ') : <span className="muted">none recorded</span>}</div>
         )}
       </section>
 
@@ -192,7 +200,7 @@ export function VariantPage() {
       <LaunchesPanel variant={variant} versions={versions} reviews={reviews} canPlan={me.team === 'marketing'} />
 
       {isCreative && variant.live_at === null && (
-        <LabelsAndFootage variant={variant} footageIds={footageIds} isVideo={mediaKind === 'video'} />
+        <LabelsAndFootage variant={variant} footageIds={footageIds} linked={linkedFootage} isVideo={mediaKind === 'video'} />
       )}
 
       {isCreative && variant.live_at === null && (

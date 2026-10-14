@@ -167,6 +167,8 @@ export type Footage = {
   presenter_id: string | null
   drive_folder_link: string
   usable_until: string | null
+  added_by: string
+  lock_version: number
   usedBy: string[]
 }
 
@@ -183,7 +185,7 @@ export function useFootage() {
     queryKey: ['footage'],
     queryFn: async () => {
       const footage = await selectAll<Omit<Footage, 'usedBy'>>((from, to) =>
-        supabase.schema('creative').from('footage').select('id, code, title, source, shot_on, presenter_id, drive_folder_link, usable_until')
+        supabase.schema('creative').from('footage').select('id, code, title, source, shot_on, presenter_id, drive_folder_link, usable_until, added_by, lock_version')
           .is('archived_at', null).order('code', { ascending: false }).range(from, to))
       const links = await selectIn<{ footage_id: string; variant_id: string }>(footage.map((f) => f.id), (chunk, from, to) =>
         supabase.schema('creative').from('variant_footage').select('footage_id, variant_id').in('footage_id', chunk).is('removed_at', null).order('id').range(from, to))
@@ -289,7 +291,7 @@ export function useVariant(id: string) {
         supabase.schema('core').from('files').select(fileColumns).eq('variant_id', id).order('created_at'),
         supabase.schema('creative').from('versions').select('id, variant_id, version_number, submitted_at').eq('variant_id', id).order('version_number'),
         supabase.schema('review').from('reviews').select('id, version_id, variant_id, round_number, decision, decided_at, approval_end_reason, lock_version').eq('variant_id', id),
-        supabase.schema('creative').from('variant_footage').select('footage_id').eq('variant_id', id).is('removed_at', null),
+        supabase.schema('creative').from('variant_footage').select('footage_id, footage:footage_id(code, title, archived_at)').eq('variant_id', id).is('removed_at', null),
       ])
       for (const result of [creative, files, versions, reviews, links]) if (result.error) throw result.error
       return {
@@ -299,6 +301,10 @@ export function useVariant(id: string) {
         versions: versions.data as Version[],
         reviews: reviews.data as Review[],
         footageIds: (links.data ?? []).map((l) => l.footage_id as string),
+        // The Footage it uses, archived items included: archiving keeps a Variant's links as history.
+        linkedFootage: ((links.data ?? []) as unknown as { footage_id: string; footage: { code: string; title: string; archived_at: string | null } }[])
+          .map((l) => ({ id: l.footage_id, code: l.footage.code, title: l.footage.title, archived: l.footage.archived_at !== null }))
+          .sort((a, b) => a.code.localeCompare(b.code)),
       }
     },
     // While Drive is still processing a registered file, check again every few seconds.

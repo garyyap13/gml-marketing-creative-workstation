@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-77), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-77), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3; PD-26–PD-28 are confirmed as D-77. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
+Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-79), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-79), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The one remaining proposed default, PD-25's Drive check timing, is listed in §11.3; PD-26–PD-28 are confirmed as D-77 and PD-29 as D-79. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
 
 Audience: Marketing Team, Creative Team, product owner, designer, engineering and QA.
 
@@ -101,7 +101,7 @@ Each person is Marketing or Creative. One or more Marketing Team members carry t
 | Add and edit Footage (D-71) | Yes | Yes | — | — |
 | Record which Footage a Variant uses, before go-live (D-71) | No | Yes | — | — |
 | Write an Optimization Plan | Yes | Yes | — | — |
-| Archive a record (D-61): a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team | When owner | When owner | Any Optimization Plan | Any record |
+| Archive a record (D-61): a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; Footage by the member who added it (D-79) | When owner | When owner | Any Optimization Plan | Any record |
 | Manage members and flags, the Meta connection, WhatsApp settings and Breakdown settings | — | — | — | Yes |
 
 One Approver's decision approves a Version (D-50); multi-approver chains are later scope. Changes of owner, role or flag are logged (D-45).
@@ -409,6 +409,8 @@ Either team adds Footage with a title, its source (own shoot, creator, stock or 
 
 The Creative Team records which Footage each Variant uses. A Variant can use several Footage items, and one Footage item can be reused across Variants and Creatives. Like the labels, a Variant's Footage locks when its Creative first goes live (D-14).
 
+Either team corrects a Footage item's details later. Its presenter is fixed once a Variant using it has gone live, so past results never move to another presenter (following D-14's go-live lock). The member who added Footage, or the Admin, archives it (D-79): archived Footage stays on the Variants that already use it, as history, but can't be added to more (D-78).
+
 Later steps build on this. Planning a Launch for a Variant whose Footage is past its usable-until date shows a warning (M2), and results and 复盘 can be read by Footage, for example by shoot or presenter (FR-15, FR-17).
 
 ### FR-19 — Canvas views
@@ -635,7 +637,7 @@ The former O-01 (where domain commands run) is decided as D-48 / ADR 0006. The S
 
 ### 11.3 Remaining proposed defaults
 
-PD-01…PD-18 are now decisions D-49–D-59, PD-19…PD-22 are D-61, PD-23 and PD-24 are D-68, PD-25 is D-69 apart from the item below (see §11.1), and PD-26–PD-28 are D-77. The item below remains unconfirmed. Sizing and operations numbers stay proposed by decision (D-58) and are not listed here.
+PD-01…PD-18 are now decisions D-49–D-59, PD-19…PD-22 are D-61, PD-23 and PD-24 are D-68, PD-25 is D-69 apart from the item below (see §11.1), PD-26–PD-28 are D-77, and PD-29 is D-79. The item below remains unconfirmed. Sizing and operations numbers stay proposed by decision (D-58) and are not listed here.
 
 | ID | Proposed default | Where used |
 |---|---|---|

@@ -25,6 +25,8 @@ export function LabelSelect({
       {label}{optional ? ' (optional)' : ''}
       <select value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value || null)} aria-invalid={Boolean(error)}>
         <option value="">Choose…</option>
+        {/* A label archived or merged since it was chosen still shows, rather than looking unchosen. */}
+        {value && labels.data && !items.some((item) => item.id === value) && <option value={value}>An archived {label.toLowerCase()}</option>}
         {items.map((item) => (
           <option key={item.id} value={item.id}>{item.media_kind ? `${item.name} · ${item.media_kind}` : item.name}</option>
         ))}
