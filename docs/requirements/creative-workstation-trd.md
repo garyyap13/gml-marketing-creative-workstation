@@ -541,14 +541,14 @@ The chosen Supabase plan's per-file limit must exceed the Storage limits. Versio
 
 Submission requires ready files, and a carousel Version lists its cards in order. Once a file is ready, its identity and metadata freeze; changed content is a new file, and after submission a new Version. Storage downloads use short-lived signed URLs issued to members, and there are no public URLs. Version files are viewed under Drive's own sharing, and the preview method is chosen by test (T-19, D-69). Filenames are display labels only.
 
-**As built (A1c).** Storage uploads work as follows, with the details still proposed under PD-26:
+**As built (A1c).** Storage uploads work as follows; the owner confirmed the details in D-77 (formerly PD-26):
 - **Upload slots.** `create_upload_intent` returns the bucket and a path `<target id>/<file id>`. Storage row-level security lets only the member who opened the slot upload to that path, within an hour. There are no update or delete policies. Each bucket also limits the size and the declared type. The declared type must match the file name's ending, and names and labels may not carry control or direction-changing characters. The browser takes the type from the name's ending, because browsers report some types differently.
 - **Checking files.** The `verify-upload` Edge Function runs straight after the upload, while the person waits. It calls `complete_upload` as the uploader and reads the whole object (at most 50 MiB) with the secret key. It works out the content family, a picture's dimensions and the SHA-256, with text checked a megabyte at a time.
   - It stores those exact bytes at `checked/<slot path>`, a path no member can write. Then it reports through `worker.record_file_verification`, which compares the report with the declared type and the kind's limit and marks the file ready or failed.
   - A ready file's path becomes the checked copy. So bytes swapped into the slot afterwards, for example through an upload link made to overwrite, are never read. The slot's copy is then removed.
   - A check that cannot read or write Storage leaves the file being checked, so calling again retries. Content that opens like markup (web pages, SVG) is never accepted.
 - **Reading files.** Members read a file only once it is ready, and only from its checked copy; the uploader can also read the slot while the file is being checked. Reads use short-lived signed URLs, which the page renews, and downloads keep the file's name.
-- **Attachments.** `add_brief_attachment` and `remove_brief_attachment` handle attachments in place of attachment fields on `save_brief`. They lock the Brief, so they are ordered with hand-off, but they neither take nor bump its lock version (PD-26). Removing marks the row removed; nothing is deleted. `rebrief` copies the current attachments to the new version, and a file uploaded to any version of the Brief can be attached to its editing version.
+- **Attachments.** `add_brief_attachment` and `remove_brief_attachment` handle attachments in place of attachment fields on `save_brief`. They lock the Brief, so they are ordered with hand-off, but they neither take nor bump its lock version (D-77). Removing marks the row removed; nothing is deleted. `rebrief` copies the current attachments to the new version, and a file uploaded to any version of the Brief can be attached to its editing version.
 - **Thumbnails.** `set_launch_thumbnail` points the Launch at a ready picture uploaded for it. A newer one replaces it on screen, and the earlier file stays attached.
 - **Purge.** The purge of never-attached files is not built yet; it waits for scheduling in B1.
 
@@ -751,7 +751,7 @@ As built in milestone A3 (local, against the Meta stand-in):
 
 As built in milestone A5a (D-76):
 - **Resolving.** `resolve_ad` links an Untracked, Mismatched or kept-out ad to a Variant, or keeps it out with a reason. It is open to the Marketing Team (D-55).
-  - The resolution is stored on the ad, so later syncs honour it, ahead of the ad's name (PD-27).
+  - The resolution is stored on the ad, so later syncs honour it, ahead of the ad's name (D-77).
     - A linked ad stays with its Variant while its media is the one it was linked with. Other media makes it Mismatched against that Variant, keeping its Launch (D-61). An ad linked before Meta reported any media takes the first media reported.
     - A kept-out ad, match state `kept_out`, stays out until someone links it.
   - Linking records the Variant's media when none is recorded yet, as the first matched ad would (D-28).
@@ -769,7 +769,7 @@ As built in milestone A5a (D-76):
 The **Combination view** covers one ad set over a chosen period, in the account's time zone:
 - **Members** are the Live Variants with matched Ads active in that ad set during the period. Dynamic Ads appear as separate ad-level rows.
 - **Blended Cost per Result** is the ad set's Σ spend ÷ Σ Results for one result indicator.
-- **Spend share** for each Variant is its matched spend in the ad set ÷ the ad set's spend for the period. Dynamic Ad, Untracked and Mismatched spend each get their own slice, and so does kept-out spend since A5a (PD-28). The Variant shares plus these slices always add up to 100% of the ad set's spend.
+- **Spend share** for each Variant is its matched spend in the ad set ÷ the ad set's spend for the period. Dynamic Ad, Untracked and Mismatched spend each get their own slice, and so does kept-out spend since A5a (D-77). The Variant shares plus these slices always add up to 100% of the ad set's spend.
 - **Diversity** is the count of distinct Avatars, Angles, Formats, Narrative Styles and hook types among the members.
 - **Low share** is captioned "Meta didn't pick it" (D-41).
 
@@ -785,12 +785,12 @@ Every comparison shows its evidence class. Only a Meta A/B test yields a Control
 
 As built in milestone A5b (D-76):
 - `reporting.ad_daily_results` gives every synced ad's current daily paid results, whatever its match state, so the Combination view can account for all of an ad set's spend. Variant results still come only from matched single-Variant ads.
-- `reporting.combination(ad set, from, to)` returns one row per slice and scope: each Variant with matched ads, each Dynamic Ad on its own row (ad level, D-31), then the Untracked, Mismatched and kept-out ads. Kept-out ads, new in A5a, get their own slice so the slices still add up to all of the ad set's spend (PD-28).
+- `reporting.combination(ad set, from, to)` returns one row per slice and scope: each Variant with matched ads, each Dynamic Ad on its own row (ad level, D-31), then the Untracked, Mismatched and kept-out ads. Kept-out ads, new in A5a, get their own slice so the slices still add up to all of the ad set's spend (D-77).
   - A Live Variant whose ads Meta reported no delivery for in the period is still a member, returned with no scope and nothing reported, and shown as "no delivery reported", never as zero.
   - Missing spend and missing results are counted separately. A slice or total with a missing figure shows "—". Shares need every day's spend, and the blended cost needs every day's spend and results.
   - Shares are whole percentages rounded to add up to exactly 100. The page compares the scope with the most spend and lists any other scope as not comparable. Its dates default to the last 28 days.
   - An ad's current match state applies to its whole history: once resolved, its past spend moves with it. Frozen Evidence keeps what it cited.
-- A Variant below 10% of the ad set's spend is captioned "Meta didn't pick it" (threshold proposed, PD-28). Diversity counts the distinct Avatars, Angles, Formats, Narrative Styles and hook types among the members.
+- A Variant below 10% of the ad set's spend is captioned "Meta didn't pick it" (D-77). Diversity counts the distinct Avatars, Angles, Formats, Narrative Styles and hook types among the members.
 - `reporting.label_results(kind, from, to)` pools matched Variant results by label item and scope, resolving merged labels to the item they were merged into. A Variant with no item of that kind pools under "No …". For Footage, a Variant counts under each item it uses.
 - `reporting.combination_ad_sets(from, to)` lists the ad sets with results in the dates, per currency, for choosing one.
 - Neither view returns Reach. A Reach result is never added up, and neither view gives a cost per result for a Reach result type or when a day's figure is missing.

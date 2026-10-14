@@ -4,7 +4,7 @@ import { explain } from '../lib/commands'
 import { useCombination, useCombinationAdSets, useLabels, type CombinationSlice, type MemberLabels } from '../lib/data'
 import { byScope, count, lastDays, money, resultName, scopeName } from '../lib/results'
 
-// Below this share of the ad set's spend, a Variant is captioned "Meta didn't pick it" (D-41; threshold proposed, PD-28).
+// Below this share of the ad set's spend, a Variant is captioned "Meta didn't pick it" (D-41, D-77).
 const LOW_SHARE = 10
 const sliceNames: Record<'untracked' | 'mismatched' | 'kept_out', string> = { untracked: 'Untracked Ads', mismatched: 'Mismatched Ads', kept_out: 'Kept-out Ads' }
 const order: Record<CombinationSlice['slice'], number> = { variant: 0, dynamic: 1, untracked: 2, mismatched: 3, kept_out: 4 }

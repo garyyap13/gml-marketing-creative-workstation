@@ -53,6 +53,20 @@ const reasons: Record<string, string> = {
   dynamic_ad: 'This ad carries several Variants, so it is reported at ad level and not linked to one.',
   board_archived: 'This board is archived, so nothing on it can change.',
   item_archived: 'That was removed from the board.',
+  already_handed_off: 'This Brief version has already been handed off.',
+  not_handed_off_yet: "The newest Brief version hasn't been handed off yet.",
+  creative_has_been_live: 'This Creative has gone live, so it stays on the Brief version it launched with.',
+  creative_archived: 'This Creative is archived.',
+  format_fixed_after_first_version: "The Format can't change once the first Version is submitted.",
+  not_in_production: 'This Variant is not in production.',
+  variant_not_in_production: 'This Variant is not in production.',
+  variant_is_live_or_cancelled: "This Variant is live or cancelled, so its files can't change.",
+  cannot_start_next_version: "A next Version can start only after changes are requested, or while an approved Variant hasn't gone live.",
+  already_resolved: 'This comment is already resolved.',
+  approval_in_effect: "This Version's approval is in effect, so a blocking comment can't be added. Withdraw the approval first.",
+  approval_not_in_effect: 'This approval has already ended.',
+  not_a_post: 'Only a post Launch takes a post link.',
+  footage_archived: 'This Footage has been archived.',
 }
 
 export function explain(error: unknown): string {

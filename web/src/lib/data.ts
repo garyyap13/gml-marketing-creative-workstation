@@ -73,6 +73,7 @@ export type BriefVersion = {
   brief_id: string
   version_number: number
   state: 'editing' | 'handed_off'
+  handed_off_at: string | null
   product_id: string | null
   avatar_id: string | null
   angle_id: string | null
@@ -127,7 +128,7 @@ export function useBrief(id: string) {
       const creatives = await supabase
         .schema('creative')
         .from('creatives')
-        .select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, lock_version')
+        .select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, first_live_at, lock_version')
         .in('brief_version_id', versionIds)
         .is('archived_at', null)
         .order('code')

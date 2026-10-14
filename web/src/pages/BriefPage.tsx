@@ -15,7 +15,99 @@ const fieldsOf = (v: BriefVersion): Fields => ({
   initiative_id: v.initiative_id, key_message: v.key_message, cta: v.cta, cta_none: v.cta_none, hypothesis: v.hypothesis,
 })
 
-function Creatives({ briefVersionId, creatives }: { briefVersionId: string; creatives: Creative[] }) {
+// A Rebrief starts the next version from the handed-off one; Creatives keep their version until they move up (D-17).
+function RebriefPanel({ briefId, lockVersion, nextVersion, onDone }: { briefId: string; lockVersion: number; nextVersion: number; onDone: () => Promise<unknown> }) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const key = useFormKey()
+  const headingId = useId()
+  const start = useMutation({
+    mutationFn: () => run('rebrief', { p_brief_id: briefId, p_reason: reason, p_expected_lock_version: lockVersion, p_idempotency_key: key.key() }),
+    onSuccess: () => { key.renew(); setOpen(false); setReason(''); return onDone() },
+    onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? onDone() : undefined),
+  })
+  const close = () => { start.reset(); setOpen(false) }
+  return (
+    <section className="panel stack" aria-labelledby={headingId}>
+      <h2 id={headingId}>Rebrief</h2>
+      <p className="small muted">This version is handed off and locked. A Rebrief starts version {nextVersion} from it, with the same attachments. Creatives stay on their version until each one moves up.</p>
+      {!open ? (
+        <button style={{ justifySelf: 'start' }} onClick={() => setOpen(true)}>Start a Rebrief…</button>
+      ) : (
+        <form className="stack" onSubmit={(e: FormEvent) => { e.preventDefault(); start.mutate() }}>
+          <label>Why is the Brief changing?
+            <textarea rows={2} maxLength={1000} autoFocus value={reason} onChange={(e) => { key.renew(); setReason(e.target.value) }} placeholder="The offer changed to a free trial" />
+          </label>
+          <div className="row">
+            <button type="submit" className="primary" disabled={start.isPending}>Start Rebrief</button>
+            <button type="button" onClick={close}>Keep this version</button>
+          </div>
+          {start.error && <p className="error" role="alert">{fieldError(start.error, 'reason') ?? explain(start.error)}</p>}
+        </form>
+      )}
+    </section>
+  )
+}
+
+// One Brief version's fields, read-only, as Creatives working from it see them.
+function VersionFields({ version }: { version: BriefVersion }) {
+  const labels = useLabels()
+  const name = (id: string | null) => (id ? labels.data?.find((l) => l.id === id)?.name ?? 'An archived label' : '—')
+  const rows: [string, string][] = [
+    ['Product', name(version.product_id)], ['Avatar', name(version.avatar_id)], ['Angle', name(version.angle_id)],
+    ['Funnel stage', name(version.funnel_stage_id)], ['Initiative', name(version.initiative_id)],
+    ['Key message', version.key_message ?? '—'], ['CTA', version.cta_none ? 'No CTA' : version.cta ?? '—'],
+    ['What we want to learn', version.hypothesis ?? '—'],
+  ]
+  return (
+    <dl className="facts small">
+      {rows.map(([term, value]) => <div key={term}><dt className="muted">{term}</dt><dd>{value}</dd></div>)}
+    </dl>
+  )
+}
+
+// Earlier versions of the Brief, each readable with its attachments: when it was handed off, and why it started. While
+// a Rebrief is being drafted, the newest handed-off version opens first, since Creatives still work from it.
+function EarlierVersions({ briefId, versions, draftInProgress }: { briefId: string; versions: BriefVersion[]; draftInProgress: boolean }) {
+  const headingId = useId()
+  const newestHandedOff = [...versions].reverse().find((v) => v.state === 'handed_off')
+  return (
+    <details className="panel" open={draftInProgress || undefined}>
+      <summary className="small">Earlier versions ({versions.length})</summary>
+      <section aria-labelledby={headingId} className="stack">
+        <h2 id={headingId} className="sr-only">Earlier versions</h2>
+        {[...versions].reverse().map((v) => (
+          <details key={v.id} open={(draftInProgress && v.id === newestHandedOff?.id) || undefined}>
+            <summary className="small">
+              Version {v.version_number}{v.handed_off_at ? `, handed off ${new Date(v.handed_off_at).toLocaleDateString()}` : ''}
+              {v.rebrief_reason && <span className="muted"> · Rebrief: {v.rebrief_reason}</span>}
+            </summary>
+            <div className="stack" style={{ marginTop: 8 }}>
+              <VersionFields version={v} />
+              <BriefAttachments briefId={briefId} versionId={v.id} editable={false} frozen title={`Version ${v.version_number} attachments`} />
+            </div>
+          </details>
+        ))}
+      </section>
+    </details>
+  )
+}
+
+// Moves a never-live Creative up to the newest handed-off version of its Brief (D-51, D-14).
+function MoveUp({ creative, target, onMoved }: { creative: Creative; target: BriefVersion; onMoved: () => Promise<unknown> }) {
+  const move = useMutation({
+    mutationFn: () => run('adopt_brief_version', { p_creative_id: creative.id, p_brief_version_id: target.id, p_expected_lock_version: creative.lock_version }),
+    onSettled: () => onMoved(),
+  })
+  return (
+    <>
+      <button className="small" disabled={move.isPending} onClick={() => move.mutate()}>Move up to version {target.version_number}</button>
+      {move.error && <span className="error small" role="alert">{explain(move.error)}</span>}
+    </>
+  )
+}
+
+function Creatives({ briefVersionId, versions, creatives }: { briefVersionId: string; versions: BriefVersion[]; creatives: Creative[] }) {
   const me = useMember()
   const members = useMembers()
   const labels = useLabels()
@@ -41,21 +133,33 @@ function Creatives({ briefVersionId, creatives }: { briefVersionId: string; crea
   const headingId = useId()
   const name = (id: string | null) => labels.data?.find((l) => l.id === id)?.name
   const person = (id: string) => members.data?.find((m) => m.id === id)?.display_name
+  const versionOf = (id: string | null) => versions.find((v) => v.id === id)
+  const newestHandedOff = [...versions].reverse().find((v) => v.state === 'handed_off')
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['brief'] })
+  // A Creative is behind only when a newer version has been handed off, not while a Rebrief is still being drafted.
 
   return (
     <section className="panel stack" aria-labelledby={headingId}>
       <h2 id={headingId}>Creatives</h2>
-      <div className="list">
-        {creatives.map((c) => (
-          <div key={c.id} className="row spread">
-            <Link to={`/creatives/${c.id}`}><strong style={{ fontWeight: 500 }}>{c.code}</strong> · {c.title}</Link>
-            <span className="row small muted">
-              {name(c.format_id) ?? 'No Format'} · {person(c.creative_owner_id)} · due {c.due_date}
-              <span className={c.format_confirmed_by ? 'tag' : 'tag warn'}>{c.format_confirmed_by ? 'Format confirmed' : 'Format to confirm'}</span>
-            </span>
-          </div>
-        ))}
-      </div>
+      <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {creatives.map((c) => {
+          const on = versionOf(c.brief_version_id)
+          const behind = on && newestHandedOff && newestHandedOff.version_number > on.version_number
+          const canMove = behind && !c.first_live_at
+          return (
+            <li key={c.id} className="row spread">
+              <Link to={`/creatives/${c.id}`}><strong style={{ fontWeight: 500 }}>{c.code}</strong> · {c.title}</Link>
+              <span className="row small muted">
+                {name(c.format_id) ?? 'No Format'} · {person(c.creative_owner_id)} · due {c.due_date}
+                <span className={c.format_confirmed_by ? 'tag' : 'tag warn'}>{c.format_confirmed_by ? 'Format confirmed' : 'Format to confirm'}</span>
+                {behind && <span className="tag warn">On version {on.version_number}{c.first_live_at ? ', live, so it stays' : ''}</span>}
+                {!behind && on && on.id !== briefVersionId && <span className="tag">On version {on.version_number}</span>}
+                {canMove && <MoveUp creative={c} target={newestHandedOff} onMoved={refresh} />}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
       <form className="row" style={{ alignItems: 'end' }} onSubmit={(e: FormEvent) => { e.preventDefault(); add.mutate(form) }}>
         <label style={{ flex: '2 1 180px' }}>Title
           <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -124,6 +228,8 @@ export function BriefPage() {
   if (brief.isPending || !current || !fields) return <main className="page"><p className="muted">Loading…</p></main>
 
   const editable = current.state === 'editing' && me.team === 'marketing'
+  const previous = [...brief.data.versions].reverse().find((v) => v.state === 'handed_off')
+  const draftInProgress = current.state === 'editing' && Boolean(previous)
   const missing = (field: string) => fieldError(handOff.error, field)
   const set = (patch: Partial<Fields>) => { setSaved(false); setFields({ ...fields, ...patch }) }
   const missingCount = handOff.error instanceof CommandError ? Object.keys(handOff.error.fieldErrors).length : 0
@@ -138,6 +244,11 @@ export function BriefPage() {
         <span className={current.state === 'editing' ? 'tag warn' : 'tag'}>{current.state === 'editing' ? 'Editing' : 'Handed off'}</span>
       </div>
       {current.rebrief_reason && <p className="notice">Rebrief: {current.rebrief_reason}</p>}
+      {draftInProgress && previous && (
+        <p className="notice">
+          Version {current.version_number} is a Rebrief still being drafted. Creatives work from version {previous.version_number} until it is handed off; read version {previous.version_number} under Earlier versions below.
+        </p>
+      )}
       <form className="panel stack" onSubmit={(e: FormEvent) => { e.preventDefault(); save.mutate() }}>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <LabelSelect kind="product" label="Product" value={fields.product_id} onChange={(v) => set({ product_id: v })} disabled={!editable} error={missing('product_id')} />
@@ -178,7 +289,11 @@ export function BriefPage() {
         {handOff.error && missingCount === 0 && <p className="error" role="alert">{explain(handOff.error)}</p>}
       </form>
       <BriefAttachments briefId={id} versionId={current.id} editable={editable} frozen={current.state === 'handed_off'} />
-      <Creatives briefVersionId={current.id} creatives={brief.data.creatives} />
+      {current.state === 'handed_off' && me.team === 'marketing' && (
+        <RebriefPanel briefId={id} lockVersion={brief.data.brief.lock_version} nextVersion={current.version_number + 1} onDone={() => Promise.all([refresh(), queryClient.invalidateQueries({ queryKey: ['briefs'] })])} />
+      )}
+      <Creatives briefVersionId={current.id} versions={brief.data.versions} creatives={brief.data.creatives} />
+      {brief.data.versions.length > 1 && <EarlierVersions briefId={id} versions={brief.data.versions.slice(0, -1)} draftInProgress={draftInProgress} />}
     </main>
   )
 }

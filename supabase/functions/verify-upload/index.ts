@@ -3,7 +3,7 @@
 // works out what it really is (size, content, SHA-256, a picture's dimensions), keeps those exact bytes under
 // checked/, a path no member can write, and reports to the database, which decides whether the file is ready. A
 // ready file is read only from checked/, so the upload slot can't swap in other bytes later. It runs straight after
-// the upload rather than from a queue (PD-26).
+// the upload rather than from a queue (D-77).
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { describeFile } from '../_shared/inspect.ts'
 

@@ -1,0 +1,47 @@
+import { expect, test } from '@playwright/test'
+import { handedOffVideoBrief, inviteMember, memberClient, memberId, signIn } from './support'
+
+test('Marketing starts a Rebrief from the Brief page and hands off version 2; the Creative Owner moves the Creative up', async ({ browser }) => {
+  const meiEmail = await inviteMember('marketing', 'Mei')
+  const junEmail = await inviteMember('creative', 'Jun')
+  const meiApi = await memberClient(meiEmail)
+  const junApi = await memberClient(junEmail)
+  const { briefId, creativeCode } = await handedOffVideoBrief(meiApi, await memberId(junApi))
+
+  const mei = await signIn(browser, meiEmail)
+  await mei.goto(`/briefs/${briefId}`)
+  await expect(mei.getByText('Handed off', { exact: true })).toBeVisible()
+  const rebrief = mei.getByRole('region', { name: 'Rebrief' })
+  await rebrief.getByRole('button', { name: 'Start a Rebrief…' }).click()
+  await rebrief.getByRole('button', { name: 'Start Rebrief' }).click()
+  await expect(rebrief.getByRole('alert')).toContainText('Say why the Brief is changing')
+  await rebrief.getByLabel('Why is the Brief changing?').fill('The offer changed to a free trial')
+  await rebrief.getByRole('button', { name: 'Start Rebrief' }).click()
+  await expect(mei.getByText('Brief · version 2')).toBeVisible()
+  await expect(mei.getByText('Rebrief: The offer changed to a free trial')).toBeVisible()
+
+  // While version 2 is drafted, the Creative Team still reads version 1, which their Creative follows.
+  const junDuringDraft = await signIn(browser, junEmail)
+  await junDuringDraft.goto(`/briefs/${briefId}`)
+  await expect(junDuringDraft.getByText('Version 2 is a Rebrief still being drafted')).toBeVisible()
+  const earlier = junDuringDraft.getByRole('region', { name: 'Earlier versions' })
+  await expect(earlier.getByText('One easy routine before you leave home')).toBeVisible()
+  await expect(earlier.getByRole('region', { name: 'Version 1 attachments' })).toBeVisible()
+  await expect(junDuringDraft.getByRole('region', { name: 'Creatives' }).getByRole('listitem').filter({ hasText: creativeCode })).not.toContainText('On version 1, live')
+  await expect(junDuringDraft.getByRole('region', { name: 'Creatives' }).locator('.tag.warn').filter({ hasText: 'On version' })).toHaveCount(0)
+
+  await mei.getByLabel('Key message').fill('Try the routine free for a week')
+  await mei.getByRole('button', { name: 'Hand off' }).click()
+  await expect(mei.getByText('Handed off', { exact: true })).toBeVisible()
+  await mei.getByText('Earlier versions (1)').click()
+  await expect(mei.getByRole('region', { name: 'Earlier versions' }).getByText(/Version 1, handed off/)).toBeVisible()
+
+  const jun = await signIn(browser, junEmail)
+  await jun.goto(`/briefs/${briefId}`)
+  const creatives = jun.getByRole('region', { name: 'Creatives' })
+  const row = creatives.getByRole('listitem').filter({ hasText: creativeCode })
+  await expect(row).toContainText('On version 1')
+  await row.getByRole('button', { name: 'Move up to version 2' }).click()
+  await expect(row).not.toContainText('On version 1')
+  await expect(jun.getByRole('region', { name: 'Rebrief' })).toHaveCount(0)
+})

@@ -7,7 +7,7 @@ import { fileSize, uploadFile, uploadProblem, useDownloadLinks } from '../lib/up
 import { Button } from './Button'
 
 const roles: Record<BriefAttachment['role'], string> = { script: 'Script', reference: 'Reference', rough_material: 'Rough material (初稿)' }
-// What the file-verifier accepts for an attachment (PD-26); the database has the final say.
+// What the file-verifier accepts for an attachment (D-77); the database has the final say.
 const accepted = '.pdf,.jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.zip,.docx,.xlsx,.pptx,.txt,.csv,.md'
 const host = (url: string) => { try { return new URL(url).host } catch { return url } }
 const withoutExtension = (name: string) => name.replace(/\.[^.]+$/, '')
@@ -17,7 +17,7 @@ const empty: Form = { how: 'file', role: 'script', label: '', link: '', file: nu
 
 // A Brief version's attachments: uploaded files or links, each with a role (D-52). Marketing adds and removes them
 // while the version is being edited; they freeze at hand-off and a Rebrief carries them forward.
-export function BriefAttachments({ briefId, versionId, editable, frozen }: { briefId: string; versionId: string; editable: boolean; frozen: boolean }) {
+export function BriefAttachments({ briefId, versionId, editable, frozen, title = 'Attachments' }: { briefId: string; versionId: string; editable: boolean; frozen: boolean; title?: string }) {
   const data = useBriefAttachments(versionId)
   const files = [...(data.data?.files.values() ?? [])]
   const links = useDownloadLinks(files)
@@ -77,7 +77,7 @@ export function BriefAttachments({ briefId, versionId, editable, frozen }: { bri
 
   return (
     <section className="panel stack" aria-labelledby={headingId}>
-      <h2 id={headingId} ref={heading} tabIndex={-1}>Attachments</h2>
+      <h2 id={headingId} ref={heading} tabIndex={-1}>{title}</h2>
       {data.error && <p className="error">{explain(data.error)}</p>}
       {data.data?.attachments.length === 0 && <p className="small muted">No attachments yet.</p>}
       {(data.data?.attachments.length ?? 0) > 0 && (

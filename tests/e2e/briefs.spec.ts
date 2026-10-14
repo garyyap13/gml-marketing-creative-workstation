@@ -47,7 +47,7 @@ test('Marketing writes a Brief, sees what is missing, adds a Creative and hands 
   await mei.getByLabel('Angle').selectOption({ label: labels.angle })
   await mei.getByLabel('Key message').fill('One easy routine, ready by the door')
   await mei.getByRole('button', { name: 'Hand off' }).click()
-  await expect(mei.getByText('Handed off')).toBeVisible()
+  await expect(mei.getByText('Handed off', { exact: true })).toBeVisible()
   await expect(mei.getByLabel('Key message')).toBeDisabled()
   await expect(mei.getByLabel('Key message')).toHaveValue('One easy routine, ready by the door')
   await expect(mei.getByLabel('Angle')).toHaveValue(/.+/)

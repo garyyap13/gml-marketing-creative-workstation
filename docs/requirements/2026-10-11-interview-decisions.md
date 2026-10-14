@@ -229,6 +229,20 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Manual results.** For TikTok, Xiaohongshu and YouTube, the Marketing Team enters spend and its currency (when paid), views or impressions, clicks and Results with their type, plus optional reach, likes, comments, shares and saves. Each entry covers a chosen date range and is stored as that period's total, never split into days.
   - **CSV.** Imports start with the workstation's own template, with the same fields and one row per post or ad per period. Mapping each platform's native export follows once the team shares a sample from each platform.
   - **Where it lives.** A Results page with five sections: Ads to resolve, Combinations, Labels, Enter results and Data health. Untracked Ads raise one Marketing Team task (D-56).
+- **D-77** PD-26, PD-27 and PD-28 are confirmed as written. The owner confirmed them on 2026-10-14:
+  - **Uploads (formerly PD-26).**
+    - A Rebrief carries the attachments forward.
+    - Attachments may be PDFs, pictures, videos, Office documents, zip files or plain text, and thumbnails JPEG, PNG, WebP or GIF pictures. A file's name must end to match its type.
+    - Files are checked straight after upload.
+    - Attachments don't change the Brief's lock version.
+    - The Variant wall shows the most recently set Launch thumbnail.
+    - The never-attached purge waits for B1.
+  - **Resolved ads (formerly PD-27).** A resolution wins over the ad's name at later syncs. A linked ad stays with its Variant until its video changes, and a kept-out ad stays out until someone links it.
+  - **Combination view (formerly PD-28).** A Live Variant with less than 10% of the ad set's spend is captioned "Meta didn't pick it", and kept-out ads get their own slice.
+- **D-78** The deferred polish. The owner accepted the recommended answers on 2026-10-14:
+  - **Scope.** Starting a Rebrief and moving a Creative up from the Brief page; replies to review comments; editing members, never leaving the workstation without an active Admin; editing and archiving Footage; the team time zone; reading Windows-1252 subtitle files; loading each page's code only when it opens; and tying field errors to their fields for screen readers.
+  - **Team time zone.** "Today" for due dates, Verdict check dates and other team-wide dates is Asia/Kuala_Lumpur's today, and the Admin can change the time zone in Settings. Results entered for an account keep that account's own time zone.
+  - **Commits.** Each polish item is committed on the working branch once its tests, review and docs pass; nothing is pushed.
 
 ## Open
 
