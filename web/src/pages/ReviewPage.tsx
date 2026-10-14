@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useMatch, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { ContentTimeline, segments, shortName } from '../components/ContentTimeline'
 import { DrivePreview } from '../components/DrivePreview'
+import { describedBy } from '../components/FieldError'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
 import { useFormKey } from '../lib/forms'
 import { useMembers, useReview, useVideoContent, type Comment, type ContentSection } from '../lib/data'
@@ -61,6 +62,52 @@ function ReviewTimeline({ duration, sections, sectionsState, comments, selected,
       <p className={selected?.anchor?.start_ms !== undefined ? 'notice small' : 'sr-only'} aria-live="polite">
         {selected?.anchor?.start_ms !== undefined ? `Scrub to ${formatTime(selected.anchor.start_ms)} in the player: ${selected.body}` : ''}
       </p>
+    </div>
+  )
+}
+
+// A comment's opening words, so each Reply button says which comment it answers.
+const snippet = (body: string) => (body.length > 40 ? `${body.slice(0, 40).trimEnd()}…` : body)
+
+// Replies under a comment, oldest first, and a form for either team to add one (D-22). Replies carry no kind or time.
+function Replies({ comment, replies, author, onSent }: { comment: Comment; replies: Comment[]; author: (memberId: string) => string; onSent: () => Promise<unknown> }) {
+  const [open, setOpen] = useState(false)
+  const [body, setBody] = useState('')
+  const key = useFormKey()
+  const listId = useId()
+  const fieldId = useId()
+  // Closing the form puts focus back on the Reply button.
+  const refocus = useRef(false)
+  const close = () => { refocus.current = true; setOpen(false) }
+  const send = useMutation({
+    mutationFn: (submitted: string) => run('add_comment', {
+      p_version_id: comment.version_id, p_body: submitted, p_kind: null, p_anchor: null, p_parent_id: comment.id, p_idempotency_key: key.key(),
+    }),
+    onSuccess: (_, submitted) => { key.renew(); setBody((current) => (current === submitted ? '' : current)); close(); return onSent() },
+  })
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      {replies.length > 0 && (
+        <ul aria-label="Replies" id={listId} className="replies">
+          {replies.map((r) => (
+            <li key={r.id}><span className="small muted">{author(r.author_id)} · {new Date(r.created_at).toLocaleString()}</span><p>{r.body}</p></li>
+          ))}
+        </ul>
+      )}
+      {!open ? (
+        <button className="small" style={{ justifySelf: 'start' }} aria-label={`Reply to ${author(comment.author_id)}: ${snippet(comment.body)}`} onClick={() => setOpen(true)}
+          ref={(button) => { if (button && refocus.current) { refocus.current = false; button.focus() } }}>Reply</button>
+      ) : (
+        <form className="stack" style={{ gap: 6 }} onSubmit={(e: FormEvent) => { e.preventDefault(); send.mutate(body) }}>
+          <label htmlFor={fieldId} className="small">Your reply</label>
+          <textarea id={fieldId} rows={2} autoFocus value={body} onChange={(e) => { key.renew(); setBody(e.target.value) }} {...describedBy(fieldError(send.error, 'body'), `${fieldId}-error`)} />
+          <div className="row small">
+            <Button type="submit" busy={send.isPending}>Send reply</Button>
+            <button type="button" onClick={close}>Cancel</button>
+          </div>
+          {send.error && <p id={`${fieldId}-error`} className="error small" role="alert">{fieldError(send.error, 'body') ?? explain(send.error)}</p>}
+        </form>
+      )}
     </div>
   )
 }
@@ -188,6 +235,7 @@ export function ReviewPage() {
                   <button onClick={() => resolve.mutate(c.id)} disabled={resolve.isPending}>Resolve</button>
                 )}
               </div>
+              <Replies comment={c} replies={comments.filter((r) => r.parent_id === c.id)} author={author} onSent={refresh} />
             </article>
           ))}
         </section>

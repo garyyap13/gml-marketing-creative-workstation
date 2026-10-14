@@ -200,3 +200,7 @@ svg.canvas:active { cursor: grabbing; }
 .bd-swatch.blue { background: light-dark(#e6f0fa, #1f3347); } .bd-swatch.purple { background: light-dark(#efedfc, #302a4d); }
 .bd-swatch[aria-pressed='true'] { outline: 2px solid var(--ink); }
 .bd-status-action { padding: 0 8px; font-size: 12px; }
+
+/* Replies under a review comment. */
+.replies { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 2px solid var(--line); display: grid; gap: 8px; }
+.replies p { margin: 2px 0 0; }
