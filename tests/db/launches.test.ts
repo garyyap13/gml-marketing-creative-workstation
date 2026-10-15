@@ -275,7 +275,7 @@ describe('Launches', () => {
     expect(await read(firstSeenArchived.variantId)).toEqual({ variant: 'retired', launches: [{ status: 'ended', origin: 'unplanned' }] })
   })
 
-  test('a renamed ad or a changed video becomes Mismatched without moving results; several codes make a Dynamic ad; a Variant with no Version still goes live', async () => {
+  test('a renamed ad or a changed video becomes Mismatched without moving results; several codes make a Dynamic ad with a Launch listing them; a Variant with no Version still goes live', async () => {
     const { marketing, jun, creativeId, variantId, versionId } = await approvedVideoVersion()
     const { adAccount, adAccountExternalId } = await demoAccounts()
     const planned = must(await planLaunch(marketing, versionId, 'ad', adFields(adAccount, 'Working mums')), 'plan_launch')
@@ -291,12 +291,17 @@ describe('Launches', () => {
     await publishMetaSync(adAccountExternalId, [{ ...recut, videoId: 'replaced-video' }])
     const ads = new Map(((await marketing.client.schema('meta').from('ads').select('external_id, match_state, launch_id')
       .in('external_id', [ad.id, recut.id, both.id, early.id])).data ?? []).map((a) => [a.external_id, a]))
-    const { data: unsubmittedLaunches } = await marketing.client.schema('launch').from('launches').select('status, origin, version_id, approval_flag').eq('variant_id', unsubmitted.id)
+    const { data: unsubmittedLaunches } = await marketing.client.schema('launch').from('launches').select('status, origin, version_id, approval_flag').eq('variant_id', unsubmitted.id).eq('is_dynamic', false)
+    const { data: dynamicLaunch } = await marketing.client.schema('launch').from('launches')
+      .select('variant_id, status, origin, is_dynamic, approval_flag, dynamic_ad_variants(variant_id)').eq('id', ads.get(both.id)?.launch_id).single()
     const { data: unsubmittedVariant } = await marketing.client.schema('creative').from('variants').select('state, meta_media_id').eq('id', unsubmitted.id).single()
 
     expect(ads.get(ad.id)).toEqual({ external_id: ad.id, match_state: 'mismatched', launch_id: planned.id })
     expect(ads.get(recut.id)?.match_state).toBe('mismatched')
     expect(ads.get(both.id)?.match_state).toBe('dynamic')
+    // The Dynamic Launch lists both Variants, the first one named first; the unsubmitted one makes it never approved.
+    expect(dynamicLaunch).toMatchObject({ variant_id: variantId, status: 'live', origin: 'unplanned', is_dynamic: true, approval_flag: 'never_approved' })
+    expect(dynamicLaunch?.dynamic_ad_variants.map((d: { variant_id: string }) => d.variant_id).sort()).toEqual([variantId, unsubmitted.id].sort())
     expect(unsubmittedLaunches).toEqual([{ status: 'live', origin: 'unplanned', version_id: null, approval_flag: 'never_approved' }])
     expect(unsubmittedVariant).toEqual({ state: 'live', meta_media_id: early.videoId })
   })

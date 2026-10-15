@@ -112,7 +112,7 @@ function FindingsPanel({ data, sections, picked, onPickSection, open, refresh }:
   // A note corrected without picking anything else keeps its time range (a picked section replaces it).
   const keptRange = correcting?.target === 'time_range' && !picked ? correcting : null
   const observationOnSection = draft.kind === 'observation' && (picked || keptRange)
-  const actionFor = (findingId: string) => data.actions.find((a) => a.finding_id === findingId)
+  const actionFor = (findingId: string) => data.actions.find((a) => a.finding_ids.includes(findingId))
   const sectionTitle = (id: string | null) => {
     const s = sections.find((x) => x.id === id)
     return s ? title(s) : 'A section'
@@ -231,7 +231,7 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
   const currency = plan.minimum_spend_currency ?? baseline?.scope?.currency ?? 'MYR'
   const superseded = new Set(data.findings.map((f) => f.supersedes_id).filter(Boolean))
   const current = data.findings.filter((f) => !superseded.has(f.id))
-  const [form, setForm] = useState({ findingId: '', change: '', ownerId: '', due: '', check: plan.check_date ?? '', spend: plan.minimum_spend?.toString() ?? '', criterion: '' })
+  const [form, setForm] = useState({ findingIds: [] as string[], change: '', ownerId: '', due: '', check: plan.check_date ?? '', spend: plan.minimum_spend?.toString() ?? '', criterion: '' })
   const [verdict, setVerdict] = useState({ value: '', note: '' })
   const [closing, setClosing] = useState({ summary: '', reason: '' })
   const open = plan.state !== 'completed' && plan.state !== 'cancelled'
@@ -245,14 +245,14 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
     mutationFn: () => run('link_plan_action', {
       p_plan_id: plan.id,
       p_action: {
-        kind: 'new_variant', finding_id: form.findingId || null, intended_change: form.change, success_criterion: form.criterion,
+        kind: 'new_variant', finding_ids: form.findingIds, intended_change: form.change, success_criterion: form.criterion,
         owner_id: form.ownerId || null, due_date: form.due || null, check_date: form.check || null,
         ...(form.spend.trim() ? { minimum_spend: /^\d+(\.\d{1,2})?$/.test(form.spend.replace(/[,\s]/g, '')) ? Number(form.spend.replace(/[,\s]/g, '')) : form.spend, minimum_spend_currency: currency } : {}),
       },
       p_expected_lock_version: plan.lock_version,
       p_idempotency_key: actionKey.key(),
     }),
-    onSuccess: () => { actionKey.renew(); setForm((f) => ({ ...f, findingId: '', change: '', criterion: '' })); return refresh() },
+    onSuccess: () => { actionKey.renew(); setForm((f) => ({ ...f, findingIds: [], change: '', criterion: '' })); return refresh() },
     onError: (error) => (error instanceof CommandError && error.code === 'conflict' ? refresh() : undefined),
   })
   // Each follow-up field's error shows at the field and is read with it.
@@ -299,13 +299,19 @@ function NextActionPanel({ data, canSteer, refresh }: { data: Data; canSteer: bo
         <form aria-label="Turn a finding into a test" className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}
           onSubmit={(e: FormEvent) => { e.preventDefault(); link.mutate() }}>
           <h3>Turn a finding into a test</h3>
-          <label>Finding
-            <select value={form.findingId} onChange={(e) => setF({ findingId: e.target.value })} {...tie('finding_id')}>
-              <option value="">Choose…</option>
-              {current.map((f) => <option key={f.id} value={f.id}>{f.kind === 'observation' ? 'Observation' : 'Hypothesis'}: {f.body.slice(0, 80)}</option>)}
-            </select>
-            {shown('finding_id')}
-          </label>
+          {/* One test can answer several Findings (learning.action_findings). */}
+          <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 4 }}
+            aria-describedby={fieldError(link.error, 'finding_id') ? `${errorIds}-finding_id` : undefined}>
+            <legend className="small muted">Findings this tests</legend>
+            {current.map((f) => (
+              <label key={f.id} className="row" style={{ gap: 6, color: 'var(--ink)', alignItems: 'start' }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={form.findingIds.includes(f.id)} aria-invalid={Boolean(fieldError(link.error, 'finding_id')) || undefined}
+                  onChange={() => setF({ findingIds: form.findingIds.includes(f.id) ? form.findingIds.filter((x) => x !== f.id) : [...form.findingIds, f.id] })} />
+                <span className="small">{f.kind === 'observation' ? 'Observation' : 'Hypothesis'}: {f.body.slice(0, 120)}</span>
+              </label>
+            ))}
+            <FieldError id={`${errorIds}-finding_id`} error={fieldError(link.error, 'finding_id')} standalone />
+          </fieldset>
           <p className="small muted">New Variant of {data.creative.code}, starting from {data.variant.code}'s labels.</p>
           <label>Change to make<textarea rows={2} maxLength={2000} value={form.change} onChange={(e) => setF({ change: e.target.value })} {...tie('intended_change')} />{shown('intended_change')}</label>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>

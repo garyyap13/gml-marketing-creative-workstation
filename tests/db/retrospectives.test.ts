@@ -152,7 +152,7 @@ describe('复盘 (Optimization Plans)', () => {
     const marketingOwner = await linkPlanAction(live.approver, plan.id, followUp(finding.id, live.marketing.memberId))
     const linked = await linkPlanAction(live.approver, plan.id, followUp(finding.id, live.jun.memberId))
     const { data: after } = await db.schema('learning').from('optimization_plans').select('state, accepted_at, check_date, minimum_spend, minimum_spend_currency').eq('id', plan.id).single()
-    const { data: action } = await db.schema('learning').from('plan_actions').select('kind, finding_id, variant_id, owner_id').eq('plan_id', plan.id).single()
+    const { data: action } = await db.schema('learning').from('plan_actions').select('kind, variant_id, owner_id, action_findings(finding_id)').eq('plan_id', plan.id).single()
     const { data: baseline } = await db.schema('creative').from('variants').select('creative_id, hook_type_id, length_id, aspect_ratio_id').eq('id', live.variantId).single()
     const { data: variant } = await db.schema('creative').from('variants')
       .select('code, creative_id, derived_from_variant_id, hook_type_id, length_id, aspect_ratio_id, state').eq('id', linked.data?.variant_id).single()
@@ -171,7 +171,7 @@ describe('复盘 (Optimization Plans)', () => {
     expect(linked.error).toBeNull()
     expect(after).toMatchObject({ state: 'in_progress', check_date: followUp('', '').check_date, minimum_spend: 500, minimum_spend_currency: 'MYR' })
     expect(after?.accepted_at).not.toBeNull()
-    expect(action).toEqual({ kind: 'new_variant', finding_id: finding.id, variant_id: linked.data?.variant_id, owner_id: live.jun.memberId })
+    expect(action).toEqual({ kind: 'new_variant', variant_id: linked.data?.variant_id, owner_id: live.jun.memberId, action_findings: [{ finding_id: finding.id }] })
     expect(variant).toMatchObject({
       creative_id: baseline?.creative_id, derived_from_variant_id: live.variantId, hook_type_id: baseline?.hook_type_id,
       length_id: baseline?.length_id, aspect_ratio_id: baseline?.aspect_ratio_id, state: 'in_production',
@@ -192,6 +192,31 @@ describe('复盘 (Optimization Plans)', () => {
     const action = must(await linkPlanAction(live.marketing, plan.id, followUp(finding.id, live.jun.memberId, { due_date: daysFromToday(0), check_date: daysFromToday(checkIn) })), 'link_plan_action')
     return { ...live, planId: plan.id as string, followUpId: action.variant_id as string }
   }
+
+  test('several current Findings can motivate one follow-up action; a superseded Finding or another 复盘\'s is refused', async () => {
+    const live = await liveVersionWithResults()
+    const plan = must(await writePlan(live.marketing, { version_id: live.versionId }, week), 'write_optimization_plan')
+    const other = must(await writePlan(live.marketing, { version_id: live.versionId }, week), 'write_optimization_plan')
+    const hypothesis = (who: typeof live.jun, planId: string, body: string, extra = {}) =>
+      appendFinding(who, planId, { kind: 'hypothesis', body, disposition: 'test', target: 'whole_video', ...extra })
+    const slowStart = must(await hypothesis(live.jun, plan.id, 'The opening is slow.'), 'append_retrospective_finding')
+    const lateProduct = must(await hypothesis(live.marketing, plan.id, 'The product appears too late.'), 'append_retrospective_finding')
+    const replaced = must(await hypothesis(live.jun, plan.id, 'The CTA is unclear.'), 'append_retrospective_finding')
+    must(await hypothesis(live.jun, plan.id, 'The CTA is too small.', { supersedes_id: replaced.id }), 'append_retrospective_finding')
+    const elsewhere = must(await hypothesis(live.jun, other.id, 'Another plan.'), 'append_retrospective_finding')
+    must(await changePlanState(live.marketing, plan.id, 'accepted'), 'change_plan_state')
+    const both = (ids: string[]) => ({ ...followUp(slowStart.id, live.jun.memberId), finding_id: undefined, finding_ids: ids })
+
+    const withReplaced = await linkPlanAction(live.marketing, plan.id, both([slowStart.id, replaced.id]))
+    const withOtherPlan = await linkPlanAction(live.marketing, plan.id, both([slowStart.id, elsewhere.id]))
+    const withNone = await linkPlanAction(live.marketing, plan.id, both([]))
+    const linked = await linkPlanAction(live.marketing, plan.id, both([slowStart.id, lateProduct.id, slowStart.id]))
+    const { data: links } = await live.jun.client.schema('learning').from('action_findings').select('finding_id').eq('action_id', linked.data?.id)
+
+    for (const refused of [withReplaced, withOtherPlan, withNone]) expect(fieldErrors(refused.error)).toEqual(['finding_id'])
+    expect(linked.error).toBeNull()
+    expect(links?.map((l) => l.finding_id).sort()).toEqual([slowStart.id, lateProduct.id].sort())
+  })
 
   test('Verdicts: only an Approver, from the check date; below the minimum spend the daily check records "not enough data"', async () => {
     const enough = await planWithFollowUp(0)

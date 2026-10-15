@@ -97,6 +97,7 @@ export type Creative = {
   creative_owner_id: string
   due_date: string
   first_live_at?: string | null
+  is_legacy?: boolean
   lock_version: number
 }
 
@@ -269,7 +270,7 @@ export function useCreative(id: string) {
     queryKey: ['creative', id],
     queryFn: async () => {
       const creative = await supabase.schema('creative').from('creatives')
-        .select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, first_live_at, lock_version')
+        .select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, first_live_at, is_legacy, lock_version')
         .eq('id', id).single()
       if (creative.error) throw creative.error
       const variants = await supabase.schema('creative').from('variants').select(variantColumns).eq('creative_id', id).order('code')
@@ -287,7 +288,7 @@ export function useVariant(id: string) {
       if (variant.error) throw variant.error
       const v = variant.data as Variant
       const [creative, files, versions, reviews, links] = await Promise.all([
-        supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, lock_version').eq('id', v.creative_id).single(),
+        supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, format_id, format_confirmed_by, narrative_style_id, creative_owner_id, due_date, first_live_at, is_legacy, lock_version').eq('id', v.creative_id).single(),
         supabase.schema('core').from('files').select(fileColumns).eq('variant_id', id).order('created_at'),
         supabase.schema('creative').from('versions').select('id, variant_id, version_number, submitted_at').eq('variant_id', id).order('version_number'),
         supabase.schema('review').from('reviews').select('id, version_id, variant_id, round_number, decision, decided_at, approval_end_reason, lock_version').eq('variant_id', id),
@@ -450,6 +451,9 @@ export type Launch = {
   utm_content: string | null
   cancel_reason: string | null
   thumbnail_file_id: string | null
+  is_dynamic: boolean
+  // For a Dynamic Launch, the codes of every Variant it lists (D-58).
+  dynamicCodes?: string[]
   created_at: string
   lock_version: number
 }
@@ -459,17 +463,32 @@ export function useLaunches(variantId: string) {
   return useQuery({
     queryKey: ['launches', variantId],
     queryFn: async () => {
+      // Its own Launches, and the Dynamic Launches that list it alongside other Variants (D-58).
+      const listed = await supabase.schema('launch').from('dynamic_ad_variants').select('launch_id').eq('variant_id', variantId)
+      if (listed.error) throw listed.error
+      const dynamicIds = (listed.data ?? []).map((d) => d.launch_id as string)
       const [launches, accounts] = await Promise.all([
         supabase.schema('launch').from('launches')
-          .select('id, kind, version_id, status, origin, approval_flag, account_id, planned_on, caption, post_link, campaign_name, ad_set_name, planned_budget, budget_currency, ad_name, utm_content, cancel_reason, thumbnail_file_id, created_at, lock_version')
-          .eq('variant_id', variantId).order('created_at'),
+          .select('id, kind, version_id, status, origin, approval_flag, account_id, planned_on, caption, post_link, campaign_name, ad_set_name, planned_budget, budget_currency, ad_name, utm_content, cancel_reason, thumbnail_file_id, is_dynamic, created_at, lock_version, dynamic_ad_variants(variant_id, position)')
+          .or(dynamicIds.length ? `variant_id.eq.${variantId},id.in.(${dynamicIds.join(',')})` : `variant_id.eq.${variantId}`).order('created_at'),
         selectAll<LaunchAccount>((from, to) =>
           supabase.schema('launch').from('accounts').select('id, platform, name, currency, time_zone, source').order('name').order('id').range(from, to)),
       ])
       if (launches.error) throw launches.error
       const thumbnails = await selectIn<StoredFile>((launches.data as Launch[]).map((l) => l.thumbnail_file_id).filter(Boolean) as string[], (chunk, from, to) =>
         supabase.schema('core').from('files').select(storedFileColumns).in('id', chunk).order('id').range(from, to))
-      return { launches: launches.data as Launch[], accounts, thumbnails: new Map(thumbnails.map((f) => [f.id, f])) }
+      const rows = (launches.data ?? []) as unknown as (Launch & { dynamic_ad_variants: { variant_id: string; position: number }[] })[]
+      // The codes of the Variants each Dynamic Launch lists; the variants table is in another schema, so it is read apart.
+      const listedCodes = await selectIn<{ id: string; code: string }>([...new Set(rows.flatMap((l) => l.dynamic_ad_variants.map((d) => d.variant_id)))],
+        (chunk, from, to) => supabase.schema('creative').from('variants').select('id, code').in('id', chunk).order('id').range(from, to))
+      const codeOf = new Map(listedCodes.map((v) => [v.id, v.code]))
+      return {
+        // In the order the ad's name gives them.
+        launches: rows.map(({ dynamic_ad_variants, ...l }) => ({
+          ...l, dynamicCodes: [...dynamic_ad_variants].sort((a, b) => a.position - b.position).map((d) => codeOf.get(d.variant_id) ?? '').filter(Boolean),
+        })),
+        accounts, thumbnails: new Map(thumbnails.map((f) => [f.id, f])),
+      }
     },
   })
 }
@@ -561,7 +580,7 @@ export type Finding = {
 export type PlanAction = {
   id: string
   kind: string
-  finding_id: string
+  finding_ids: string[]
   variant_id: string | null
   owner_id: string
   due_date: string
@@ -607,7 +626,7 @@ export function usePlan(id: string) {
           .select('id, role, variant_id, version_id, annotation_revision_id, files, launch_ids, date_from, date_to, scope, totals, missing, frozen_at').eq('plan_id', id).order('role'),
         selectAll<Finding>((from, to) => supabase.schema('learning').from('retrospective_findings')
           .select('id, kind, body, disposition, target, section_id, start_ms, end_ms, evidence_id, supersedes_id, author_id, created_at').eq('plan_id', id).order('created_at').order('id').range(from, to)),
-        supabase.schema('learning').from('plan_actions').select('id, kind, finding_id, variant_id, owner_id, due_date, intended_change, success_criterion, created_at').eq('plan_id', id).order('created_at'),
+        supabase.schema('learning').from('plan_actions').select('id, kind, variant_id, owner_id, due_date, intended_change, success_criterion, created_at, action_findings(finding_id)').eq('plan_id', id).order('created_at'),
         supabase.schema('reporting').from('plan_spend').select('currency, spend, counted, unreported_days').eq('plan_id', id),
         supabase.schema('creative').from('variants').select('id, code, creative_id, state, live_at').eq('id', p.baseline_variant_id).single(),
         supabase.schema('creative').from('versions').select('id, version_number, brief_version_id').eq('id', p.baseline_version_id).single(),
@@ -635,7 +654,9 @@ export function usePlan(id: string) {
         comparator: comparator ?? null,
         comparatorCode: (comparatorVariant.data as { code: string } | null)?.code ?? null,
         findings: findings,
-        actions: actions.data as PlanAction[],
+        // The Findings each action answers, several where they share one test (learning.action_findings).
+        actions: ((actions.data ?? []) as (Omit<PlanAction, 'finding_ids'> & { action_findings: { finding_id: string }[] })[])
+          .map(({ action_findings, ...a }) => ({ ...a, finding_ids: action_findings.map((f) => f.finding_id) })),
         actionVariants: (actionVariants.data ?? []) as { id: string; code: string }[],
         spend: (spend.data ?? []) as { currency: string; spend: number; counted: boolean; unreported_days: number }[],
         variant: baselineVariant,
@@ -890,12 +911,39 @@ export type AccountHealth = {
   account_id: string; platform: string; account_name: string; source: LaunchAccount['source']; currency: string | null; time_zone: string | null
   last_published_at: string | null; generation: number | null; quarantined: number; failed_since: number; ads_seen: number; ads_matched: number
   stale: boolean | null
+  connection_state: 'connected' | 'needs_reauthorisation' | 'revoked' | null
 }
 export type SyncProblem = {
   id: string; account_id: string; generation: number; row_locator: string; error: string; resolution: string | null; created_at: string; run_kind: string
 }
 
 export const PROBLEMS_SHOWN = 50
+
+// A live Post whose Meta ID isn't known yet, with the job resolving it (D-54).
+export type UnresolvedPost = {
+  launch_id: string; variant_id: string; variant_code: string; platform: string; account_name: string; post_link: string | null; live_at: string | null
+  job_state: 'queued' | 'running' | 'done' | 'parked' | null; job_attempts: number | null; last_error: string | null
+}
+// A Version file the Drive check flagged (D-69).
+export type DriveFlag = {
+  file_id: string; drift_state: 'changed' | 'trashed' | 'inaccessible'; last_checked_at: string | null
+  variant_id: string; variant_code: string; version_id: string; version_number: number
+}
+// Background work that stopped after its retries, or at once when retrying could not help.
+export type ParkedJob = { id: string; type: string; attempts: number; last_error: string | null; created_at: string; finished_at: string | null }
+
+// The Drive check's flags on one Variant's Version files.
+export function useDriveFlags(variantId: string) {
+  return useQuery({
+    queryKey: ['drive-flags', variantId],
+    queryFn: async () => {
+      const { data, error } = await supabase.schema('reporting').from('drive_flags')
+        .select('file_id, drift_state, last_checked_at, variant_id, variant_code, version_id, version_number').eq('variant_id', variantId)
+      if (error) throw error
+      return data as DriveFlag[]
+    },
+  })
+}
 
 // Data health (D-38): each account's last sync, the rows syncs set aside, Ads still to resolve, and Launches that went
 // live without an approval in effect.
@@ -904,7 +952,7 @@ export function useDataHealth() {
     queryKey: ['data-health'],
     queryFn: async () => {
       const count = (state: string) => supabase.schema('meta').from('ads').select('id', { count: 'exact', head: true }).eq('match_state', state)
-      const [accounts, problems, untracked, mismatched, flagged] = await Promise.all([
+      const [accounts, problems, untracked, mismatched, flagged, unresolvedPosts, driveFlags, parkedJobs] = await Promise.all([
         selectAll<AccountHealth>((from, to) => supabase.schema('reporting').from('data_health').select('*').order('account_name').order('account_id').range(from, to)),
         supabase.schema('reporting').from('sync_problems').select('id, account_id, generation, row_locator, error, resolution, created_at, run_kind')
           .order('created_at', { ascending: false }).order('id').limit(PROBLEMS_SHOWN),
@@ -912,12 +960,19 @@ export function useDataHealth() {
         selectAll<{ id: string; variant_id: string; kind: 'post' | 'ad'; approval_flag: NonNullable<Launch['approval_flag']> }>((from, to) =>
           supabase.schema('launch').from('launches').select('id, variant_id, kind, approval_flag').eq('status', 'live').not('approval_flag', 'is', null)
             .order('created_at').order('id').range(from, to)),
+        selectAll<UnresolvedPost>((from, to) => supabase.schema('reporting').from('unresolved_posts')
+          .select('launch_id, variant_id, variant_code, platform, account_name, post_link, live_at, job_state, job_attempts, last_error').order('live_at').order('launch_id').range(from, to)),
+        selectAll<DriveFlag>((from, to) => supabase.schema('reporting').from('drive_flags')
+          .select('file_id, drift_state, last_checked_at, variant_id, variant_code, version_id, version_number').order('variant_code').order('file_id').range(from, to)),
+        selectAll<ParkedJob>((from, to) => supabase.schema('reporting').from('parked_jobs')
+          .select('id, type, attempts, last_error, created_at, finished_at').order('finished_at', { ascending: false }).order('id').range(from, to)),
       ])
       for (const result of [problems, untracked, mismatched]) if (result.error) throw result.error
       const codes = await selectIn<{ id: string; code: string }>([...new Set(flagged.map((l) => l.variant_id))], (chunk, from, to) =>
         supabase.schema('creative').from('variants').select('id, code').in('id', chunk).order('id').range(from, to))
       return {
         accounts, problems: problems.data as SyncProblem[], flagged, untracked: untracked.count ?? 0, mismatched: mismatched.count ?? 0,
+        unresolvedPosts, driveFlags, parkedJobs,
         variantCode: new Map(codes.map((v) => [v.id, v.code])),
       }
     },

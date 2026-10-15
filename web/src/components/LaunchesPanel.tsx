@@ -92,6 +92,7 @@ function LaunchRow({ launch, account, thumbnail, picture, canAct, onChanged }: R
         <span className="tag">{launch.kind === 'post' ? 'Post' : 'Ad'}</span>
         <span className={launch.status === 'live' ? 'tag' : launch.status === 'planned' ? 'tag warn' : 'tag'}>{statusNames[launch.status]}</span>
         {launch.origin === 'unplanned' && <span className="tag warn">Unplanned: seen running in Meta</span>}
+        {launch.is_dynamic && <span className="tag">Dynamic ad: {launch.dynamicCodes?.join(', ')}</span>}
         {launch.approval_flag && <span className="tag danger">{flagNames[launch.approval_flag]}</span>}
         <span className="small muted">
           {[where, launch.kind === 'ad' ? [launch.campaign_name, launch.ad_set_name].filter(Boolean).join(' › ') : null,

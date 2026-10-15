@@ -9,7 +9,7 @@ import { ResultsPanel } from '../components/ResultsPanel'
 import { StartRetroPanel } from '../components/StartRetroPanel'
 import { describedBy, FieldError } from '../components/FieldError'
 import { CommandError, explain, fieldError, newKey, run } from '../lib/commands'
-import { stageNames, stageTrack, useFootage, useLabels, useVariant, variantStates, type FileRow, type Variant } from '../lib/data'
+import { stageNames, stageTrack, useDriveFlags, useFootage, useLabels, useVariant, variantStates, type FileRow, type Variant } from '../lib/data'
 import { useFormKey } from '../lib/forms'
 import { useMember } from '../lib/session'
 
@@ -77,6 +77,41 @@ function LabelsAndFootage({ variant, footageIds, linked, isVideo }: { variant: V
   )
 }
 
+// A Legacy Creative's Variant is live from the start, so its labels are filled in afterwards: each empty one once,
+// then it locks like any live Variant's (D-61).
+function LegacyLabels({ variant, withHookType }: { variant: Variant; withHookType: boolean }) {
+  const queryClient = useQueryClient()
+  const headingId = useId()
+  const empty = ([['hook_type_id', 'hook_type', 'Hook type'], ['length_id', 'length', 'Length'], ['aspect_ratio_id', 'aspect_ratio', 'Aspect ratio']] as const)
+    .filter(([key]) => variant[key] === null && (key !== 'hook_type_id' || withHookType))
+  const [labels, setLabels] = useState<Record<string, string | null>>({})
+  const save = useMutation({
+    mutationFn: () => run('set_variant_labels', {
+      p_variant_id: variant.id, p_labels: Object.fromEntries(Object.entries(labels).filter(([, value]) => value)), p_expected_lock_version: variant.lock_version,
+    }),
+    onSuccess: () => { setLabels({}); return queryClient.invalidateQueries({ queryKey: ['variant', variant.id] }) },
+  })
+  if (empty.length === 0) return null
+  return (
+    <section className="panel stack" aria-labelledby={headingId}>
+      <h2 id={headingId}>Fill in labels</h2>
+      <p className="small muted">This Variant came from an older ad, so its labels are filled in now. Each can be set once; it then locks, like any live Variant's.{withHookType ? '' : ' The Hook type can be set once the Creative\'s Format is a video.'}</p>
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+        {empty.map(([key, kind, label]) => (
+          <LabelSelect key={key} kind={kind} label={label} value={labels[key] ?? null} onChange={(v) => setLabels({ ...labels, [key]: v })} error={fieldError(save.error, key)} />
+        ))}
+      </div>
+      <div className="row spread">
+        <span />
+        <button onClick={() => save.mutate()} disabled={save.isPending || !Object.values(labels).some(Boolean)}>Save labels</button>
+      </div>
+      {save.error && !(save.error instanceof CommandError && Object.keys(save.error.fieldErrors).length) && <p className="error" role="alert">{explain(save.error)}</p>}
+    </section>
+  )
+}
+
+const driveStates: Record<string, string> = { changed: 'changed in Drive', trashed: 'in the Drive trash', inaccessible: "can't be read from Drive" }
+
 const failures: Record<string, string> = {
   wrong_type: "isn't a video or image of this Creative's Format",
   not_a_media_file: 'is a folder or a Google Docs file',
@@ -117,6 +152,7 @@ export function VariantPage() {
   const pending = data.data?.files.filter((f) => !f.attached_at) ?? []
   const ready = pending.filter((f) => f.verification_state === 'ready')
   const mediaKind = labels.data?.find((l) => l.id === data.data?.creative.format_id)?.media_kind
+  const driveFlags = useDriveFlags(id)
   const isCarousel = mediaKind === 'carousel'
   // People choose exactly which verified files to submit; carousel cards follow the order they are ticked.
   // With a single verified file waiting, it is chosen for them.
@@ -188,7 +224,12 @@ export function VariantPage() {
             return (
               <div key={version.id} className="row spread">
                 {review ? <Link to={`/reviews/${review.id}`}>Version {version.version_number}</Link> : <span>Version {version.version_number}</span>}
-                <span className="row small muted">submitted {new Date(version.submitted_at).toLocaleDateString()}<span className="tag">{outcome}</span></span>
+                <span className="row small muted">
+                  submitted {new Date(version.submitted_at).toLocaleDateString()}<span className="tag">{outcome}</span>
+                  {driveFlags.data?.filter((f) => f.version_id === version.id).slice(0, 1).map((f) => (
+                    <span key={f.file_id} className="tag danger">File {driveStates[f.drift_state]}</span>
+                  ))}
+                </span>
               </div>
             )
           })}
@@ -199,6 +240,8 @@ export function VariantPage() {
       {variant.live_at && <OtherPlatformResults variantId={variant.id} />}
       {variant.live_at && <StartRetroPanel variant={variant} versions={versions} />}
       <LaunchesPanel variant={variant} versions={versions} reviews={reviews} canPlan={me.team === 'marketing'} />
+
+      {isCreative && creative.is_legacy && variant.live_at && <LegacyLabels variant={variant} withHookType={mediaKind === 'video'} />}
 
       {isCreative && variant.live_at === null && (
         <LabelsAndFootage variant={variant} footageIds={footageIds} linked={linkedFootage} isVideo={mediaKind === 'video'} />

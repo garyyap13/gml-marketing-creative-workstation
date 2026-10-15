@@ -128,3 +128,22 @@ test('removing your own Admin access asks first, and changing your mind withdraw
   await edit.getByRole('button', { name: 'Cancel' }).click()
   await expect(members.getByRole('form')).toHaveCount(0)
 })
+
+test('the Admin turns a Breakdown on and off; others see which are on', async ({ browser }) => {
+  const admin = await signIn(browser, firstAdminEmail())
+  await admin.getByRole('link', { name: 'Settings' }).click()
+  const breakdowns = admin.getByRole('region', { name: 'Breakdowns' })
+  await expect(breakdowns.getByLabel('Age × gender')).toBeChecked()
+  await expect(breakdowns.getByLabel('Placement', { exact: true })).toBeChecked()
+  await expect(breakdowns.getByLabel('Country')).not.toBeChecked()
+  await breakdowns.getByLabel('Country').check()
+  await expect(breakdowns.getByLabel('Country')).toBeChecked()
+
+  const mei = await signIn(browser, await inviteMember('marketing', 'Mei'))
+  await mei.getByRole('link', { name: 'Settings' }).click()
+  await expect(mei.getByRole('region', { name: 'Breakdowns' }).getByLabel('Country')).toBeChecked()
+  await expect(mei.getByRole('region', { name: 'Breakdowns' }).getByLabel('Country')).toBeDisabled()
+
+  await breakdowns.getByLabel('Country').uncheck()
+  await expect(breakdowns.getByLabel('Country')).not.toBeChecked()
+})

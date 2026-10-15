@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { describedBy, FieldError } from '../components/FieldError'
 import { CommandError, explain, fieldError, run, runFunction } from '../lib/commands'
@@ -6,6 +6,7 @@ import { rebase, useDraft, useFormKey } from '../lib/forms'
 import { useLabels, useMembers, type MemberRow } from '../lib/data'
 import { labelLists, type LabelKind } from '../lib/labels'
 import { teamName, useMember } from '../lib/session'
+import { supabase } from '../lib/supabase'
 import { useTeamSettings } from '../lib/teamDate'
 
 const status = (m: MemberRow) => (!m.active ? 'Deactivated' : m.auth_user_id ? 'Active' : 'Invited')
@@ -305,12 +306,63 @@ function TeamTimeZone() {
   )
 }
 
+const breakdownNames: Record<string, string> = {
+  age_gender: 'Age × gender', placement: 'Placement', placement_device: 'Placement × device', country: 'Country', region: 'Region',
+}
+
+// The Meta Breakdowns the sync collects (D-35). The Admin turns sets on or off; everyone sees which are on.
+function Breakdowns() {
+  const me = useMember()
+  const queryClient = useQueryClient()
+  const headingId = useId()
+  const settings = useQuery({
+    queryKey: ['breakdown-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.schema('core').from('breakdown_settings').select('breakdown_set, enabled, lock_version').order('breakdown_set')
+      if (error) throw error
+      return data as { breakdown_set: string; enabled: boolean; lock_version: number }[]
+    },
+  })
+  // The box shows the new value while it saves, and the saved one once the list reloads.
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+  const toggle = useMutation({
+    mutationFn: (s: { breakdown_set: string; enabled: boolean; lock_version: number }) =>
+      run('set_breakdown', { p_breakdown_set: s.breakdown_set, p_enabled: !s.enabled, p_expected_lock_version: s.lock_version }),
+    onMutate: (s) => setSaving((current) => ({ ...current, [s.breakdown_set]: !s.enabled })),
+    onSettled: async (_, __, s) => {
+      await queryClient.invalidateQueries({ queryKey: ['breakdown-settings'] })
+      setSaving(({ [s.breakdown_set]: _done, ...rest }) => rest)
+    },
+  })
+  const ordered = [...(settings.data ?? [])].sort((a, b) => Object.keys(breakdownNames).indexOf(a.breakdown_set) - Object.keys(breakdownNames).indexOf(b.breakdown_set))
+  return (
+    <section className="panel stack" aria-labelledby={headingId}>
+      <h2 id={headingId}>Breakdowns</h2>
+      <p className="small muted">Meta results are also collected split by each Breakdown that is on. One turned on is collected from the next sync and the last 28 days; older history needs a backfill.</p>
+      {settings.error && <p className="error" role="alert">{explain(settings.error)}</p>}
+      <fieldset className="row" style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="sr-only">Breakdowns collected</legend>
+        {ordered.map((s) => (
+          <label key={s.breakdown_set} className="row" style={{ gap: 6, color: 'var(--ink)' }}>
+            <input type="checkbox" style={{ width: 'auto' }} checked={saving[s.breakdown_set] ?? s.enabled} disabled={!me.is_admin || toggle.isPending}
+              onChange={() => toggle.mutate(s)} />
+            {breakdownNames[s.breakdown_set] ?? s.breakdown_set}
+          </label>
+        ))}
+      </fieldset>
+      {!me.is_admin && <p className="small muted">The Admin changes these.</p>}
+      {toggle.error && <p className="error" role="alert">{explain(toggle.error)}</p>}
+    </section>
+  )
+}
+
 export function Settings() {
   return (
     <main className="page">
       <h1>Settings</h1>
       <Members />
       <TeamTimeZone />
+      <Breakdowns />
       <h2>Label lists</h2>
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         {labelLists.map((list) => <LabelList key={list.kind} {...list} />)}

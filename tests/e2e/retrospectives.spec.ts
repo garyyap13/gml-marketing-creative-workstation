@@ -91,7 +91,7 @@ test('the Hook Hypothesis becomes a follow-up Variant marked "From 复盘"; with
   const next = mei.getByRole('tabpanel', { name: 'Next action' })
   await next.getByRole('button', { name: 'Accept the plan' }).click()
   const form = next.getByRole('form', { name: 'Turn a finding into a test' })
-  await form.getByLabel('Finding').selectOption({ index: 1 })
+  await form.getByRole('group', { name: 'Findings this tests' }).getByRole('checkbox').first().check()
   await form.getByLabel('Change to make').fill('Show the product within the first three seconds. Keep the body, offer and CTA the same.')
   await form.getByLabel('Made by').selectOption({ label: 'Jun' })
   await form.getByLabel('Due date').fill(today())

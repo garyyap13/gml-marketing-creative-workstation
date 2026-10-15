@@ -9,11 +9,14 @@ const platforms: Record<string, string> = {
 const flags: Record<string, string> = { never_approved: 'live without approval', withdrawn: 'live after its approval was withdrawn', superseded: 'live after its approval was replaced' }
 const rows = (n: number) => (n === 1 ? '1 row set aside' : `${n} rows set aside`)
 const shown = (a?: Pick<AccountHealth, 'account_name' | 'source'>) => (a ? (a.source === 'stand_in' ? `${a.account_name} (demo)` : a.account_name) : '')
+const driveStates: Record<string, string> = { changed: 'changed after it was registered', trashed: 'is in the Drive trash', inaccessible: "can't be read from Drive" }
+const jobNames: Record<string, string> = { resolve_post: 'Finding a post\'s Meta ID', drive_check: 'Checking a Drive file' }
 const coverage = (a: AccountHealth) => (a.ads_seen ? `${a.ads_matched} of ${a.ads_seen} ads matched (${Math.round((a.ads_matched / a.ads_seen) * 100)}%)` : 'No ads yet')
 
 // Whether an account's data can be trusted right now. Only Meta ad accounts sync; Pages and Instagram arrive with B3,
 // and other platforms are entered by hand.
 function state(a: AccountHealth) {
+  if (a.connection_state === 'needs_reauthorisation' || a.connection_state === 'revoked') return { text: 'Meta connection lost: the Admin reconnects it', tone: 'danger' }
   if (a.platform !== 'meta_ad_account') return { text: a.platform === 'facebook_page' || a.platform === 'instagram' ? 'Organic results arrive with B3' : 'Entered by hand', tone: '' }
   if (!a.last_published_at) return { text: 'Never synced', tone: 'warn' }
   if (a.failed_since > 0) return { text: 'Last sync failed', tone: 'danger' }
@@ -27,6 +30,9 @@ export function DataHealth() {
   const headingId = useId()
   const problemsId = useId()
   const flaggedId = useId()
+  const postsId = useId()
+  const driveId = useId()
+  const jobsId = useId()
   if (data.isPending) return <p className="muted">Loading…</p>
   if (data.error) return <p className="error" role="alert">{explain(data.error)}</p>
   const d = data.data
@@ -90,6 +96,47 @@ export function DataHealth() {
           </ul>
         )}
       </section>
+      <section className="stack" aria-labelledby={postsId} style={{ gap: 6 }}>
+        <h3 id={postsId}>Posts waiting for their Meta ID</h3>
+        {d.unresolvedPosts.length === 0 && <p className="small muted">Every live Facebook and Instagram post is tied to Meta.</p>}
+        {d.unresolvedPosts.length > 0 && (
+          <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {d.unresolvedPosts.map((p) => (
+              <li key={p.launch_id} className="small">
+                <Link to={`/variants/${p.variant_id}`}>{p.variant_code}</Link> · {platforms[p.platform] ?? p.platform} · {p.account_name}
+                {' · '}{p.job_state === 'parked' ? <span className="error">not found: {p.last_error ?? 'no reason given'}</span>
+                  : p.job_state === 'queued' || p.job_state === 'running' ? 'looking it up' : 'not looked up yet'}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="stack" aria-labelledby={driveId} style={{ gap: 6 }}>
+        <h3 id={driveId}>Version files flagged in Drive</h3>
+        {d.driveFlags.length === 0 && <p className="small muted">No Version file has changed in Drive.</p>}
+        {d.driveFlags.length > 0 && (
+          <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {d.driveFlags.map((f) => (
+              <li key={f.file_id} className="small">
+                <Link to={`/variants/${f.variant_id}`}>{f.variant_code}</Link> · Version {f.version_number}'s file {driveStates[f.drift_state]}
+                {f.last_checked_at && <span className="muted"> · checked {new Date(f.last_checked_at).toLocaleString()}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {d.parkedJobs.length > 0 && (
+        <section className="stack" aria-labelledby={jobsId} style={{ gap: 6 }}>
+          <h3 id={jobsId}>Background work that stopped</h3>
+          <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {d.parkedJobs.map((j) => (
+              <li key={j.id} className="small">
+                {jobNames[j.type] ?? j.type} · {j.attempts === 1 ? 'tried once' : `tried ${j.attempts} times`} · <span className="error">{j.last_error ?? 'no reason given'}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <p className="small muted">Coverage is the share of an account's synced ads that are tied to one Variant. An ad account is stale after 12 hours without a sync, two missed 6-hourly syncs. Missing values are never counted as zero.</p>
     </section>
   )

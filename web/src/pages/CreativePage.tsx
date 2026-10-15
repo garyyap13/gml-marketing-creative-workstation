@@ -101,6 +101,9 @@ export function CreativePage() {
   const name = (labelId: string | null) => labels.data?.find((l) => l.id === labelId)?.name
   const formatItem = labels.data?.find((l) => l.id === creative.format_id)
 
+  // Labels lock at the first go-live; a Legacy Creative's empty ones can still be filled once (D-14, D-61).
+  const styleOpen = !creative.first_live_at || (creative.is_legacy && !creative.narrative_style_id)
+  const formatOpen = !creative.first_live_at || (creative.is_legacy && !creative.format_id)
   return (
     <main className="page">
       <div className="stack" style={{ gap: 4 }}>
@@ -112,17 +115,24 @@ export function CreativePage() {
         </div>
       </div>
       <section className="panel row" style={{ alignItems: 'end' }}>
+        {creative.is_legacy && (
+          <p className="small muted" style={{ flexBasis: '100%', margin: 0 }}>A Legacy Creative from an older ad: each empty label can be filled once, then it locks.</p>
+        )}
         {me.team === 'creative' ? (
-          <>
-            <div style={{ flex: '1 1 220px' }}><LabelSelect kind="narrative_style" label="Narrative style" value={style} onChange={setStyle} /></div>
-            <button onClick={() => saveStyle.mutate()} disabled={saveStyle.isPending}>Save Narrative style</button>
-          </>
+          styleOpen ? (
+            <>
+              <div style={{ flex: '1 1 220px' }}><LabelSelect kind="narrative_style" label="Narrative style" value={style} onChange={setStyle} /></div>
+              <button onClick={() => saveStyle.mutate()} disabled={saveStyle.isPending}>Save Narrative style</button>
+            </>
+          ) : (
+            <span style={{ flex: '1 1 220px' }}>Narrative style: {name(creative.narrative_style_id) ?? <span className="muted">not set</span>} <span className="small muted">· locked since go-live</span></span>
+          )
         ) : (
           <>
             <span style={{ flex: '1 1 220px' }}>Narrative style: {name(creative.narrative_style_id) ?? <span className="muted">not set yet</span>}</span>
-            {creative.first_live_at ? (
+            {!formatOpen ? (
               // The Format locks with the Creative's first go-live, like its labels (D-13).
-              <span className="small muted" style={{ flex: '1 1 200px' }}>Format locked since go-live on {new Date(creative.first_live_at).toLocaleDateString()}</span>
+              <span className="small muted" style={{ flex: '1 1 200px' }}>Format locked since go-live on {new Date(creative.first_live_at!).toLocaleDateString()}</span>
             ) : (
               <>
                 <div style={{ flex: '1 1 200px' }}><LabelSelect kind="format" label="Format" value={format} onChange={setFormat} /></div>
