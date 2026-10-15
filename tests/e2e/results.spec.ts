@@ -1,6 +1,5 @@
-import { expect, test } from '@playwright/test'
 import { demoAccounts, metaId, publishMetaSync, publishRawMetaSync, sampleAd } from '../support/meta'
-import { liveVersion, signIn, unique } from './support'
+import { expect, liveVersion, signIn, test, unique } from './support'
 
 test('Marketing resolves Untracked Ads from My Tasks; data health shows each sync and the rows it set aside', async ({ browser }) => {
   const { meiEmail, meiApi, variantId, variantCode } = await liveVersion()

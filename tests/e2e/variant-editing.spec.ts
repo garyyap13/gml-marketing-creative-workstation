@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { driveLink, fakeDriveFileId } from '../support/drive'
 import {
-  addLabel, call, driveReportsVideo, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, unique,
+  addLabel, call, driveReportsVideo, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test, unique,
 } from './support'
 
 test('the Variant page edits labels and Footage, and submits the file you choose', async ({ browser }) => {

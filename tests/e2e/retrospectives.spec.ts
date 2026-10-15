@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { operatorClient } from '../support/local'
-import { call, liveVersion, signIn, writePlan } from './support'
+import { call, expect, liveVersion, signIn, test, writePlan } from './support'
 
 // The team's today in its time zone (D-78), which due and check dates count from.
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())

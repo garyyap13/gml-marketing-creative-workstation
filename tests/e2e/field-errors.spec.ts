@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { call, inviteMember, memberClient, memberId, signIn, unique } from './support'
+import { call, expect, inviteMember, memberClient, memberId, signIn, test, unique } from './support'
 
 test('a field with an error is marked invalid and its error is read with it', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

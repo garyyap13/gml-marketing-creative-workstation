@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { call, liveVersion, signIn, unique } from './support'
+import { call, expect, liveVersion, signIn, test, unique } from './support'
 
 test('Marketing adds a TikTok account, enters a live Post\'s week by hand and imports a CSV; the Variant shows both', async ({ browser }) => {
   const { meiEmail, meiApi, versionId, variantId, variantCode } = await liveVersion()

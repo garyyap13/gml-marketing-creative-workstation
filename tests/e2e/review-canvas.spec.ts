@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test } from './support'
 
 test('the review canvas plays the Version in Drive\'s preview, with sections and comment pins on one timeline', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

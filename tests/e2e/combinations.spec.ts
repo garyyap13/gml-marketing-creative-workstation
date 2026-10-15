@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { dailyInsights, demoAccounts, metaId, publishMetaSync, sampleAd } from '../support/meta'
-import { addLabel, call, liveVersion, signIn, unique } from './support'
+import { addLabel, call, expect, liveVersion, signIn, test, unique } from './support'
 
 const day = (spend: string, leads: string) => ({ spend, impressions: '10000', reach: '8000', clicks: '200', leads })
 

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../support/meta'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test } from './support'
 
 const perDay = { spend: '300.00', impressions: '10000', reach: '8000', clicks: '250' }
 

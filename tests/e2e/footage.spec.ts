@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { addLabel, call, firstAdminClient, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, unique } from './support'
+import { addLabel, call, expect, firstAdminClient, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, test, unique } from './support'
 
 test('the Footage page adds a shoot with its RAW code and lists the Variants that use it', async ({ browser }) => {
   const admin = await firstAdminClient()

@@ -1,6 +1,5 @@
-import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, unique } from './support'
+import { call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test, unique } from './support'
 
 test('both teams use a whiteboard on a Brief: write, drag and link notes, add a frame, and remove a note', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

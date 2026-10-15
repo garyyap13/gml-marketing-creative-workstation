@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test } from './support'
 
 async function versionAwaitingReview() {
   const meiEmail = await inviteMember('marketing', 'Mei', true)

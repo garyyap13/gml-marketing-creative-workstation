@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { call, liveVersion, memberId, signIn, writePlan } from './support'
+import { call, expect, liveVersion, memberId, signIn, test, writePlan } from './support'
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
 
