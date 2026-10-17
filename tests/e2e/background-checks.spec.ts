@@ -89,3 +89,42 @@ test('a Dynamic ad\'s Launch shows on the page of every Variant it lists', async
     await expect(mei.getByRole('region', { name: 'Launches' }).getByText(`Dynamic ad: ${codes}`)).toBeVisible()
   }
 })
+
+test('a live Variant\'s Breakdowns show each value\'s spend, results and cost, one Breakdown at a time', async ({ browser }) => {
+  const meiEmail = await inviteMember('marketing', 'Mei', true)
+  const meiApi = await memberClient(meiEmail)
+  const junApi = await memberClient(await inviteMember('creative', 'Jun'))
+  const { creativeId } = await handedOffVideoBrief(meiApi, await memberId(junApi))
+  const { variantId, versionId, reviewId } = await submittedVideoVersion(junApi, creativeId)
+  const review = (await meiApi.schema('review').from('reviews').select('lock_version').eq('id', reviewId).single()).data
+  await call(meiApi, 'approve_version', { p_review_id: reviewId, p_version_id: versionId, p_expected_lock_version: review?.lock_version, p_idempotency_key: randomUUID() })
+  const accounts = await demoAccounts()
+  const planned = await call(meiApi, 'plan_launch', {
+    p_version_id: versionId, p_kind: 'ad', p_fields: { account_id: accounts.adAccount, campaign_name: 'Morning routine', ad_set_name: 'Working mums' }, p_idempotency_key: randomUUID(),
+  })
+  const ad = sampleAd(planned.ad_name, { adsetName: 'Working mums' })
+  const row = (extra: Record<string, string>, spend: string, leads: string) => ({
+    ad_id: ad.id, adset_id: ad.adsetId, date_start: '2026-10-05', date_stop: '2026-10-05', spend, impressions: '2000', reach: '1500', inline_link_clicks: '40',
+    attribution_setting: '7d_click_1d_view', results: [{ indicator: 'actions:onsite_conversion.lead_grouped', values: [{ value: leads }] }], ...extra,
+  })
+  const campaignId = metaId()
+  await publishRawMetaSync(accounts.adAccountExternalId, {
+    campaigns: [{ id: campaignId, name: 'Morning routine', objective: 'OUTCOME_LEADS' }],
+    adsets: [{ id: ad.adsetId, name: ad.adsetName, campaign_id: campaignId, optimization_goal: 'LEAD_GENERATION', attribution_setting: '7d_click_1d_view' }],
+    ads: [{ id: ad.id, name: ad.name, adset_id: ad.adsetId, effective_status: 'ACTIVE', creative: { video_id: ad.videoId } }],
+    insights: [row({}, '100.00', '4')],
+    breakdown_insights: [
+      { breakdown_set: 'age_gender', rows: [row({ age: '25-34', gender: 'female' }, '60.00', '3'), row({ age: '35-44', gender: 'female' }, '40.00', '1')] },
+      { breakdown_set: 'placement', rows: [row({ publisher_platform: 'instagram', platform_position: 'instagram_reels' }, '70.00', '3'), row({ publisher_platform: 'facebook', platform_position: 'feed' }, '30.00', '1')] },
+    ],
+  })
+
+  const mei = await signIn(browser, meiEmail)
+  await mei.goto(`/variants/${variantId}`)
+  const breakdowns = mei.getByRole('region', { name: 'Breakdowns' })
+  await expect(breakdowns.getByRole('row', { name: /25-34 · female/ })).toContainText(/RM\s?60\.00/)
+  await expect(breakdowns.getByRole('row', { name: /25-34 · female/ })).toContainText(/RM\s?20\.00/)
+  await breakdowns.getByRole('button', { name: 'Placement', exact: true }).click()
+  await expect(breakdowns.getByRole('row').nth(1)).toContainText('instagram · instagram reels')
+  await expect(breakdowns.getByRole('row', { name: /facebook · feed/ })).toContainText(/RM\s?30\.00/)
+})

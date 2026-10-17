@@ -669,6 +669,8 @@ The schedule (D-33–D-35):
 
 Each enabled Breakdown in `core.breakdown_settings` is its own breakdown schema, pulled alongside the totals. A newly enabled Breakdown is collected from the next sync and over the 28-day window; older history needs an explicit backfill (D-58).
 
+As built (2026-10-18), against the stand-in: a sync payload carries `breakdown_insights`, a list of `{ breakdown_set, rows }`, each row an insights row with the set's fields (e.g. `age`, `gender`). `app.record_insights` records a set's rows with the set's fields as the breakdown schema and the canonical JSON of the values as the breakdown key, with the same checks as totals. A set that isn't turned on is set aside whole; a row missing a value is set aside with the field named. The totals views read only rows without a breakdown, so the two paths never add up together. The Variant page shows a Breakdowns panel: its matched ads pooled per value within the scope with the most spend, other scopes named, missing figures shown as "—", and no Reach.
+
 Retries use bounded exponential backoff with jitter and honour Meta's retry hints. Once the retry budget is spent, a job is parked with a resumable cursor. Authorisation errors raise a reconnect task for the Admin; rate limits stay retryable.
 
 ### 8.3 CSV import and manual entry
@@ -713,7 +715,12 @@ As built in milestone A5c (D-76):
 - `data_health`
 - `optimization_backlog`
 
-They expose curated columns only and never raw payloads. Built so far: `variant_daily_results` (A3: each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons), `revision_values` (A3: the values of any published revision, for frozen Evidence), `variant_totals` (D-75), `data_health` and `sync_problems` (A5a, §8.5), and `ad_daily_results`, `combination` and `label_results` (A5b, §8.6). Claude's role reads only these views (D-08). Metric facts are aggregated before they are joined to one-to-many records.
+They expose curated columns only and never raw payloads. Built so far: `variant_daily_results` (A3: each matched single-Variant ad's current daily paid results, with scope, revision ID and availability reasons), `revision_values` (A3: the values of any published revision, for frozen Evidence), `variant_totals` (D-75), `data_health` and `sync_problems` (A5a, §8.5), and `ad_daily_results`, `combination` and `label_results` (A5b, §8.6). The reporting layer (2026-10-18) added the rest:
+- `breakdowns`: each synced ad's current daily Breakdown rows, with the set's fields, the values as JSON and the full scope. Pool only within one scope and one set; Reach is per row.
+- `pipeline`: every active Variant with its state, Production Stage, owners, due date, overdue flag (team time zone), last activity, and its next action and owner (PRD §8 "Current next action"). The Creative Owner owns it while in production or after changes. Awaiting review, it waits on whoever a submitted Version notifies (D-56): the Brief's Marketing Owner, plus the Approvers if that owner is not one, or the Approvers alone without a Brief. Approved or live, it waits on the Marketing Owner, or the Creative Owner without a Brief. `next_owner_role` names which; `next_owner_id` is the person, empty for the Approvers alone. A 复盘 follow-up is due on its action's due date.
+- `review_rounds`: one row per round with its Version, decision, decider, hours to decision and its comments and blocking comments (PRD §8 "Review rounds", "Review turnaround").
+- `optimization_backlog`: every 复盘 with its state, owner, baseline, check date, minimum spend, Verdict, current Findings, actions, and whether it is open, past its check date and has a Verdict (PRD §8 "Learning closure").
+`variant_results` and `combinations` are served by `variant_daily_results` with `variant_totals`, and by `combination`. Claude's role reads copies of the curated views (§9). Metric facts are aggregated before they are joined to one-to-many records.
 
 Formulas follow D-37, D-39 and D-58. Every ratio uses summed numerators and denominators from compatible rows:
 - Cost per Result = Σ spend ÷ Σ Results, for one result indicator.
@@ -833,10 +840,12 @@ Database access rules:
   - it removes `core.files` rows through `record_file_purge`;
   - both only for files that were never attached and are older than 30 days.
 - **Table ownership.** Runtime roles do not own tables. Owner and `BYPASSRLS` roles are used only for migrations, because PostgreSQL exempts table owners from RLS ([row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)).
-- **Claude's role** (D-08) is a login role, `reporting_reader`, with USAGE on `reporting` and SELECT on its views only.
-  - It has `default_transaction_read_only = on`, a statement timeout and a connection limit.
-  - Its credentials are kept outside the repository and rotated by the Admin.
-  - The views are owned by a non-login owner role, so `reporting_reader` never needs grants on base tables.
+- **Claude's role** (D-08) is `reporting_reader`, which cannot sign in to the database. Claude reads through the Data API with a token whose `role` claim names it, sent with the publishable key. The Data API exposes the `claude_reporting` schema for it, where it may SELECT 13 views and nothing else (AC-27).
+  - A database login was not used: on Supabase every login role inherits platform defaults this project can't revoke, such as the HTTP extension's public grants, and could switch a read-only default off in its own session. Through the Data API it runs no SQL of its own. Its requests to `reporting`, the base-table schemas and `api` are refused, `ingest` and `net` aren't exposed, and it has no commands and a 30-second statement timeout.
+  - The views are copies of 13 of the 15 curated `reporting` views. Left out: `parked_jobs` (operations) and `revision_values` (it mixes totals with Breakdown rows). The `reporting` views run as their caller, and a caller's view checks the caller's rights even inside another view, so Claude's views can't simply select from them.
+  - The copies are security barriers owned by the non-login role `reporting_owner`, so `reporting_reader` never needs grants on base tables. `reporting_owner` has SELECT on the 24 base tables they read and on chosen columns of 5 more (`core.members`, `audit.activity_log`, `ingest.quarantine_rows`, `ingest.connections`, `work.jobs`), with a read policy on each of the 29. It never sees a member's email or WhatsApp number, an activity payload (which can carry both), a raw Meta row, the Meta secret's name or a job's payload. A test checks those columns, and that the reader holds SELECT on the 13 views and nothing else.
+  - `app.refresh_claude_reporting()` rebuilds the copies from the current definitions; a migration that changes a reporting view calls it, and a test fails if a copy no longer matches. The schema's comment carries the D-37 and T-06 rules for adding figures up, so Claude reads them with the data.
+  - **Token (proposed).** The Admin mints Claude's token with an expiry and replaces it before it lapses, outside the repository. Whoever holds the signing key can mint a token for any role, so it is kept like the secret key. To cut Claude off at once, without touching the key, revoke `reporting_reader` from `authenticator`.
 
 Other protections:
 - **Secrets.** The Meta system-user token, the Google service-account key, the WhatsApp token and the webhook secret live in Supabase Vault or Edge Function secrets. They never appear in tables, the browser or logs, and signed URLs are redacted from logs.
@@ -930,6 +939,7 @@ Deployment prerequisites:
 - Supabase scheduled jobs for the SQL jobs and the Edge Function triggers.
 - Deployed Edge Functions.
 - The Meta system user, and the WhatsApp business number with approved templates (O-02).
+- Claude's read access (§9): `claude_reporting` added to the Data API's exposed schemas, and a way to mint Claude's token. Supabase's signing keys can't be extracted, so the token is signed with an imported key the project accepts or the legacy JWT secret; check the current signing-key documentation before choosing. On the hosted project, also confirm which platform defaults (the HTTP extension's grants, database-level settings) any role can see.
 - Database backups plus the Storage copy.
 - Health checks for scheduled jobs.
 
@@ -957,7 +967,7 @@ Launch and results features stay behind flags until their acceptance tests pass.
 | Reporting correction | A partial generation stays unpublished; a 28-day re-pull correction leaves frozen Evidence unchanged | AC-08, AC-10 |
 | Metric semantics | Fixtures for lifetime, combined scope, Reach, attribution, currency, null vs zero, summed-ratio Cost per Result, spend shares (Variant shares plus Dynamic, Untracked and Mismatched slices = 100%) and Label view pooling | AC-09, AC-20, AC-21 |
 | Authorization | Team and flag checks in every `api.*` function; RLS for `authenticated`; Storage policies. Cross-tenant tests removed in 1.1 (D-01) | AC-13 |
-| Data access | No browser access to `ingest`; Claude's role limited to read-only `reporting` views | AC-27 |
+| Data access | No browser access to `ingest`; Claude's role limited to read-only copies of the curated `reporting` views | AC-27 |
 | Notifications | Tasks derived from activity-log events in the command transaction; one WhatsApp message per personal task; the team task never sends WhatsApp; a failure leaves the task; webhook signature and deduplication | AC-01, AC-18, AC-22 |
 | Files | Brief attachment upload or link and its size limit; Launch thumbnail added while the Variant is live; CSV in the private import area; never-attached purge after 30 days through the Storage API from an Edge Function, never selecting Drive files | AC-06, AC-23, AC-26 |
 | Video annotations | Measured duration; transcript states; SRT/WebVTT import starts as a draft; non-overlapping primary sections; append-only annotation revisions; a recut gets its own annotations; `save_video_annotations` returns a conflict on a stale prior revision; Evidence keeps the cited annotation revision | AC-29, AC-30 |

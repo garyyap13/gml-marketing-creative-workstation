@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 // Helpers for the local Supabase stack, shared by the database tests and the browser journeys.
 
-type Status = { API_URL: string; PUBLISHABLE_KEY: string; SECRET_KEY: string; MAILPIT_URL: string }
+type Status = { API_URL: string; PUBLISHABLE_KEY: string; SECRET_KEY: string; MAILPIT_URL: string; JWT_SECRET: string }
 
 let status: Status | undefined
 

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
+import { BreakdownsPanel } from '../components/BreakdownsPanel'
 import { Button } from '../components/Button'
 import { LabelSelect } from '../components/LabelSelect'
 import { LaunchesPanel } from '../components/LaunchesPanel'
@@ -237,6 +238,7 @@ export function VariantPage() {
       </section>
 
       {variant.live_at && <ResultsPanel variantId={variant.id} />}
+      {variant.live_at && <BreakdownsPanel variantId={variant.id} />}
       {variant.live_at && <OtherPlatformResults variantId={variant.id} />}
       {variant.live_at && <StartRetroPanel variant={variant} versions={versions} />}
       <LaunchesPanel variant={variant} versions={versions} reviews={reviews} canPlan={me.team === 'marketing'} />

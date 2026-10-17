@@ -5,6 +5,10 @@ import { operatorClient, signedOutClient, testEmail } from '../../support/local'
 
 export { mailFor, operatorClient, signedOutClient, testEmail, waitForApi } from '../../support/local'
 
+// A date `days` from the team's today, in the team time zone the workstation starts with (D-78).
+export const dateIn = (timeZone: string, days = 0) => new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(Date.now() + days * 86_400_000))
+export const daysFromToday = (days: number) => dateIn('Asia/Kuala_Lumpur', days)
+
 // Local test sign-in uses generated passwords; real members sign in with Google or a magic link (D-70).
 export async function signedInClient(email = testEmail()): Promise<{ client: SupabaseClient; email: string }> {
   const password = randomUUID()
@@ -126,7 +130,7 @@ export async function newCreative(
     p_title: `Creative ${tag()}`,
     p_format_id: formatId,
     p_creative_owner_id: ownerId,
-    p_due_date: '2026-10-30',
+    p_due_date: daysFromToday(14),
     p_idempotency_key: randomUUID(),
   })
   if (error) throw new Error(`create_creative failed: ${error.message}`)

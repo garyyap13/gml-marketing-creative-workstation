@@ -17,6 +17,7 @@ This repository contains requirements, a UI concept, local Supabase migrations i
 - Extend Optimization Plans for 复盘; do not invent a parallel approval lifecycle. Ad-level results cannot establish a particular section's effect.
 - Storage is settled by D-64/D-65 and ADR 0007: every Version file, drafts and completed, stays in Google Drive, registered through read-only Drive access and checked for changes. Supabase Storage keeps only Brief attachments, Launch thumbnails and CSV imports. The Drive rules are confirmed in D-69 (TRD T-19); only the check timing remains proposed (PD-25).
 - The web client is a Vite + React + TypeScript single-page app using the Supabase client directly (D-66). Local development and tests use the Supabase CLI's local stack, which needs Docker Desktop.
+- A migration that creates or changes a `reporting` view ends with `select app.refresh_claude_reporting();` and adds a new curated view to that function's list: Claude's read-only role reads copies in `claude_reporting`, which otherwise go stale silently.
 - Supabase is the proposed database/auth backend. Do not reuse unrelated Supabase projects. No paid project or transcription provider has been authorized by this handoff.
 - V1 records Launches and reads Meta results. People publish and manage ads in Meta; the app does not create ads or change budgets.
 - Read relevant current provider documentation before implementing integrations. Keep secrets out of browser code and the repository.

@@ -932,6 +932,23 @@ export type DriveFlag = {
 // Background work that stopped after its retries, or at once when retrying could not help.
 export type ParkedJob = { id: string; type: string; attempts: number; last_error: string | null; created_at: string; finished_at: string | null }
 
+// One day of one matched ad's Breakdown row: the set's fields, the values, the scope and the figures (T-15).
+export type BreakdownRow = {
+  meta_ad_id: string; day: string; breakdown_set_fields: string; breakdown_values: Record<string, string>
+  channel_scope: string; time_zone: string; currency: string; attribution_setting: string; result_indicator: string
+  spend: number | null; impressions: number | null; link_clicks: number | null; results: number | null
+}
+
+// A Variant's Breakdown rows from its matched ads.
+export function useVariantBreakdowns(variantId: string) {
+  return useQuery({
+    queryKey: ['breakdowns', variantId],
+    queryFn: () => selectAll<BreakdownRow>((from, to) => supabase.schema('reporting').from('breakdowns')
+      .select('meta_ad_id, day, breakdown_set_fields, breakdown_values, channel_scope, time_zone, currency, attribution_setting, result_indicator, spend, impressions, link_clicks, results')
+      .eq('variant_id', variantId).eq('match_state', 'matched').order('day').order('meta_ad_id').order('revision_id').range(from, to)),
+  })
+}
+
 // The Drive check's flags on one Variant's Version files.
 export function useDriveFlags(variantId: string) {
   return useQuery({
