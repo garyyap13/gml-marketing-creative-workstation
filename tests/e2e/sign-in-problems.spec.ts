@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { magicLinkFor, signInCodeFor, testEmail } from '../support/local'
-import { call, firstAdminClient, inviteMember, memberClient, memberId, signIn } from './support'
+import { answerTo, call, firstAdminClient, inviteMember, memberClient, memberId, openSignInLink, sendSignInLink, signIn } from './support'
 
 test('an address nobody invited is told to ask the Admin', async ({ page }) => {
   await page.goto('/sign-in')
   await page.getByLabel('Email').fill(testEmail())
-  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  await sendSignInLink(page)
   await expect(page.getByRole('alert')).toContainText("hasn't been invited")
 })
 
@@ -24,9 +24,11 @@ test('the 6-digit code from the email signs you in on any device', async ({ page
   const email = await inviteMember('creative', 'Jun')
   await page.goto('/sign-in')
   await page.getByLabel('Email').fill(email)
-  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  expect((await sendSignInLink(page)).ok()).toBe(true)
   await page.getByLabel('6-digit code').fill(await signInCodeFor(email))
+  const verified = answerTo(page, '/auth/v1/verify')
   await page.getByRole('button', { name: 'Sign in with the code' }).click()
+  expect((await verified).ok()).toBe(true)
   await expect(page.getByRole('region', { name: 'The loop' })).toBeVisible()
 })
 
@@ -49,8 +51,8 @@ test('after signing in, an invited person lands on the page they were trying to 
   const email = await inviteMember('marketing', 'Mei')
   await page.goto('/footage')
   await page.getByLabel('Email').fill(email)
-  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
-  await page.goto(await magicLinkFor(email))
+  expect((await sendSignInLink(page)).ok()).toBe(true)
+  await openSignInLink(page, email)
   await expect(page.getByRole('heading', { name: 'Footage', exact: true })).toBeVisible()
 })
 

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { call, liveVersion, signIn, unique } from './support'
+import { answerTo, call, liveVersion, signIn, unique } from './support'
 
 test('Marketing adds a TikTok account, enters a live Post\'s week by hand and imports a CSV; the Variant shows both', async ({ browser }) => {
   const { meiEmail, meiApi, versionId, variantId, variantCode } = await liveVersion()
@@ -48,7 +48,9 @@ test('Marketing adds a TikTok account, enters a live Post\'s week by hand and im
   const csvForm = mei.getByRole('form', { name: 'Import a CSV' })
   await csvForm.getByLabel('Account').selectOption({ label: `GML on TikTok · TikTok · ${handle}` })
   await csvForm.getByLabel('CSV file').setInputFiles({ name: 'tiktok-week.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  const imported = answerTo(mei, '/functions/v1/import-csv')
   await csvForm.getByRole('button', { name: 'Import' }).click()
+  await imported
   await expect(csvForm.getByRole('status')).toContainText('Imported 1 row. 1 set aside.')
   await expect(csvForm.getByText('line 3: views: Write numbers without commas or currency signs')).toBeVisible()
   await expect(recent.getByRole('row', { name: /8–13 Oct 2026/ })).toContainText('tiktok-week.csv')

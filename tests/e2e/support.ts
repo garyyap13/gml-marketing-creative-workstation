@@ -5,8 +5,20 @@ import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '..
 import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../support/meta'
 import { inviteThroughFunction, magicLinkFor, operatorClient, signedOutClient, testEmail } from '../support/local'
 
-// The first Admin, signed in through the API, for arranging a journey's starting point.
-export async function firstAdminClient(): Promise<SupabaseClient> {
+// The first Admin, signed in through the API, for arranging a journey's starting point. Journeys invite members through
+// the Admin over a hundred times a run and every password sign-in costs the local auth server a bcrypt check (seconds
+// on a busy machine), so a worker signs in once and reuses the session for half its hour.
+let firstAdmin: { client: Promise<SupabaseClient>; until: number } | undefined
+export function firstAdminClient(): Promise<SupabaseClient> {
+  if (!firstAdmin || Date.now() > firstAdmin.until) {
+    const client = signInFirstAdmin()
+    firstAdmin = { client, until: Date.now() + 30 * 60_000 }
+    client.catch(() => { firstAdmin = undefined })
+  }
+  return firstAdmin.client
+}
+
+async function signInFirstAdmin(): Promise<SupabaseClient> {
   const client = signedOutClient()
   const { error } = await client.auth.signInWithPassword({
     email: process.env.FIRST_ADMIN_EMAIL as string,
@@ -36,11 +48,45 @@ export async function signIn(browser: Browser, email: string): Promise<Page> {
   const page = await (await browser.newContext()).newPage()
   await page.goto('/sign-in')
   await page.getByLabel('Email').fill(email)
-  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  expect((await sendSignInLink(page)).ok(), 'the sign-in email request').toBe(true)
   await expect(page.getByText('Check your email')).toBeVisible()
-  await page.goto(await magicLinkFor(email))
+  await openSignInLink(page, email)
   await expect(page.getByRole('region', { name: 'The loop' })).toBeVisible()
   return page
+}
+
+// The answer to the page's next POST to a local service path. A step that waits on the local stack (Auth, Storage, an
+// Edge Function) waits for that answer, bounded by the test's timeout, and then checks the page with the usual 5s.
+// The stack shares a 2-CPU Docker VM with other projects, so its answers vary from milliseconds to several seconds:
+// - Auth keeps no idle database connections and opens new ones for every request, which is slow when the VM is busy.
+//   The local stack enforces no per-IP rate limits, so those are not the cause.
+// - The edge runtime starts a function's worker on its first call and retires it after 400s or 1s of CPU; a starting
+//   worker loads supabase-js (under 1s on a quiet VM, about 3s on a busy one). verify-upload and import-csv are called
+//   so rarely that nearly every call starts one. An upload makes three requests from the page, and verify-upload five
+//   more, before the page changes.
+export const answerTo = (page: Page, path: string) =>
+  page.waitForResponse((r) => r.url().includes(path) && r.request().method() === 'POST')
+
+// The mail catcher has the message by the time the email request answers. Auth can refuse it for reasons a person
+// would answer by pressing the button again, so this does too, up to twice more:
+// - a 5xx when the database doesn't answer in time (seen once in a quiet run: 504 after 12.9s, "error finding user");
+// - a 429 when the address had a sign-in link less than a second ago (max_frequency), which memberClient's link can be.
+export async function sendSignInLink(page: Page) {
+  for (let attempt = 1; ; attempt++) {
+    const sent = answerTo(page, '/auth/v1/otp')
+    await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+    const answer = await sent
+    const refusal = answer.status() === 429 ? await answer.json().catch(() => ({})) : {}
+    const tooSoon = (refusal.code ?? refusal.error_code) === 'over_email_send_rate_limit'
+    if ((answer.status() < 500 && !tooSoon) || attempt === 3) return answer
+    if (tooSoon) await page.waitForTimeout(1_100)
+  }
+}
+
+export async function openSignInLink(page: Page, email: string) {
+  const exchanged = answerTo(page, '/auth/v1/token')
+  await page.goto(await magicLinkFor(email))
+  expect((await exchanged).ok(), 'the sign-in link').toBe(true)
 }
 
 // The sidebar's main navigation. Brief titles in the sidebar's tree can contain a page's name, so journeys move
@@ -69,19 +115,15 @@ export async function addLabel(client: SupabaseClient, kind: string, name: strin
 
 export const unique = (name: string) => `${name} ${randomUUID().slice(0, 6)}`
 
-// An invited member signed in through the API, for arranging data. The account gets a generated password
-// (local test only); the same person can still sign in to the browser with a magic link.
+// An invited member signed in through the API, for arranging data. The session comes from a sign-in link the operator
+// generates (no email is sent) rather than a password, which would cost the auth server a bcrypt hash to set and
+// another to check: 0.7–2.8s per member on a busy machine against 0.2–0.5s for the link. The same person can still sign
+// in to the browser with an emailed link.
 export async function memberClient(email: string): Promise<SupabaseClient> {
-  const password = randomUUID()
-  const admin = operatorClient()
-  const { data: users, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 })
-  if (listError) throw listError
-  const user = users.users.find((u) => u.email === email.toLowerCase())
-  if (!user) throw new Error(`no account for ${email}; invite them first`)
-  const updated = await admin.auth.admin.updateUserById(user.id, { password })
-  if (updated.error) throw updated.error
+  const link = await operatorClient().auth.admin.generateLink({ type: 'magiclink', email })
+  if (link.error) throw new Error(`no sign-in link for ${email} (invite them first): ${link.error.message}`)
   const client = signedOutClient()
-  const signedIn = await client.auth.signInWithPassword({ email, password })
+  const signedIn = await client.auth.verifyOtp({ token_hash: link.data.properties.hashed_token, type: 'magiclink' })
   if (signedIn.error) throw signedIn.error
   const accepted = await client.schema('api').rpc('accept_invitation')
   if (accepted.error) throw new Error(`accept_invitation failed: ${accepted.error.message}`)

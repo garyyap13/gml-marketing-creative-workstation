@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { pdf, png } from '../support/files'
-import { call, inviteMember, liveVersion, memberClient, memberId, signIn, unique } from './support'
+import { answerTo, call, inviteMember, liveVersion, memberClient, memberId, signIn, unique } from './support'
 
 test('Marketing attaches a script and a reference link to a Brief; the Creative Team downloads the script', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')
@@ -19,7 +19,9 @@ test('Marketing attaches a script and a reference link to a Brief; the Creative 
   await form.getByLabel('Role').selectOption({ label: 'Script' })
   await form.getByLabel('File', { exact: true }).setInputFiles({ name: 'Script v1 (final).pdf', mimeType: 'application/pdf', buffer: script })
   await expect(form.getByLabel('Label')).toHaveValue('Script v1 (final)')
+  let checked = answerTo(mei, '/functions/v1/verify-upload')
   await form.getByRole('button', { name: 'Attach' }).click()
+  await checked
   await expect(attachments.getByRole('link', { name: 'Script v1 (final)' })).toBeVisible()
   await expect(attachments.getByText('Script · Script v1 (final).pdf', { exact: false })).toBeVisible()
 
@@ -31,7 +33,9 @@ test('Marketing attaches a script and a reference link to a Brief; the Creative 
   // A file that isn't what its name says is refused by the check, with the reason.
   await form.getByLabel('File', { exact: true }).setInputFiles({ name: 'Moodboard.png', mimeType: 'image/png', buffer: Buffer.from('Hook: five minutes to get ready.') })
   await expect(form.getByLabel('Label')).toHaveValue('Moodboard')
+  checked = answerTo(mei, '/functions/v1/verify-upload')
   await form.getByRole('button', { name: 'Attach' }).click()
+  await checked
   await expect(form.getByRole('alert')).toContainText("The file's content is not a PNG image.")
 
   await form.getByLabel('Add a link').check()
@@ -65,7 +69,9 @@ test('a thumbnail added to a live Launch shows on the Launch and on the Variant 
   const mei = await signIn(browser, meiEmail)
   await mei.goto(`/variants/${variantId}`)
   const launches = mei.getByRole('region', { name: 'Launches' })
+  const checked = answerTo(mei, '/functions/v1/verify-upload')
   await launches.getByLabel('Thumbnail', { exact: true }).setInputFiles({ name: 'Cover.png', mimeType: 'image/png', buffer: png(1080, 1350) })
+  await checked
   await expect(launches.getByRole('img', { name: 'Ad thumbnail' })).toBeVisible()
   await expect.poll(() => launches.getByRole('img', { name: 'Ad thumbnail' }).evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1080)
 

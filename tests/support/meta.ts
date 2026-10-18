@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { operatorClient } from './local'
 
 // Stand-in for the Meta connection (TRD T-07): tests report accounts and published sync generations with the
@@ -8,11 +8,13 @@ import { operatorClient } from './local'
 const digits = (n: number) => Array.from(randomBytes(n), (b) => String(b % 10)).join('')
 export const metaId = () => `12020${digits(12)}`
 
-// Demo accounts, as the Meta connection would list them: a Facebook Page and an ad account.
+// Demo accounts, as the Meta connection would list them: a Facebook Page and an ad account. A journey run creates about
+// twenty and journeys find an account's row by its name, so names carry 8 random hex characters; 4 digits repeated.
 export async function demoAccounts(options: { currency?: string; timeZone?: string } = {}) {
-  const page = { platform: 'facebook_page', id: metaId(), name: `GML demo Page ${digits(4)}` }
+  const suffix = randomUUID().slice(0, 8)
+  const page = { platform: 'facebook_page', id: metaId(), name: `GML demo Page ${suffix}` }
   const adAccount = {
-    platform: 'meta_ad_account', id: `act_${digits(15)}`, name: `GML demo ads ${digits(4)}`,
+    platform: 'meta_ad_account', id: `act_${digits(15)}`, name: `GML demo ads ${suffix}`,
     currency: options.currency ?? 'MYR', timezone_name: options.timeZone ?? 'Asia/Kuala_Lumpur',
   }
   const { data, error } = await operatorClient().schema('worker').rpc('record_launch_accounts', { p_accounts: [page, adAccount] })
