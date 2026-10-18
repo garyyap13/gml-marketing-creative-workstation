@@ -7,7 +7,7 @@ Requirements and architecture for GML's internal workstation, where the Marketin
 | Document | Purpose |
 |---|---|
 | [Glossary (CONTEXT.md)](CONTEXT.md) | Canonical vocabulary (Brief, Creative, Variant, Version, Launch, Combination, …) and the terms to avoid |
-| [Interview decisions](docs/requirements/2026-10-11-interview-decisions.md) | Owner-confirmed decisions D-01…D-75 (including the confirmed defaults D-49–D-62) and the remaining open item O-02. The log wins when documents conflict |
+| [Interview decisions](docs/requirements/2026-10-11-interview-decisions.md) | Owner-confirmed decisions D-01…D-81 (including the confirmed defaults D-49–D-62) and the remaining open item O-02. The log wins when documents conflict |
 | [Architecture decision records](docs/adr/) | Hard-to-reverse decisions: Supabase, meaning-free codes, separation from the Video Orchestrator, lightweight Launch tracking, single company, commands as Postgres functions, Version files in Google Drive |
 | [Product Requirements Document (1.1)](docs/requirements/creative-workstation-prd.md) | Teams and roles, the six-step workflow, scope, screens, functional requirements, acceptance criteria and proposed defaults |
 | [Technical Requirements Document (1.1)](docs/requirements/creative-workstation-trd.md) | Supabase architecture, data model, RPC command contract, Meta sync and matching, security, notifications and verification |

@@ -245,6 +245,15 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Commits.** Each polish item is committed on the working branch once its tests, review and docs pass; nothing is pushed.
 - **D-79** Archiving Footage (formerly PD-29). The owner confirmed on 2026-10-14 that Footage is archived by the member who added it or by the Admin, as a Brief or Creative is archived by its owner (D-61). Archived Footage stays on the Variants that already use it, as history, but can't be added to more.
 
+## Interface direction
+
+- **D-81** How the workstation looks and is laid out. The owner compared three mockups on 2026-10-18 and accepted the recommended combination, which uses each one for the job it suits. *Numbered D-81 because D-80 is already taken on the `claude/creative-marketing-workstation-bf7783` branch.*
+  - **Overview.** Members land on an Overview after sign-in. It shows the six-step loop as stage tiles with counts, a short "Needs you" list, this week's live Variants by Cost per Result, and data health.
+  - **My Tasks.** My Tasks becomes an inbox: the task list on the left and the selected task beside it. A member can watch a Version, comment, and Approve or Request Changes without leaving the list, and keyboard shortcuts move between tasks. Approval still needs every Blocking Comment resolved. The review canvas (D-75) stays as the full-size view.
+  - **Creatives.** The Creatives page offers three views of the same Variants. Gallery, the Variant wall (D-75) with 9:16 thumbnails, is the default. Board shows lanes by state, and Table groups rows by Brief. The Creative canvas (D-75) stays.
+  - **Look.** Today's green light theme stays (D-66), and a dark theme is used in dark mode. A left sidebar holds the navigation and a Product → Brief tree for finding work. Codes are set in a monospace face.
+  - The mockups use sample data. They decide the direction only, not every detail of the build.
+
 ## Open
 
 - **O-02** Setup facts needed before integration:
