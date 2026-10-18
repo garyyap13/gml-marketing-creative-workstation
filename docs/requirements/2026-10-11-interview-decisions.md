@@ -190,7 +190,7 @@ The owner accepted the recommended answers on 2026-10-12.
   - While a file is flagged as changed, trashed or unreadable, its Version cannot be submitted, approved or used for a new Launch.
   - V1 stays read-only, so the workstation does not keep old Drive revisions from Drive's purge; the flag and recorded identity remain.
   - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step.
-  - The change check's timing and scope remain proposed under PD-25.
+  - The change check's timing and scope remained proposed under PD-25 until D-80 confirmed them.
 - **D-70** The team uses personal Gmail accounts, not Google Workspace. People sign in with Google using their personal Gmail, and email magic links remain as a backup. Only email addresses the Admin has invited can sign in, whichever method they use. Members view Version files in Drive with the same Google login.
 - **D-71** Raw footage gets its own code. The owner accepted the recommended answers on 2026-10-12:
   - **Footage** is one batch of raw material, a shoot session or one creator's delivery, kept in one Drive folder.
@@ -244,6 +244,11 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Team time zone.** "Today" for due dates, Verdict check dates and other team-wide dates is Asia/Kuala_Lumpur's today, and the Admin can change the time zone in Settings. Results entered for an account keep that account's own time zone.
   - **Commits.** Each polish item is committed on the working branch once its tests, review and docs pass; nothing is pushed.
 - **D-79** Archiving Footage (formerly PD-29). The owner confirmed on 2026-10-14 that Footage is archived by the member who added it or by the Admin, as a Brief or Creative is archived by its owner (D-61). Archived Footage stays on the Variants that already use it, as history, but can't be added to more.
+- **D-80** PD-25, PD-30, PD-31 and PD-32 are confirmed as written. The owner confirmed them on 2026-10-18:
+  - **Drive change check (the rest of the former PD-25).** The check runs every 6 hours, and on request from a Version or plan page. It covers the files of Versions under review, approved Versions in effect, Versions of Live Variants and files cited as Evidence. With D-69, every Drive Version file rule is now confirmed.
+  - **Legacy Codes (formerly PD-30).** A Legacy Code is the brand prefix, 2–12 letters and up to 6 digits (e.g. `GML-TESTI-0007`), found anywhere in an ad's name, bracketed or not. B3 checks the pattern against the real ad names and raises any that don't fit.
+  - **Legacy Creatives (formerly PD-31).** A Legacy Creative found by the backfill is owned by the Admin until someone takes it on, is due the day it was found, and takes the ad's name as its title. Its Legacy Code's Variant is not flagged as live without approval, because its ads predate the workstation: an exception to D-54. Variants added to it later are flagged as usual.
+  - **Dynamic Ads (formerly PD-32).** Once a Dynamic Ad has been shown, every Variant its Launch lists goes live and locks its labels, each flagged if its approval isn't in effect. Its results stay at ad level (D-31).
 
 ## Interface direction
 

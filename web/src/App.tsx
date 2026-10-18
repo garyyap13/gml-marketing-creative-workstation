@@ -18,6 +18,8 @@ const PlanPage = lazy(() => import('./pages/PlanPage').then((m) => ({ default: m
 const PlansPage = lazy(() => import('./pages/PlansPage').then((m) => ({ default: m.PlansPage })))
 const ResultsPage = lazy(() => import('./pages/ResultsPage').then((m) => ({ default: m.ResultsPage })))
 const ReviewPage = lazy(() => import('./pages/ReviewPage').then((m) => ({ default: m.ReviewPage })))
+const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })))
+const VersionLinkPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.VersionLinkPage })))
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
 const VariantPage = lazy(() => import('./pages/VariantPage').then((m) => ({ default: m.VariantPage })))
 const VideoContentPage = lazy(() => import('./pages/VideoContentPage').then((m) => ({ default: m.VideoContentPage })))
@@ -68,6 +70,7 @@ export function App() {
         <Route path="/variants/:id" element={<VariantPage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
         <Route path="/reviews/:id/canvas" element={<ReviewPage />} />
+        <Route path="/versions/:id" element={<VersionLinkPage />} />
         <Route path="/versions/:id/content" element={<VideoContentPage />} />
         <Route path="/footage" element={<FootagePage />} />
         <Route path="/results" element={<ResultsPage />} />
@@ -75,6 +78,7 @@ export function App() {
         <Route path="/plans/:id" element={<PlanPage />} />
         <Route path="/boards" element={<BoardsPage />} />
         <Route path="/boards/:id" element={<WhiteboardPage />} />
+        <Route path="/search" element={<SearchPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

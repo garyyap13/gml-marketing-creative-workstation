@@ -4,7 +4,7 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-79), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-79), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). The remaining proposed defaults, PD-25's Drive check timing and PD-30–PD-32 (Legacy Codes and Dynamic Launches), are listed in §11.3; PD-26–PD-28 are confirmed as D-77 and PD-29 as D-79. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
+Status: Requirements baseline revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-80), including the defaults confirmed in later passes (D-49–D-59, D-61, D-66–D-80), the clarifications in D-60 and D-62, the retrospective in D-63 and Version files in Google Drive (D-64, D-65). PD-26–PD-28 are confirmed as D-77, PD-29 as D-79, and PD-25's Drive check timing and PD-30–PD-32 (Legacy Codes and Dynamic Launches) as D-80, so no proposed product defaults remain. Sizing and operations numbers stay proposed (D-58). No production implementation is claimed.
 
 Audience: Marketing Team, Creative Team, product owner, designer, engineering and QA.
 
@@ -309,7 +309,7 @@ Only signed-in members can reach records, previews, downloads and exports (D-02,
 - A scheduled check re-reads recorded files. A file that has changed, been trashed or can no longer be read is flagged on the Version and on data health. Approval never carries over to changed content: the existing new-Version or new-Variant path applies (D-25, D-53).
 - Working files remain paste-only links with no Drive access (D-62). A working-file link is never accepted as a Version file, and pasting any Drive link does not itself submit or approve a Version.
 - Each Version's file is named `<variant code>_v<number>`, e.g. `GML-0007-B_v2.mp4`. A Drive file backs at most one Version, and nobody uploads new content over an older Version's file. Access is a read-only Google service account with Viewer access to the folder. While a file is flagged, its Version cannot be submitted, approved or used for a new Launch. V1 has no write access, so Drive may purge a replaced revision; the flag and recorded identity remain. In-app playback is chosen after testing Drive's embedded preview against a streaming player (D-69).
-- The check timing is proposed under PD-25.
+- The check runs every 6 hours, and on request from a Version or plan page, for the files of Versions under review, approved Versions in effect, Versions of Live Variants and files cited as Evidence (D-80).
 
 **Storage** is private. It holds Brief attachments, Launch thumbnails and CSV import files, and the CSV files sit in a separate private import area (D-52, D-59, D-62).
 
@@ -583,7 +583,7 @@ No duration or cost estimate is committed until staffing, the Supabase plan (re-
 | Deletion exception | Files never attached to any record are hard-deleted after 30 days by an Edge Function through the Storage API. This is the only exception to D-46 | D-59, D-62 |
 | Video content metadata | Each video Version stores its measured duration, Transcript and Content Sections; the annotation model is confirmed, with SRT/WebVTT import | D-60, D-68 |
 | Creative Retrospective | 复盘 inside Optimization Plans, extending the existing learning loop; the FR-17 / T-18 design is confirmed | D-63, D-68 |
-| Version files in Google Drive | Drafts and completed files for every format stay in Drive, with read-only registration, a frozen identity and change flags; the D-69 rules apply, and only the check timing remains PD-25 | D-64, D-65, D-69, ADR 0007 |
+| Version files in Google Drive | Drafts and completed files for every format stay in Drive, with read-only registration, a frozen identity and change flags; the D-69 rules apply, and D-80 sets the check timing | D-64, D-65, D-69, D-80, ADR 0007 |
 | Frontend stack | Vite + React + TypeScript single-page app using the Supabase client directly, styled from the mockup's tokens; hosting chosen before deployment | D-66 |
 | Brief hypothesis | Optional "what we want to learn" on the Brief version, shown in the retrospective with any source plan's hypothesis | D-67 |
 | Footage | Raw footage batches with `RAW-` codes, linked to Variants, locked at go-live, optional usable-until date | D-71 |
@@ -631,21 +631,12 @@ Notification routing (D-56):
 | ID | Question | Needed by |
 |---|---|---|
 | O-02 | Setup facts: the dedicated WhatsApp number; the Business Manager admin; the list of ad accounts, Pages and Instagram accounts; the Google Drive folder for Version files and the account that owns it. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70 | Before integration (the WhatsApp number and Drive folder in M1, Meta access in M2) |
-| PD-25 | Drive change-check timing and scope (see §11.3) | Before the Drive integration in M1 is finalised |
-| PD-30–PD-32 | The Legacy Code pattern, who owns a Legacy Creative, and whether a Dynamic Ad puts every Variant live (see §11.3) | Before the backfill in B3 |
 
 The former O-01 (where domain commands run) is decided as D-48 / ADR 0006. The Shared Drive vs My Drive question is closed by D-62.
 
 ### 11.3 Remaining proposed defaults
 
-PD-01…PD-18 are now decisions D-49–D-59, PD-19…PD-22 are D-61, PD-23 and PD-24 are D-68, PD-25 is D-69 apart from the item below (see §11.1), PD-26–PD-28 are D-77, and PD-29 is D-79. The items below remain unconfirmed. Sizing and operations numbers stay proposed by decision (D-58) and are not listed here.
-
-| ID | Proposed default | Where used |
-|---|---|---|
-| PD-25 | Drive change check: runs every 6 hours and on request from a Version or plan page, covering the files of Versions under review, approved Versions in effect, Versions of Live Variants and files cited as Evidence. The rest of the former PD-25 is D-69 | FR-11, AC-32 |
-| PD-30 | A Legacy Code is the brand prefix, 2–12 letters and up to 6 digits (e.g. `GML-TESTI-0007`), found anywhere in an ad's name, bracketed or not. B3 checks it against the real ad names | FR-14, D-12 |
-| PD-31 | A Legacy Creative found by the backfill is owned by the Admin until someone takes it on, is due the day it was found, and takes the ad's name as its title. Its Legacy Code's Variant is not flagged as live without approval, since its ads predate the workstation: an exception to D-54. Variants added to it later are flagged as usual | FR-14, D-34, D-54 |
-| PD-32 | Once a Dynamic Ad has been shown, every Variant its Launch lists goes live (and locks its labels), each flagged if its approval isn't in effect; its results stay at ad level (D-31) | FR-14, D-31, D-58 |
+None remain. PD-01…PD-18 are now decisions D-49–D-59, PD-19…PD-22 are D-61, PD-23 and PD-24 are D-68, most of PD-25 is D-69, PD-26–PD-28 are D-77, PD-29 is D-79, and the rest of PD-25 and PD-30–PD-32 are D-80. Sizing and operations numbers stay proposed by decision (D-58).
 
 ## 12. Document precedence
 

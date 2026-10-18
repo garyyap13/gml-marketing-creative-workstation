@@ -44,7 +44,7 @@ One company (GML), approximately seven users. Marketing/Creative teams, an Appro
 
 ## Storage conflict to resolve before implementation
 
-**Resolved 2026-10-12.** The owner chose option A (D-64, D-65, ADR 0007): all Version files, drafts and completed, stay in Drive, with read-only registration and change checks. D-69 / TRD T-19 hold the confirmed details; only the check timing remains proposed (PD-25). The original note is kept below for history.
+**Resolved 2026-10-12.** The owner chose option A (D-64, D-65, ADR 0007): all Version files, drafts and completed, stay in Drive, with read-only registration and change checks. D-69 / TRD T-19 hold the confirmed details; D-80 confirms the check timing. The original note is kept below for history.
 
 The owner said in this conversation: “all complete stores in google drive.” The current architecture shown to the owner therefore puts completed creative media in Google Drive, with structured metadata in the database. They already use a shared folder in someone's My Drive. No folder link has been supplied.
 
