@@ -110,6 +110,8 @@ Creative Codes are `<brand prefix>-<sequence>`, zero-padded to four digits and a
 
 A Variant code is the Creative Code plus `-` and the Creative's next letter, e.g. `GML-0007-B`; after `Z` come `AA`, `AB` and so on (D-58). Codes carry no other meaning (ADR 0002). Footage Codes are a separate sequence, `RAW-0001` and so on, with no brand prefix, so the brand prefix may never be `RAW` (D-71). Each code is unique across Creatives, Variants and Legacy Codes. Legacy Codes such as `GML-TESTI-0007` are kept as aliases in `creative.legacy_codes`, and the ad-name parser accepts them (D-12).
 
+**Search and links (FR-12, AC-14; as built).** The search box at the top of every page (`/` reaches it) finds Creative, Variant and Legacy Codes, a Version by its Drive file name (`GML-0007-B_v2.mp4`) or as "GML-0007-B v2", and Creative and Brief titles, archived ones included. The browser reads them under member RLS, with no new tables or commands. A code that names exactly one record, or a Version, opens it; otherwise `/search?q=` lists the matches, up to 20 for each code or title searched, exact codes first. An exact Version's link is `/versions/<id>`, which opens the Review showing it; each submitted Version has exactly one. Footage Codes aren't searched yet.
+
 Data types:
 - Platform IDs are text, unique per platform, account and object type.
 - Timestamps are `timestamptz`, and source reporting dates, period boundaries and account time zones are preserved.

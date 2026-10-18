@@ -1,6 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { useQuery } from '@tanstack/react-query'
 import type { LabelItem } from './labels'
+import { likeText, rankHits, versionQuery, type SearchHit } from './search'
 import { supabase } from './supabase'
 import { storedFileColumns, type StoredFile } from './uploads'
 
@@ -1119,6 +1120,81 @@ export function useManualResults(variantId?: string) {
       const files = await selectIn<{ id: string; name: string }>([...new Set(rows.map((r) => r.file_id).filter(Boolean) as string[])], (chunk, from, to) =>
         supabase.schema('core').from('files').select('id, name').in('id', chunk).order('id').range(from, to))
       return { rows, fileName: new Map(files.map((f) => [f.id, f.name])) }
+    },
+  })
+}
+
+// Briefs, Creatives, Variants, Legacy Codes and exact Versions matching a code or title (FR-12, AC-14), at most 20 per
+// code or title searched, ranked by how closely they match. Archived records are found too, and say so.
+export function useSearch(text: string) {
+  const q = text.trim()
+  return useQuery({
+    queryKey: ['search', q],
+    enabled: q.length >= 2,
+    queryFn: async (): Promise<SearchHit[]> => {
+      const pattern = `%${likeText(q)}%`
+      const version = versionQuery(q)
+      // The untyped client reads each embedded record as a list; the API returns one record for a to-one link.
+      const rows = async <T,>(query: PromiseLike<{ data: unknown; error: PostgrestError | null }>) => {
+        const { data, error } = await query
+        if (error) throw error
+        return (data ?? []) as T[]
+      }
+      type Creative = { id: string; code: string; title: string; is_legacy: boolean; archived_at: string | null }
+      const creativeColumns = 'id, code, title, is_legacy, archived_at'
+      const [variants, creativesByCode, creativesByTitle, legacy, briefs, versions] = await Promise.all([
+        rows<{ id: string; code: string; state: Variant['state']; creatives: { title: string } }>(supabase.schema('creative').from('variants')
+          .select('id, code, state, creatives(title)').ilike('code', pattern).order('code').limit(20)),
+        rows<Creative>(supabase.schema('creative').from('creatives').select(creativeColumns).ilike('code', pattern).order('code').limit(20)),
+        rows<Creative>(supabase.schema('creative').from('creatives').select(creativeColumns).ilike('title', pattern).order('title').limit(20)),
+        rows<{ code: string; variant_id: string; creatives: { code: string; title: string } }>(supabase.schema('creative')
+          .from('legacy_codes').select('code, variant_id, creatives(code, title)').ilike('code', pattern).order('code').limit(20)),
+        rows<{ id: string; title: string; archived_at: string | null }>(supabase.schema('brief').from('briefs')
+          .select('id, title, archived_at').ilike('title', pattern).order('title').limit(20)),
+        version
+          ? rows<{ id: string; version_number: number; variants: { code: string; creatives: { title: string } } }>(supabase.schema('creative')
+            .from('versions').select('id, version_number, variants!inner(code, creatives(title))')
+            .eq('version_number', version.number).ilike('variants.code', likeText(version.variantCode)).limit(20))
+          : [],
+      ])
+      const same = (code: string) => code.toLowerCase() === q.toLowerCase()
+      const archived = (at: string | null) => (at ? 'Archived' : '')
+      return rankHits(q, [
+        ...versions.map((v): SearchHit => ({
+          kind: 'version', id: v.id, code: `${v.variants.code} v${v.version_number}`, title: v.variants.creatives.title,
+          note: `Version ${v.version_number}`, to: `/versions/${v.id}`, exact: true,
+        })),
+        ...variants.map((v): SearchHit => ({
+          kind: 'variant', id: v.id, code: v.code, title: v.creatives.title, note: variantStates[v.state], to: `/variants/${v.id}`, exact: same(v.code),
+        })),
+        ...[...creativesByCode, ...creativesByTitle].map((c): SearchHit => ({
+          kind: 'creative', id: c.id, code: c.code, title: c.title, note: [c.is_legacy ? 'Legacy Creative' : '', archived(c.archived_at)].filter(Boolean).join(' · '),
+          to: `/creatives/${c.id}`, exact: same(c.code),
+        })),
+        ...legacy.map((l): SearchHit => ({
+          kind: 'legacy', id: l.code, code: l.code, title: `${l.creatives.code} ${l.creatives.title}`, note: '',
+          to: `/variants/${l.variant_id}`, exact: same(l.code),
+        })),
+        ...briefs.map((b): SearchHit => ({ kind: 'brief', id: b.id, code: null, title: b.title, note: archived(b.archived_at), to: `/briefs/${b.id}`, exact: false })),
+      ])
+    },
+  })
+}
+
+// Where an exact Version's link leads: its Review, which shows that Version (a Version is reviewed once), or failing
+// that its Variant. Null when the Version doesn't exist or isn't visible.
+export function useVersionHome(versionId: string) {
+  return useQuery({
+    queryKey: ['version-home', versionId],
+    queryFn: async () => {
+      const [review, version] = await Promise.all([
+        supabase.schema('review').from('reviews').select('id').eq('version_id', versionId).maybeSingle(),
+        supabase.schema('creative').from('versions').select('variant_id').eq('id', versionId).maybeSingle(),
+      ])
+      if (review.error) throw review.error
+      if (version.error) throw version.error
+      if (!version.data) return null
+      return review.data ? `/reviews/${review.data.id}` : `/variants/${version.data.variant_id}`
     },
   })
 }
