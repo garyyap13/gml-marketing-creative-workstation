@@ -781,9 +781,10 @@ export type VariantTotal = {
   spend: number | null; results: number | null; days: number; unreported: number
 }
 
-// Every Variant that isn't cancelled (nor in an archived Creative), with what the wall filters and compares by: its
-// labels, its Brief's labels, its Footage, its results totals per scope for the dates, and whether a 复盘 asked for
-// it (D-75). Totals are summed in the database.
+// Every Variant that isn't cancelled (nor in an archived Creative), for the Creatives views (D-75, D-81): its labels,
+// its Creative's owner and due date, its Brief and that Brief's labels, its Footage, its newest Version, its results
+// totals per scope for the dates, and whether a 复盘 asked for it and against which baseline. Totals are summed in the
+// database.
 export function useVariantWall(from: string, to: string) {
   return useQuery({
     queryKey: ['wall', from, to],
@@ -791,31 +792,45 @@ export function useVariantWall(from: string, to: string) {
     queryFn: async () => {
       const all = await selectAll<Variant>((f, t2) =>
         supabase.schema('creative').from('variants').select(variantColumns).neq('state', 'cancelled').order('code').range(f, t2))
-      const creatives = await selectIn<{ id: string; code: string; title: string; brief_version_id: string | null; format_id: string | null; narrative_style_id: string | null }>(
+      const creatives = await selectIn<{
+        id: string; code: string; title: string; brief_version_id: string | null; format_id: string | null; narrative_style_id: string | null
+        creative_owner_id: string; due_date: string | null
+      }>(
         [...new Set(all.map((v) => v.creative_id))], (chunk, f, t2) =>
-          supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, format_id, narrative_style_id').in('id', chunk).is('archived_at', null).order('id').range(f, t2))
+          supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, format_id, narrative_style_id, creative_owner_id, due_date')
+            .in('id', chunk).is('archived_at', null).order('id').range(f, t2))
       const creativeOf = new Map(creatives.map((c) => [c.id, c]))
       const variants = all.filter((v) => creativeOf.has(v.creative_id))
       const ids = variants.map((v) => v.id)
       const wanted = new Set(ids)
-      const [briefVersions, footageLinks, footage, totals, actions, thumbnailed] = await Promise.all([
-        selectIn<{ id: string; product_id: string | null; avatar_id: string | null; angle_id: string | null }>(
+      const [briefVersions, footageLinks, footage, totals, actions, thumbnailed, versions, formats] = await Promise.all([
+        selectIn<{ id: string; brief_id: string; product_id: string | null; avatar_id: string | null; angle_id: string | null }>(
           [...new Set(creatives.map((c) => c.brief_version_id).filter(Boolean) as string[])], (chunk, f, t2) =>
-            supabase.schema('brief').from('brief_versions').select('id, product_id, avatar_id, angle_id').in('id', chunk).order('id').range(f, t2)),
+            supabase.schema('brief').from('brief_versions').select('id, brief_id, product_id, avatar_id, angle_id').in('id', chunk).order('id').range(f, t2)),
         selectIn<{ variant_id: string; footage_id: string }>(ids, (chunk, f, t2) =>
           supabase.schema('creative').from('variant_footage').select('variant_id, footage_id').in('variant_id', chunk).is('removed_at', null).order('id').range(f, t2)),
         selectAll<{ id: string; code: string; title: string }>((f, t2) => supabase.schema('creative').from('footage').select('id, code, title').order('code').range(f, t2)),
         selectAll<VariantTotal>((f, t2) => supabase.schema('reporting').rpc('variant_totals', { p_from: from || null, p_to: to || null })
           .order('variant_id').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t2)),
-        selectIn<{ variant_id: string }>(ids, (chunk, f, t2) =>
-          supabase.schema('learning').from('plan_actions').select('variant_id').in('variant_id', chunk).order('variant_id').range(f, t2)),
+        selectIn<{ variant_id: string; baseline_evidence_id: string | null }>(ids, (chunk, f, t2) =>
+          supabase.schema('learning').from('plan_actions').select('variant_id, baseline_evidence_id').in('variant_id', chunk).order('variant_id').range(f, t2)),
         selectIn<{ variant_id: string; thumbnail_file_id: string; created_at: string }>(ids, (chunk, f, t2) =>
           supabase.schema('launch').from('launches').select('variant_id, thumbnail_file_id, created_at').in('variant_id', chunk)
             .not('thumbnail_file_id', 'is', null).order('created_at').order('id').range(f, t2)),
+        selectIn<{ variant_id: string; version_number: number }>(ids, (chunk, f, t2) =>
+          supabase.schema('creative').from('versions').select('variant_id, version_number').in('variant_id', chunk).order('variant_id').order('version_number').range(f, t2)),
+        selectIn<{ id: string; media_kind: string | null }>([...new Set(creatives.map((c) => c.format_id).filter(Boolean) as string[])], (chunk, f, t2) =>
+          supabase.schema('label').from('items').select('id, media_kind').in('id', chunk).order('id').range(f, t2)),
+      ])
+      const [briefs, thumbnailFiles, evidence] = await Promise.all([
+        selectIn<{ id: string; title: string }>([...new Set(briefVersions.map((b) => b.brief_id))], (chunk, f, t2) =>
+          supabase.schema('brief').from('briefs').select('id, title').in('id', chunk).order('id').range(f, t2)),
+        selectIn<StoredFile>([...new Set(thumbnailed.map((l) => l.thumbnail_file_id))], (chunk, f, t2) =>
+          supabase.schema('core').from('files').select(storedFileColumns).in('id', chunk).order('id').range(f, t2)),
+        selectIn<{ id: string; variant_id: string }>([...new Set(actions.map((a) => a.baseline_evidence_id).filter(Boolean) as string[])], (chunk, f, t2) =>
+          supabase.schema('learning').from('plan_evidence').select('id, variant_id').in('id', chunk).order('id').range(f, t2)),
       ])
       // Each Variant shows the most recently set of its Launches' thumbnails.
-      const thumbnailFiles = await selectIn<StoredFile>([...new Set(thumbnailed.map((l) => l.thumbnail_file_id))], (chunk, f, t2) =>
-        supabase.schema('core').from('files').select(storedFileColumns).in('id', chunk).order('id').range(f, t2))
       const fileOf = new Map(thumbnailFiles.map((file) => [file.id, file]))
       const thumbnails = new Map<string, StoredFile>()
       for (const launch of thumbnailed) {
@@ -823,14 +838,24 @@ export function useVariantWall(from: string, to: string) {
         const shown = thumbnails.get(launch.variant_id)
         if (file && (!shown || (file.attached_at ?? '') > (shown.attached_at ?? ''))) thumbnails.set(launch.variant_id, file)
       }
+      const latestVersion = new Map<string, number>()
+      for (const v of versions) latestVersion.set(v.variant_id, Math.max(latestVersion.get(v.variant_id) ?? 0, v.version_number))
+      // Variants a 复盘 asked for, with the code of the baseline they test against (D-74).
+      const codeOf = new Map(all.map((v) => [v.id, v.code]))
+      const evidenceVariant = new Map(evidence.map((e) => [e.id, e.variant_id]))
+      const retroBaseline = new Map(actions.map((a) => [a.variant_id, codeOf.get(evidenceVariant.get(a.baseline_evidence_id ?? '') ?? '') ?? 'another Variant']))
       return {
         thumbnails,
         variants,
         creatives: creativeOf,
         briefVersions: new Map(briefVersions.map((b) => [b.id, b])),
+        briefs: new Map(briefs.map((b) => [b.id, b])),
+        mediaKinds: new Map(formats.map((f) => [f.id, f.media_kind])),
+        latestVersion,
         footageLinks, footage,
         totals: totals.filter((r) => wanted.has(r.variant_id)),
         fromRetro: new Set(actions.map((a) => a.variant_id)),
+        retroBaseline,
       }
     },
   })
@@ -896,32 +921,6 @@ export function useLinkTargets() {
         selectAll<{ id: string; body: string; plan_id: string }>((f, t2) => supabase.schema('learning').from('retrospective_findings').select('id, body, plan_id').order('created_at', { ascending: false }).order('id').range(f, t2)),
       ])
       return { briefs, creatives, variants, footage, findings }
-    },
-  })
-}
-
-// Every active Variant with its Creative, for the board.
-export function useBoard() {
-  return useQuery({
-    queryKey: ['board'],
-    queryFn: async () => {
-      const variants = await selectAll<Variant>((from, to) =>
-        supabase.schema('creative').from('variants').select(variantColumns).neq('state', 'cancelled').order('code').range(from, to))
-      const creatives = await selectIn<{ id: string; code: string; title: string; creative_owner_id: string; due_date: string }>(
-        [...new Set(variants.map((v) => v.creative_id))], (chunk, from, to) =>
-          supabase.schema('creative').from('creatives').select('id, code, title, creative_owner_id, due_date').in('id', chunk).is('archived_at', null).order('id').range(from, to))
-      // Variants a 复盘 asked for, with the code of the baseline they test against (D-74).
-      const actions = await selectIn<{ variant_id: string; baseline_evidence_id: string }>(variants.map((v) => v.id), (chunk, from, to) =>
-        supabase.schema('learning').from('plan_actions').select('variant_id, baseline_evidence_id').in('variant_id', chunk).order('variant_id').range(from, to))
-      const evidence = await selectIn<{ id: string; variant_id: string; version_id: string | null }>([...new Set(actions.map((a) => a.baseline_evidence_id))], (chunk, from, to) =>
-        supabase.schema('learning').from('plan_evidence').select('id, variant_id, version_id').in('id', chunk).order('id').range(from, to))
-      const byId = new Map(creatives.map((c) => [c.id, c]))
-      const codeOf = new Map(variants.map((v) => [v.id, v.code]))
-      return variants.map((v) => {
-        const action = actions.find((a) => a.variant_id === v.id)
-        const baseline = evidence.find((e) => e.id === action?.baseline_evidence_id)
-        return { ...v, creative: byId.get(v.creative_id), fromRetroBaseline: action ? codeOf.get(baseline?.variant_id ?? '') ?? 'another Variant' : null }
-      })
     },
   })
 }

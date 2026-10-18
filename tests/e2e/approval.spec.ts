@@ -43,5 +43,6 @@ test('the Creative Owner resolves and submits Version 2, the Approver approves i
   await lin.getByRole('button', { name: 'Approve Version 2' }).click()
   await expect(lin.getByText('Approved', { exact: true })).toBeVisible()
   await nav(lin).getByRole('link', { name: 'Creatives' }).click()
+  await lin.getByRole('navigation', { name: 'Creative views' }).getByRole('link', { name: 'Board' }).click()
   await expect(lin.getByRole('region', { name: 'Approved' }).getByRole('link', { name: new RegExp(variantCode) })).toBeVisible()
 })

@@ -8,10 +8,10 @@ import { SignIn } from './pages/SignIn'
 // Every page but sign-in and the Overview is fetched when it first opens, so signing in does not wait for the canvas,
 // results and whiteboard code. Layout shows the wait and any failure to load.
 const BoardsPage = lazy(() => import('./pages/BoardsPage').then((m) => ({ default: m.BoardsPage })))
-const Board = lazy(() => import('./pages/Board').then((m) => ({ default: m.Board })))
 const BriefPage = lazy(() => import('./pages/BriefPage').then((m) => ({ default: m.BriefPage })))
 const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })))
 const CreativeCanvasPage = lazy(() => import('./pages/CreativeCanvasPage').then((m) => ({ default: m.CreativeCanvasPage })))
+const CreativesPage = lazy(() => import('./pages/CreativesPage').then((m) => ({ default: m.CreativesPage })))
 const CreativePage = lazy(() => import('./pages/CreativePage').then((m) => ({ default: m.CreativePage })))
 const MyTasks = lazy(() => import('./pages/MyTasks').then((m) => ({ default: m.MyTasks })))
 const FootagePage = lazy(() => import('./pages/FootagePage').then((m) => ({ default: m.FootagePage })))
@@ -24,7 +24,6 @@ const VersionLinkPage = lazy(() => import('./pages/SearchPage').then((m) => ({ d
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })))
 const VariantPage = lazy(() => import('./pages/VariantPage').then((m) => ({ default: m.VariantPage })))
 const VideoContentPage = lazy(() => import('./pages/VideoContentPage').then((m) => ({ default: m.VideoContentPage })))
-const WallPage = lazy(() => import('./pages/WallPage').then((m) => ({ default: m.WallPage })))
 const WhiteboardPage = lazy(() => import('./pages/WhiteboardPage').then((m) => ({ default: m.WhiteboardPage })))
 
 function RememberAndSignIn() {
@@ -66,10 +65,11 @@ export function App() {
         <Route path="/tasks/:id" element={<MyTasks />} />
         <Route path="/briefs" element={<Briefs />} />
         <Route path="/briefs/:id" element={<BriefPage />} />
-        <Route path="/creatives" element={<Board />} />
+        <Route path="/creatives" element={<CreativesPage />} />
         <Route path="/creatives/:id" element={<CreativePage />} />
         <Route path="/creatives/:id/canvas" element={<CreativeCanvasPage />} />
-        <Route path="/creatives/wall" element={<WallPage />} />
+        {/* The Variant wall is now the Gallery, the Creatives page's first view (D-81). */}
+        <Route path="/creatives/wall" element={<Navigate to="/creatives" replace />} />
         <Route path="/variants/:id" element={<VariantPage />} />
         <Route path="/reviews/:id" element={<ReviewPage />} />
         <Route path="/reviews/:id/canvas" element={<ReviewPage />} />

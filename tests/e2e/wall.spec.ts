@@ -35,11 +35,11 @@ test('the Variant wall compares like with like: sorted by cost per lead, other c
 
   const mei = await signIn(browser, meiEmail)
   await nav(mei).getByRole('link', { name: 'Creatives' }).click()
-  await mei.getByRole('link', { name: 'Wall' }).click()
-  const filters = mei.getByRole('group', { name: 'Filter the wall' })
+  // The Variant wall is the Creatives page's Gallery, its first view (D-81).
+  const filters = mei.getByRole('group', { name: 'Filter Creatives' })
   await filters.getByLabel('Angle').selectOption({ label: angle })
   await filters.getByLabel('Compare').selectOption({ label: 'MYR · Leads · 7-day click, 1-day view' })
-  const wall = mei.getByRole('region', { name: 'Variant wall' })
+  const wall = mei.getByRole('region', { name: 'Gallery' })
   const tiles = wall.getByRole('link')
   await expect(tiles).toHaveCount(4)
   await expect(tiles.nth(0)).toContainText(cheaper.variantCode)
@@ -50,7 +50,7 @@ test('the Variant wall compares like with like: sorted by cost per lead, other c
   await expect(wall.getByRole('link', { name: new RegExp(dollars.variantCode) })).toContainText('Not comparable')
   await expect(wall.getByRole('link', { name: new RegExp(waiting.code) })).toContainText('No results yet')
 
-  await filters.getByLabel('State').selectOption({ label: 'Live and retired' })
+  await filters.getByRole('button', { name: /^Live and retired/ }).click()
   await expect(tiles).toHaveCount(3)
   await tiles.nth(0).click()
   await expect(mei.getByRole('heading', { name: cheaper.variantCode })).toBeVisible()
