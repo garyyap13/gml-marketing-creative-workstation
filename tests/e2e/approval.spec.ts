@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { driveLink, fakeDriveFileId } from '../support/drive'
-import { call, driveReportsVideo, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { call, driveReportsVideo, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion } from './support'
 
 test('the Creative Owner resolves and submits Version 2, the Approver approves it, and the board shows it approved', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')
@@ -41,6 +41,6 @@ test('the Creative Owner resolves and submits Version 2, the Approver approves i
   await lin.getByRole('link', { name: `Review ${variantCode} v2` }).click()
   await lin.getByRole('button', { name: 'Approve Version 2' }).click()
   await expect(lin.getByText('Approved', { exact: true })).toBeVisible()
-  await lin.getByRole('link', { name: 'Creatives' }).click()
+  await nav(lin).getByRole('link', { name: 'Creatives' }).click()
   await expect(lin.getByRole('region', { name: 'Approved' }).getByRole('link', { name: new RegExp(variantCode) })).toBeVisible()
 })

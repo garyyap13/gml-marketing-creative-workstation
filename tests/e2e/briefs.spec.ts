@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { addLabel, firstAdminClient, inviteMember, signIn, unique } from './support'
+import { addLabel, firstAdminClient, inviteMember, nav, signIn, unique } from './support'
 
 test('Marketing writes a Brief, sees what is missing, adds a Creative and hands it off', async ({ browser }) => {
   const admin = await firstAdminClient()
@@ -21,7 +21,7 @@ test('Marketing writes a Brief, sees what is missing, adds a Creative and hands 
   const title = unique('A simpler morning routine')
 
   const mei = await signIn(browser, meiEmail)
-  await mei.getByRole('link', { name: 'Briefs' }).click()
+  await nav(mei).getByRole('link', { name: 'Briefs' }).click()
   await mei.getByLabel('New Brief title').fill(title)
   await mei.getByRole('button', { name: 'Create Brief' }).click()
   await expect(mei.getByRole('heading', { name: title })).toBeVisible()

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../support/meta'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion } from './support'
 
 const perDay = { spend: '300.00', impressions: '10000', reach: '8000', clicks: '250' }
 
@@ -34,7 +34,7 @@ test('the Variant wall compares like with like: sorted by cost per lead, other c
   await publishMetaSync(usd.adAccountExternalId, [adDollars], dailyInsights(adDollars, '2026-10-01', 4, { ...perDay, leads: '10' }))
 
   const mei = await signIn(browser, meiEmail)
-  await mei.getByRole('link', { name: 'Creatives' }).click()
+  await nav(mei).getByRole('link', { name: 'Creatives' }).click()
   await mei.getByRole('link', { name: 'Wall' }).click()
   const filters = mei.getByRole('group', { name: 'Filter the wall' })
   await filters.getByLabel('Angle').selectOption({ label: angle })

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { addLabel, call, firstAdminClient, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, unique } from './support'
+import { addLabel, call, firstAdminClient, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, unique } from './support'
 
 test('the Footage page adds a shoot with its RAW code and lists the Variants that use it', async ({ browser }) => {
   const admin = await firstAdminClient()
@@ -20,7 +20,7 @@ test('the Footage page adds a shoot with its RAW code and lists the Variants tha
   const title = unique('Kitchen shoot with Aina')
 
   const jun = await signIn(browser, junEmail)
-  await jun.getByRole('link', { name: 'Footage' }).click()
+  await nav(jun).getByRole('link', { name: 'Footage' }).click()
   const form = jun.getByRole('region', { name: 'Add footage' })
   await form.getByLabel('Title').fill(title)
   await form.getByLabel('Source').selectOption('own_shoot')
@@ -43,7 +43,7 @@ test('Footage can be corrected after it is added, and its adder archives it', as
   const junEmail = await inviteMember('creative', 'Jun')
   const title = unique('Kitchen shoot')
   const jun = await signIn(browser, junEmail)
-  await jun.getByRole('link', { name: 'Footage' }).click()
+  await nav(jun).getByRole('link', { name: 'Footage' }).click()
   const add = jun.getByRole('region', { name: 'Add footage' })
   await add.getByLabel('Title').fill(title)
   await add.getByLabel('Drive folder link').fill('https://drive.google.com/drive/folders/1KitchenShoot')
@@ -74,7 +74,7 @@ test('a correction someone saves while the form is open is kept, not undone, whe
     p_drive_folder_link: 'https://drive.google.com/drive/folders/1CreatorDelivery', p_usable_until: null, p_idempotency_key: randomUUID(),
   })
   const jun = await signIn(browser, junEmail)
-  await jun.getByRole('link', { name: 'Footage' }).click()
+  await nav(jun).getByRole('link', { name: 'Footage' }).click()
   await jun.getByRole('button', { name: `Edit ${added.code}` }).click()
   const edit = jun.getByRole('form', { name: `Edit ${added.code}` })
   await expect(edit.getByLabel('Title')).toBeFocused()

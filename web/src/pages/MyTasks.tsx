@@ -1,26 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { selectAll } from '../lib/data'
-import { supabase } from '../lib/supabase'
-import { useMember } from '../lib/session'
-
-// Where each kind of task takes you. Untracked and Mismatched Ad tasks open the list of ads to resolve (T-16).
-const routes: Record<string, string> = { brief: '/briefs', review: '/reviews', variant: '/variants', plan: '/plans' }
-const href = (task: Task) => (['untracked_ads', 'meta_ad'].includes(task.entity_type) ? '/results?section=resolve' : `${routes[task.entity_type] ?? ''}/${task.entity_id}`)
-
-type Task = { id: string; kind: string; action_needed: string; entity_type: string; entity_id: string; payload: { count?: number }; created_at: string }
+import { taskPage, taskTitle, useMyTasks } from '../lib/tasks'
 
 export function MyTasks() {
-  const member = useMember()
-  const tasks = useQuery({
-    queryKey: ['tasks', member.id],
-    queryFn: async () => {
-      return selectAll<Task>((from, to) =>
-        supabase.schema('work').from('tasks').select('id, kind, action_needed, entity_type, entity_id, payload, created_at')
-          .or(`recipient_member_id.eq.${member.id},recipient_team.eq.${member.team}`)
-          .is('done_at', null).order('created_at', { ascending: false }).order('id').range(from, to))
-    },
-  })
+  const tasks = useMyTasks()
 
   return (
     <main className="page">
@@ -35,7 +17,7 @@ export function MyTasks() {
         <ul className="list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {tasks.data.map((task) => (
             <li key={task.id} className="row spread">
-              <Link to={href(task)}>{task.action_needed}{task.payload.count ? ` (${task.payload.count})` : ''}</Link>
+              <Link to={taskPage(task)}>{taskTitle(task)}</Link>
               <span className="small muted">{new Date(task.created_at).toLocaleDateString()}</span>
             </li>
           ))}

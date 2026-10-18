@@ -15,5 +15,6 @@ test('an invited person signs in with a magic link and lands on My Tasks; signed
   await page.goto(await magicLinkFor(email))
 
   await expect(page.getByRole('heading', { name: 'My Tasks' })).toBeVisible()
-  await expect(page.getByText('Jun · Creative Team')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Account menu/ })).toContainText('Jun')
+  await expect(page.getByRole('button', { name: /^Account menu/ })).toContainText('Creative')
 })

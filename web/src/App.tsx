@@ -61,6 +61,8 @@ export function App() {
       <Route path="/auth/callback" element={<Navigate to={returnPath()} replace />} />
       <Route element={<Layout />}>
         <Route index element={<MyTasks />} />
+        <Route path="/tasks" element={<MyTasks />} />
+        <Route path="/tasks/:id" element={<MyTasks />} />
         <Route path="/briefs" element={<Briefs />} />
         <Route path="/briefs/:id" element={<BriefPage />} />
         <Route path="/creatives" element={<Board />} />

@@ -119,6 +119,47 @@ export function useBriefs() {
   })
 }
 
+export type TreeBrief = { id: string; title: string; creatives: number }
+export type TreeProduct = { id: string | null; name: string; briefs: TreeBrief[] }
+
+// The sidebar's Product → Brief tree (D-81): each open Brief under the Product its latest version promotes, with how
+// many Creatives it has across its versions. Briefs without a Product yet are listed last.
+export function useProductTree() {
+  return useQuery({
+    queryKey: ['product-tree'],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const briefs = await selectAll<{ id: string; title: string }>((from, to) =>
+        supabase.schema('brief').from('briefs').select('id, title').is('archived_at', null).order('title').order('id').range(from, to))
+      const versions = await selectIn<{ id: string; brief_id: string; version_number: number; product_id: string | null }>(briefs.map((b) => b.id), (chunk, from, to) =>
+        supabase.schema('brief').from('brief_versions').select('id, brief_id, version_number, product_id').in('brief_id', chunk).order('id').range(from, to))
+      const [creatives, products] = await Promise.all([
+        selectIn<{ brief_version_id: string }>(versions.map((v) => v.id), (chunk, from, to) =>
+          supabase.schema('creative').from('creatives').select('brief_version_id').in('brief_version_id', chunk).is('archived_at', null).order('id').range(from, to)),
+        selectIn<{ id: string; name: string }>([...new Set(versions.map((v) => v.product_id).filter(Boolean) as string[])], (chunk, from, to) =>
+          supabase.schema('label').from('items').select('id, name').in('id', chunk).order('id').range(from, to)),
+      ])
+      const briefOfVersion = new Map(versions.map((v) => [v.id, v.brief_id]))
+      const counts = new Map<string, number>()
+      for (const c of creatives) {
+        const brief = briefOfVersion.get(c.brief_version_id)
+        if (brief) counts.set(brief, (counts.get(brief) ?? 0) + 1)
+      }
+      const latest = new Map<string, (typeof versions)[number]>()
+      for (const v of versions) if ((latest.get(v.brief_id)?.version_number ?? 0) < v.version_number) latest.set(v.brief_id, v)
+      const productName = new Map(products.map((p) => [p.id, p.name]))
+      const tree = new Map<string | null, TreeProduct>()
+      for (const brief of briefs) {
+        const productId = latest.get(brief.id)?.product_id ?? null
+        const node = tree.get(productId) ?? { id: productId, name: productId ? productName.get(productId) ?? 'Product' : 'No Product yet', briefs: [] }
+        node.briefs.push({ id: brief.id, title: brief.title, creatives: counts.get(brief.id) ?? 0 })
+        tree.set(productId, node)
+      }
+      return [...tree.values()].sort((a, b) => (a.id === null ? 1 : b.id === null ? -1 : a.name.localeCompare(b.name)))
+    },
+  })
+}
+
 export function useBrief(id: string) {
   return useQuery({
     queryKey: ['brief', id],

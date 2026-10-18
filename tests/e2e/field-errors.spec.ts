@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { call, inviteMember, memberClient, memberId, signIn, unique } from './support'
+import { call, inviteMember, memberClient, memberId, nav, signIn, unique } from './support'
 
 test('a field with an error is marked invalid and its error is read with it', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')
@@ -8,7 +8,7 @@ test('a field with an error is marked invalid and its error is read with it', as
   const brief = await call(meiApi, 'create_brief', { p_title: unique('Field errors'), p_marketing_owner_id: await memberId(meiApi), p_idempotency_key: randomUUID() })
   const mei = await signIn(browser, meiEmail)
 
-  await mei.getByRole('link', { name: 'Footage' }).click()
+  await nav(mei).getByRole('link', { name: 'Footage' }).click()
   const add = mei.getByRole('region', { name: 'Add footage' })
   await add.getByRole('button', { name: 'Add footage' }).click()
   await expect(add.getByLabel('Title')).toHaveAttribute('aria-invalid', 'true')

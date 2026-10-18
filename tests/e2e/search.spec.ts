@@ -50,7 +50,7 @@ test('search finds work by code, a Version\'s file name, a Legacy Code or a titl
   await expect(mei.getByRole('status')).toHaveText(`1 match for “${titleWord}”`)
   await expect(search).toBeFocused()
   await expect(search).toHaveValue(titleWord)
-  await mei.getByRole('link', { name: briefTitle }).click()
+  await mei.getByRole('main').getByRole('link', { name: briefTitle }).click()
   await expect(mei).toHaveURL(`/briefs/${briefId}`)
 
   await find('GML-NO-SUCH-CODE')

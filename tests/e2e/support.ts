@@ -43,6 +43,16 @@ export async function signIn(browser: Browser, email: string): Promise<Page> {
   return page
 }
 
+// The sidebar's main navigation. Brief titles in the sidebar's tree can contain a page's name, so journeys move
+// between pages through this navigation rather than any link on the page.
+export const nav = (page: Page) => page.getByRole('navigation', { name: 'Workstation' })
+
+// Settings sits in the member's menu at the foot of the sidebar (D-81).
+export async function openSettings(page: Page) {
+  await page.getByRole('button', { name: /^Account menu/ }).click()
+  await page.getByRole('link', { name: 'Settings' }).click()
+}
+
 export const firstAdminEmail = () => process.env.FIRST_ADMIN_EMAIL as string
 
 // Adds a label item as a member of the owning team, through the API.

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { operatorClient } from '../support/local'
-import { call, liveVersion, signIn, writePlan } from './support'
+import { call, liveVersion, nav, signIn, writePlan } from './support'
 
 // The team's today in its time zone (D-78), which due and check dates count from.
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
@@ -27,7 +27,7 @@ test('from a live Variant, Marketing starts a 复盘 and sees the frozen baselin
   await expect(evidence.getByRole('definition').filter({ hasText: /RM\s?30\.00/ })).toBeVisible()
   await expect(evidence).toContainText('not a controlled test')
   await expect(mei.getByText(/Frozen .* Version 1 · annotations r1/)).toBeVisible()
-  await mei.getByRole('link', { name: '复盘' }).click()
+  await nav(mei).getByRole('link', { name: '复盘' }).click()
   await expect(mei.getByRole('link', { name: new RegExp(`${variantCode} · Version 1`) })).toBeVisible()
 })
 
@@ -102,7 +102,7 @@ test('the Hook Hypothesis becomes a follow-up Variant marked "From 复盘"; with
   const followUpCode = `${variantCode.replace(/-[A-Z]+$/, '')}-B`
   await expect(next.getByRole('link', { name: followUpCode })).toBeVisible()
 
-  await mei.getByRole('link', { name: 'Creatives' }).click()
+  await nav(mei).getByRole('link', { name: 'Creatives' }).click()
   await expect(mei.getByRole('link', { name: new RegExp(followUpCode) })).toContainText('From 复盘')
 
   await operatorClient().schema('worker').rpc('run_due_checks', { p_today: today() })

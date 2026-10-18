@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { testEmail } from '../support/local'
-import { call, firstAdminClient, firstAdminEmail, inviteMember, memberClient, memberId, signIn, unique } from './support'
+import { call, firstAdminClient, firstAdminEmail, inviteMember, memberClient, memberId, openSettings, signIn, unique } from './support'
 
 test('the Admin invites a member in Settings, and each team adds items to its own label lists', async ({ browser }) => {
   const admin = await signIn(browser, firstAdminEmail())
@@ -9,7 +9,7 @@ test('the Admin invites a member in Settings, and each team adds items to its ow
   const avatar = `Busy professionals ${Date.now()}`
   const style = `Demonstration ${Date.now()}`
 
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   const members = admin.getByRole('region', { name: 'Members' })
   await members.getByLabel('Email').fill(ainaEmail)
   await members.getByLabel('Name').fill(aina)
@@ -22,7 +22,7 @@ test('the Admin invites a member in Settings, and each team adds items to its ow
   await expect(adminAvatars.getByText(avatar)).toBeVisible()
 
   const ainaPage = await signIn(browser, ainaEmail)
-  await ainaPage.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(ainaPage)
   await expect(ainaPage.getByRole('region', { name: 'Members' }).getByRole('button', { name: 'Invite member' })).toHaveCount(0)
   await expect(ainaPage.getByRole('region', { name: 'Avatar' }).getByText(avatar)).toBeVisible()
   await expect(ainaPage.getByRole('region', { name: 'Avatar' }).getByLabel('New Avatar')).toHaveCount(0)
@@ -38,7 +38,7 @@ test('Settings shows a member who has not signed in yet as invited', async ({ br
   const mei = unique('Mei')
   await inviteMember('marketing', mei)
   const admin = await signIn(browser, firstAdminEmail())
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   await expect(admin.getByRole('region', { name: 'Members' }).getByRole('row', { name: new RegExp(`${mei}.*Marketing Team.*Invited`) })).toBeVisible()
 })
 
@@ -46,7 +46,7 @@ test('the Admin edits a member: makes them an Approver, then deactivates them', 
   const kai = unique('Kai')
   await inviteMember('marketing', kai)
   const admin = await signIn(browser, firstAdminEmail())
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   const members = admin.getByRole('region', { name: 'Members' })
 
   await members.getByRole('button', { name: `Edit ${kai}` }).click()
@@ -64,7 +64,7 @@ test('the Admin edits a member: makes them an Approver, then deactivates them', 
 test('the Admin sets the team time zone', async ({ browser }) => {
   const adminApi = await firstAdminClient()
   const admin = await signIn(browser, firstAdminEmail())
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   const zone = admin.getByRole('region', { name: 'Team time zone' })
   try {
     await expect(zone.getByLabel('Time zone')).toHaveValue('Asia/Kuala_Lumpur')
@@ -88,7 +88,7 @@ test('editing a member never undoes a change another Admin saved meanwhile, and 
   const kaiId = await memberId(await memberClient(await inviteMember('marketing', kai, true)))
   const adminApi = await firstAdminClient()
   const admin = await signIn(browser, firstAdminEmail())
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   const members = admin.getByRole('region', { name: 'Members' })
   await members.getByRole('button', { name: `Edit ${kai}` }).click()
   const edit = members.getByRole('form', { name: `Edit ${kai}` })
@@ -114,7 +114,7 @@ test('removing your own Admin access asks first, and changing your mind withdraw
   const adminApi = await firstAdminClient()
   const { data: me } = await adminApi.schema('core').from('members').select('display_name').ilike('email', firstAdminEmail()).single()
   const admin = await signIn(browser, firstAdminEmail())
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   const members = admin.getByRole('region', { name: 'Members' })
   await members.getByRole('button', { name: `Edit ${me?.display_name}`, exact: true }).click()
   const edit = members.getByRole('form', { name: `Edit ${me?.display_name}` })
@@ -131,7 +131,7 @@ test('removing your own Admin access asks first, and changing your mind withdraw
 
 test('the Admin turns a Breakdown on and off; others see which are on', async ({ browser }) => {
   const admin = await signIn(browser, firstAdminEmail())
-  await admin.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(admin)
   const breakdowns = admin.getByRole('region', { name: 'Breakdowns' })
   await expect(breakdowns.getByLabel('Age × gender')).toBeChecked()
   await expect(breakdowns.getByLabel('Placement', { exact: true })).toBeChecked()
@@ -140,7 +140,7 @@ test('the Admin turns a Breakdown on and off; others see which are on', async ({
   await expect(breakdowns.getByLabel('Country')).toBeChecked()
 
   const mei = await signIn(browser, await inviteMember('marketing', 'Mei'))
-  await mei.getByRole('link', { name: 'Settings' }).click()
+  await openSettings(mei)
   await expect(mei.getByRole('region', { name: 'Breakdowns' }).getByLabel('Country')).toBeChecked()
   await expect(mei.getByRole('region', { name: 'Breakdowns' }).getByLabel('Country')).toBeDisabled()
 

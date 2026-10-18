@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { randomUUID } from 'node:crypto'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, unique } from './support'
+import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion, unique } from './support'
 
 test('both teams use a whiteboard on a Brief: write, drag and link notes, add a frame, and remove a note', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')
@@ -13,7 +13,7 @@ test('both teams use a whiteboard on a Brief: write, drag and link notes, add a 
   const boardTitle = `Morning routine ideas ${variantCode}`
 
   const mei = await signIn(browser, meiEmail)
-  await mei.getByRole('link', { name: 'Boards' }).click()
+  await nav(mei).getByRole('link', { name: 'Boards' }).click()
   const create = mei.getByRole('form', { name: 'New board' })
   await create.getByLabel('Title').fill(boardTitle)
   await create.getByLabel('Attach to').selectOption({ label: `Brief · ${briefTitle}` })
@@ -48,7 +48,7 @@ test('both teams use a whiteboard on a Brief: write, drag and link notes, add a 
 
   // Jun opens the same board, adds a note and links it to a Variant, and removes Mei's note.
   const jun = await signIn(browser, junEmail)
-  await jun.getByRole('link', { name: 'Boards' }).click()
+  await nav(jun).getByRole('link', { name: 'Boards' }).click()
   await jun.getByRole('link', { name: boardTitle }).click()
   const junBoard = jun.getByRole('region', { name: 'Board' })
   await expect(junBoard.getByRole('group', { name: 'Note: Product in hand within three seconds.' })).toBeVisible()
