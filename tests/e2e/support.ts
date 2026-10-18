@@ -58,8 +58,8 @@ export async function signIn(browser: Browser, email: string): Promise<Page> {
 // The answer to the page's next POST to a local service path. A step that waits on the local stack (Auth, Storage, an
 // Edge Function) waits for that answer, bounded by the test's timeout, and then checks the page with the usual 5s.
 // The stack shares a 2-CPU Docker VM with other projects, so its answers vary from milliseconds to several seconds:
-// - Auth keeps no idle database connections and opens new ones for every request, which is slow when the VM is busy.
-//   The local stack enforces no per-IP rate limits, so those are not the cause.
+// - Auth keeps no idle database connections and opens new ones for every request, which is slow when the VM is busy,
+//   and past 10s it gives up with a 5xx. The local stack enforces no per-IP rate limits, so those are not the cause.
 // - The edge runtime starts a function's worker on its first call and retires it after 400s or 1s of CPU; a starting
 //   worker loads supabase-js (under 1s on a quiet VM, about 3s on a busy one). verify-upload and import-csv are called
 //   so rarely that nearly every call starts one. An upload makes three requests from the page, and verify-upload five
@@ -69,7 +69,7 @@ export const answerTo = (page: Page, path: string) =>
 
 // The mail catcher has the message by the time the email request answers. Auth can refuse it for reasons a person
 // would answer by pressing the button again, so this does too, up to twice more:
-// - a 5xx when the database doesn't answer in time (seen once in a quiet run: 504 after 12.9s, "error finding user");
+// - a 5xx when the database doesn't answer in time (504 after 12.9s, "error finding user");
 // - a 429 when the address had a sign-in link less than a second ago (max_frequency), which memberClient's link can be.
 export async function sendSignInLink(page: Page) {
   for (let attempt = 1; ; attempt++) {
@@ -83,10 +83,18 @@ export async function sendSignInLink(page: Page) {
   }
 }
 
+// Opens the newest emailed link and waits for the session exchange. When Auth gives up on the exchange with a 5xx (504
+// after 10.2s), the link has failed and a person would ask for another, so this does too, once.
 export async function openSignInLink(page: Page, email: string) {
-  const exchanged = answerTo(page, '/auth/v1/token')
-  await page.goto(await magicLinkFor(email))
-  expect((await exchanged).ok(), 'the sign-in link').toBe(true)
+  for (let attempt = 1; ; attempt++) {
+    const exchanged = answerTo(page, '/auth/v1/token')
+    await page.goto(await magicLinkFor(email))
+    const answer = await exchanged
+    if (answer.status() < 500 || attempt === 2) return expect(answer.ok(), 'the sign-in link').toBe(true)
+    await page.goto('/sign-in')
+    await page.getByLabel('Email').fill(email)
+    expect((await sendSignInLink(page)).ok(), 'the sign-in email request').toBe(true)
+  }
 }
 
 // The sidebar's main navigation. Brief titles in the sidebar's tree can contain a page's name, so journeys move
