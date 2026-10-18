@@ -13,7 +13,7 @@ The historical exploratory specs dated 2026-10-10 are superseded. Do not use the
 
 ## What exists
 
-Private GitHub repository: https://github.com/garyyap13/creative-marketing-workstation
+GitHub repository: https://github.com/garyyap13/gml-marketing-creative-workstation (public, branch `main`). The earlier private repository, https://github.com/garyyap13/creative-marketing-workstation, stopped at the requirements phase on 2026-10-10 and is no longer updated.
 
 Local project: `/Users/gary/Documents/ChatGPT/creative-marketing-workstation`.
 
