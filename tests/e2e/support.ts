@@ -39,7 +39,7 @@ export async function signIn(browser: Browser, email: string): Promise<Page> {
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
   await expect(page.getByText('Check your email')).toBeVisible()
   await page.goto(await magicLinkFor(email))
-  await expect(page.getByRole('heading', { name: 'My Tasks' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'The loop' })).toBeVisible()
   return page
 }
 

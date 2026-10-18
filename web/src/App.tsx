@@ -2,10 +2,10 @@ import { lazy } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { Layout } from './components/Layout'
 import { rememberReturnPath, returnPath, useSession } from './lib/session'
-import { MyTasks } from './pages/MyTasks'
+import { Overview } from './pages/Overview'
 import { SignIn } from './pages/SignIn'
 
-// Every page but sign-in and My Tasks is fetched when it first opens, so signing in does not wait for the canvas,
+// Every page but sign-in and the Overview is fetched when it first opens, so signing in does not wait for the canvas,
 // results and whiteboard code. Layout shows the wait and any failure to load.
 const BoardsPage = lazy(() => import('./pages/BoardsPage').then((m) => ({ default: m.BoardsPage })))
 const Board = lazy(() => import('./pages/Board').then((m) => ({ default: m.Board })))
@@ -13,6 +13,7 @@ const BriefPage = lazy(() => import('./pages/BriefPage').then((m) => ({ default:
 const Briefs = lazy(() => import('./pages/Briefs').then((m) => ({ default: m.Briefs })))
 const CreativeCanvasPage = lazy(() => import('./pages/CreativeCanvasPage').then((m) => ({ default: m.CreativeCanvasPage })))
 const CreativePage = lazy(() => import('./pages/CreativePage').then((m) => ({ default: m.CreativePage })))
+const MyTasks = lazy(() => import('./pages/MyTasks').then((m) => ({ default: m.MyTasks })))
 const FootagePage = lazy(() => import('./pages/FootagePage').then((m) => ({ default: m.FootagePage })))
 const PlanPage = lazy(() => import('./pages/PlanPage').then((m) => ({ default: m.PlanPage })))
 const PlansPage = lazy(() => import('./pages/PlansPage').then((m) => ({ default: m.PlansPage })))
@@ -60,7 +61,7 @@ export function App() {
       <Route path="/sign-in" element={<Navigate to={returnPath()} replace />} />
       <Route path="/auth/callback" element={<Navigate to={returnPath()} replace />} />
       <Route element={<Layout />}>
-        <Route index element={<MyTasks />} />
+        <Route index element={<Overview />} />
         <Route path="/tasks" element={<MyTasks />} />
         <Route path="/tasks/:id" element={<MyTasks />} />
         <Route path="/briefs" element={<Briefs />} />

@@ -27,7 +27,7 @@ test('the 6-digit code from the email signs you in on any device', async ({ page
   await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
   await page.getByLabel('6-digit code').fill(await signInCodeFor(email))
   await page.getByRole('button', { name: 'Sign in with the code' }).click()
-  await expect(page.getByRole('heading', { name: 'My Tasks' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'The loop' })).toBeVisible()
 })
 
 test('someone whose membership was deactivated sees why and can sign out', async ({ browser }) => {
