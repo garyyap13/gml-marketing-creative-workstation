@@ -4,11 +4,11 @@ Version: 1.1
 
 Date: 2026-10-11
 
-Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-75). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
+Status: Engineering specification revised to match the owner-confirmed [interview decisions](2026-10-11-interview-decisions.md) (D-01…D-80). The platform is Supabase (ADR 0001), and domain commands run as Postgres functions called through Supabase RPC (ADR 0006). Sizing and operations numbers stay proposed (D-58). This document creates no database, connector or deployment.
 
 Audience: Engineering, database, integration, QA and operations.
 
-Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md](../../CONTEXT.md) · Decisions: [ADRs](../adr/), [decision log](2026-10-11-interview-decisions.md). The one remaining unconfirmed default, PD-25's Drive check timing, is listed in PRD §11.3.
+Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md](../../CONTEXT.md) · Decisions: [ADRs](../adr/), [decision log](2026-10-11-interview-decisions.md). No proposed product defaults remain (PRD §11.3); sizing and operations numbers stay proposed (D-58).
 
 ## Changes in 1.1
 
@@ -39,7 +39,7 @@ Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md]
   - New commands: `set_variant_labels`, `set_launch_thumbnail` and `save_video_annotations`.
 - **Fourth pass.**
   - Creative Retrospective / 复盘 extends Optimization Plans (D-63; new T-18, confirmed as D-68), with the command `append_retrospective_finding`.
-  - Version files stay in Google Drive (D-64, D-65, ADR 0007; new T-19, details confirmed in D-69 apart from the check timing, PD-25). The `review` and `final` file kinds merge into `version_media`, registered by `register_drive_media` and checked by a scheduled Drive check. Storage keeps Brief attachments, Launch thumbnails and CSV imports.
+  - Version files stay in Google Drive (D-64, D-65, ADR 0007; new T-19, details confirmed in D-69, check timing in D-80). The `review` and `final` file kinds merge into `version_media`, registered by `register_drive_media` and checked by a scheduled Drive check. Storage keeps Brief attachments, Launch thumbnails and CSV imports.
   - The web client is a Vite + React + TypeScript single-page app (D-66). Brief versions gain an optional hypothesis (D-67). Transcripts can be imported from SRT or WebVTT (D-68). Sign-in uses Google with personal Gmail for invited members, with a magic-link backup (D-70). Footage with `RAW-` codes, linked to Variants (D-71; new T-20).
 - **Tasks model.** My Tasks and notifications derive from activity-log events inside the command transaction. The outbox is only the WhatsApp delivery queue (D-45).
 - **Repository boundary.** The ContentAI import bridge and the plan to add modules to the existing API are removed (D-05, ADR 0003), and T-11 is rewritten.
@@ -341,9 +341,9 @@ The tables §4 listed but the milestones had not built are built locally, with w
 - **`ingest.raw_responses`.** Every sync payload is kept with credentials removed (keys such as `access_token`, tokens in paging links and cursors, bearer tokens and bare Meta tokens), once per request, cursor and page by checksum, and never changes; quarantined rows point at it. Connection errors lose credentials the same way. Not exposed (D-08).
 - **`meta.object_history`.** Each change to a campaign's, ad set's or ad's status or setup is appended by trigger.
 - **`meta.posts`.** `confirm_post_live` on a Facebook Page or Instagram account queues a `resolve_post` job. `worker.record_meta_posts` records an account's posts (`id`, `permalink_url` or `permalink`, `created_time` or `timestamp`), ties each to the Post Launch with the same normalised link (one post per Launch), finishes its job and links Ads whose creative names the post through `launch.launches.promoted_post_launch_id` (D-30). An ad keeps both its Facebook story ID (`effective_object_story_id`) and Instagram media ID (`effective_instagram_media_id`) and matches either. It takes turns with matching. Post Launches already live when this was built had their lookups queued. `reporting.unresolved_posts` lists live Posts still waiting. B3 must check that pasted links normalise to the permalink Meta reports.
-- **`creative.legacy_codes`.** A Legacy Code is the brand prefix, 2–12 letters and up to 6 digits, e.g. `GML-TESTI-0007`, found anywhere in the ad name (proposed, PD-30). A sync of kind `backfill` turns an unknown one into a Legacy Creative: a new Creative Code, the brand, the ad's name as title, no Brief, owned by the Admin and due the day it was found, with a Variant `-A` live from the start (D-54). That Variant's ads are not flagged as live without approval, an exception to D-54 proposed as PD-31 because they predate the workstation; Variants added to the Creative later are flagged as usual, and its Mismatched Ads go to its owner, since it has no Brief. Later syncs match the alias, and an unknown code outside the backfill stays Untracked. Each empty label of a Legacy Creative can be filled once, then locks (D-61), from the Creative and Variant pages; the Hook type waits for a video Format, since a filled label can't be cleared.
-- **`launch.dynamic_ad_variants`.** An ad naming several Variants gets one unplanned Dynamic Launch listing the Variants it names, with their position in the name, the first as its Variant; codes no Variant has are left out. Once shown, every listed Variant goes live and is flagged if its approval isn't in effect (proposed, PD-32); the ad stays Dynamic if renamed. `app.lock_launch` locks every listed Variant (Creatives first, in id order), and ending or cancelling the Launch, by Meta or by hand, refreshes each one's liveness. Results stay at ad level (D-31). Each listed Variant's page shows the Launch.
-- **`core.file_checks`.** `worker.record_drive_check` takes Drive API v3 metadata (`headRevisionId`, `version`, `sha256Checksum`, `md5Checksum`, `size`, `trashed`) or a refusal, compares like with like, and records the outcome. A new flag routes a task to the Creative Owner and shows on the Variant page and data health (`reporting.drive_flags`); permission denied also gives each Admin one task to share the folder again, closed only once no file's latest check is refused. `worker.drive_files_to_check()` returns the proposed scope (PD-25): open Reviews, approvals in effect, planned or live Launches, and Evidence. `request_drive_check` queues a check on request; its button arrives with the Drive check itself (B2).
+- **`creative.legacy_codes`.** A Legacy Code is the brand prefix, 2–12 letters and up to 6 digits, e.g. `GML-TESTI-0007`, found anywhere in the ad name (D-80). A sync of kind `backfill` turns an unknown one into a Legacy Creative: a new Creative Code, the brand, the ad's name as title, no Brief, owned by the Admin and due the day it was found, with a Variant `-A` live from the start (D-54). That Variant's ads are not flagged as live without approval, an exception to D-54 confirmed in D-80 because they predate the workstation; Variants added to the Creative later are flagged as usual, and its Mismatched Ads go to its owner, since it has no Brief. Later syncs match the alias, and an unknown code outside the backfill stays Untracked. Each empty label of a Legacy Creative can be filled once, then locks (D-61), from the Creative and Variant pages; the Hook type waits for a video Format, since a filled label can't be cleared.
+- **`launch.dynamic_ad_variants`.** An ad naming several Variants gets one unplanned Dynamic Launch listing the Variants it names, with their position in the name, the first as its Variant; codes no Variant has are left out. Once shown, every listed Variant goes live and is flagged if its approval isn't in effect (D-80); the ad stays Dynamic if renamed. `app.lock_launch` locks every listed Variant (Creatives first, in id order), and ending or cancelling the Launch, by Meta or by hand, refreshes each one's liveness. Results stay at ad level (D-31). Each listed Variant's page shows the Launch.
+- **`core.file_checks`.** `worker.record_drive_check` takes Drive API v3 metadata (`headRevisionId`, `version`, `sha256Checksum`, `md5Checksum`, `size`, `trashed`) or a refusal, compares like with like, and records the outcome. A new flag routes a task to the Creative Owner and shows on the Variant page and data health (`reporting.drive_flags`); permission denied also gives each Admin one task to share the folder again, closed only once no file's latest check is refused. `worker.drive_files_to_check()` returns the confirmed scope (D-80): open Reviews, approvals in effect, planned or live Launches, and Evidence. `request_drive_check` queues a check on request; its button arrives with the Drive check itself (B2).
 
 ## 5. Workflow state machines and command rules
 
@@ -409,7 +409,7 @@ The states are:
 | `accept_invitation` | Any signed-in user | An active, unaccepted invitation for the email address in the verified sign-in token (D-70) | Sign-in linked to the member |
 | `update_team_settings`, `request_sync` | Admin (D-49) | A time zone the database knows; the expected lock version | Team time zone or sync job updated (D-78) |
 | `set_breakdown` | Admin (D-49) | One of the listed Breakdown sets; on or off; the expected lock version | The set turned on or off; collected from the next sync and the 28-day re-pull (D-35, D-58) |
-| `request_drive_check` | Any member | The Version exists | A `drive_check` job queued for each of its Drive files, once while one waits (PD-25) |
+| `request_drive_check` | Any member | The Version exists | A `drive_check` job queued for each of its Drive files, once while one waits (D-80) |
 
 Worker-only functions, never executable by browser roles:
 - `match_ads`: runs after each published sync generation (T-14). It is exempt from the approval check and flags instead (D-54).
@@ -583,7 +583,7 @@ Anchors are validated against the exact Version's files. Preview proxies never c
 
 ### 7.1 Version files in Google Drive (T-19)
 
-D-64 and D-65 keep every Version file in the team's Google Drive folder. The owner confirmed the access mechanism, naming, blocking and playback approach below as D-69; the check timing remains proposed under PD-25. Verify Drive API behaviour against Google's current documentation during integration.
+D-64 and D-65 keep every Version file in the team's Google Drive folder. The owner confirmed the access mechanism, naming, blocking and playback approach below as D-69, and the check timing as D-80. Verify Drive API behaviour against Google's current documentation during integration.
 
 **Access.** The Drive registration and Drive check Edge Functions read Drive metadata with a read-only scope, as a Google Cloud service account given Viewer access to the folder (D-69). If a Google Workspace policy blocks sharing the folder with a service account, that is raised as a new decision. The key lives in Edge Function secrets or Vault. The workstation has no write scope: it never moves, renames, shares, trashes or deletes a Drive file, and never makes one public. Members view files under Drive's own sharing, which the workstation does not grant.
 
@@ -596,7 +596,7 @@ Drive may report video metadata some time after upload. The file stays `verifyin
 
 **Identity.** A Version file's identity is its Drive file ID, head revision ID, checksum and size. SHA-256 is preferred; Drive's MD5 is recorded when no SHA-256 is reported, and the algorithm is stored with the checksum. `submit_version` freezes the identity with the Version, and T-17 annotations, T-18 Evidence and Review anchors cite it.
 
-**Change check.** A scheduled Drive check Edge Function runs every 6 hours, and on request from a Version or plan page (PD-25). It re-reads the files of Versions with an open Review, approved Versions in effect, Versions of Live Variants and files cited by Evidence, then calls `record_drive_check`:
+**Change check.** A scheduled Drive check Edge Function runs every 6 hours, and on request from a Version or plan page (D-80). It re-reads the files of Versions with an open Review, approved Versions in effect, Versions of Live Variants and files cited by Evidence, then calls `record_drive_check`:
 - same revision, checksum and size: `unchanged`;
 - a different revision, checksum or size: `changed`;
 - trashed: `trashed`;
@@ -1051,6 +1051,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | Video annotation and retrospective details (formerly PD-23 and PD-24), with SRT/WebVTT import | D-68 |
 | Drive Version file rules (most of the former PD-25) | D-69 |
 | Footage library with `RAW-` codes | D-71 |
+| Drive check timing, Legacy Codes and Creatives, Dynamic Ads (the rest of PD-25, PD-30–PD-32) | D-80 |
 
 The D-58 technical defaults are:
 - image hashes stand in for the video ID on statics and carousels;
@@ -1065,7 +1066,6 @@ The D-58 technical defaults are:
 
 **Open:**
 - O-02, the setup facts: the dedicated WhatsApp number, the Business Manager admin, the list of ad accounts, Pages and Instagram accounts, and the Drive folder for Version files and its owner account. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70.
-- PD-25, the Drive change-check timing and scope (T-19), defined in PRD §11.3.
 
 Which Meta capabilities each connected account supports is verified during integration; it is not a product decision. The Shared Drive vs My Drive question is closed by D-62.
 
