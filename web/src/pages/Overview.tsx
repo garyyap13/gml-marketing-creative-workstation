@@ -4,7 +4,7 @@ import { explain } from '../lib/commands'
 import { useDataHealthNote, useLiveThisWeek, useLoopCounts, type LiveGroup } from '../lib/overview'
 import { attributionName, count, dateRange, money, resultName } from '../lib/results'
 import { useMember } from '../lib/session'
-import { age, kindName, kindTone, taskPage, taskStep, taskTitle, useMyTasks, type LoopStep, type Task } from '../lib/tasks'
+import { age, kindName, kindTone, taskStep, taskTitle, useMyTasks, type LoopStep, type Task } from '../lib/tasks'
 
 const greeting = (hour: number) => (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening')
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
@@ -67,7 +67,7 @@ function NeedsYou({ tasks, state }: { tasks: Task[]; state: 'loading' | 'error' 
           {shown.map((task) => (
             <li key={task.id}>
               <span className={`tag kind ${kindTone(task)}`}>{kindName(task)}</span>
-              <Link to={taskPage(task)}>{taskTitle(task)}</Link>
+              <Link to={`/tasks/${task.id}`}>{taskTitle(task)}</Link>
               <span className="small muted">{age(task.created_at)}</span>
             </li>
           ))}

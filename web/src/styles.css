@@ -311,3 +311,55 @@ a.button.primary { background: var(--accent); color: var(--on-accent); border-co
 .health.warn { background: var(--wash); border-color: color-mix(in srgb, var(--warn) 30%, var(--wash)); }
 .health strong { font-weight: 600; }
 .health.warn strong { color: var(--warn); }
+
+/* My Tasks inbox (D-81): the list beside the selected task; on a phone, one or the other. */
+.inbox { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); min-height: 100vh; align-items: start; }
+.inbox h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+.inbox-list { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--paper); border-right: 1px solid var(--line); }
+.inbox-pad { padding: 16px; }
+.filters { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; }
+.filters a { text-decoration: none; border-radius: 6px; padding: 5px 9px; background: var(--sunken); color: var(--muted); }
+.filters a[aria-current='true'] { background: var(--accent); color: var(--on-accent); }
+.filters .count { font-variant-numeric: tabular-nums; }
+.task-list { list-style: none; margin: 0; padding: 0 8px 12px; display: grid; gap: 2px; }
+.task-list a { display: grid; gap: 2px; padding: 10px 12px; border-radius: 9px; text-decoration: none; }
+.task-list a:hover { background: var(--sunken); }
+.task-list a[aria-current='true'] { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); }
+.task-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); }
+.task-meta .kind { font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; color: var(--accent); }
+.task-meta .kind.warn { color: var(--warn); } .task-meta .kind.info { color: var(--info); } .task-meta .kind.retro { color: var(--retro); }
+.task-meta .kind.danger { color: var(--danger); } .task-meta .kind.plain { color: var(--muted); }
+.task-title { font-weight: 500; }
+.inbox-detail { display: flex; flex-direction: column; min-width: 0; min-height: 100vh; }
+.inbox-back { display: none; }
+.inbox-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 12px; padding: 18px 24px; background: var(--paper); border-bottom: 1px solid var(--line); }
+.inbox-title { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; }
+.inbox-title a.code { color: var(--accent); text-decoration: none; font-weight: 500; }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; }
+.chips li { background: var(--sunken); border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; color: var(--ink); }
+a.button.small { min-height: 34px; padding: 6px 12px; font-size: 13px; }
+.inbox-body { flex: 1; display: flex; flex-wrap: wrap; gap: 22px; align-items: start; padding: 20px 24px; }
+.inbox-media { flex: 1 1 320px; max-width: 520px; display: grid; gap: 10px; min-width: 0; }
+.inbox-media.portrait { flex: 0 0 auto; width: 260px; max-width: 100%; }
+.inbox-comments { flex: 1 1 300px; min-width: 0; display: grid; gap: 14px; }
+.inbox-foot { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 24px; background: var(--paper); border-top: 1px solid var(--line); }
+kbd { font-family: var(--mono); font-size: 11px; color: var(--ink); background: var(--sunken); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.drive-preview.portrait { height: auto; aspect-ratio: 9 / 16; border-radius: 14px; }
+.comment.blocking { box-shadow: inset 3px 0 0 var(--danger); padding-left: 10px; }
+.comment.resolved > p { color: var(--muted); }
+.rv-section.body { background: var(--sunken); color: var(--muted); }
+.rv-section.cta { background: var(--wash); color: var(--warn); }
+.rv-pin.resolved { background: var(--muted); }
+button[aria-disabled='true']:not([aria-busy]) { cursor: not-allowed; opacity: 0.55; }
+@media (max-width: 760px) {
+  .inbox { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .inbox-list { position: static; height: auto; border-right: 0; }
+  .inbox.has-selection .inbox-list, .inbox.no-selection .inbox-detail { display: none; }
+  .inbox-detail { min-height: 0; }
+  .inbox-back { display: inline-block; padding: 12px 16px 0; }
+  .inbox-head, .inbox-body, .inbox-foot { padding-left: 16px; padding-right: 16px; }
+  .inbox-media.portrait { width: min(260px, 100%); margin: 0 auto; }
+  .inbox-foot { position: static; }
+  .key-hint { display: none; }
+  .inbox-foot:not(:has(button)) { display: none; }
+}

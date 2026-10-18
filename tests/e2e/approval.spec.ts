@@ -25,6 +25,7 @@ test('the Creative Owner resolves and submits Version 2, the Approver approves i
 
   const jun = await signIn(browser, junEmail)
   await jun.getByRole('link', { name: `Make the requested changes to ${variantCode}` }).click()
+  await jun.getByRole('link', { name: 'Open the Variant' }).click()
   await jun.getByRole('button', { name: 'Start the next Version' }).click()
   await jun.getByLabel('Drive link to the Version file').fill(driveLink(driveId))
   await jun.getByRole('button', { name: 'Register file' }).click()

@@ -29,7 +29,9 @@ test('after approval, Marketing plans a Post and an Ad on the Variant page and g
   const adAccountName = `${await nameOf(accounts.adAccount)} (demo)`
 
   const mei = await signIn(browser, meiEmail)
+  // The task opens in My Tasks, which leads on to the Variant.
   await mei.getByRole('link', { name: `Plan Launches for ${variantCode}` }).click()
+  await mei.getByRole('link', { name: 'Open the Variant' }).click()
   const launches = mei.getByRole('region', { name: 'Launches' })
   const form = launches.getByRole('form', { name: 'Plan a Launch' })
   await form.getByLabel('Page or account').selectOption({ label: pageName })

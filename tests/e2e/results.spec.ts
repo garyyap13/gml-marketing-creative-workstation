@@ -12,6 +12,7 @@ test('Marketing resolves Untracked Ads from My Tasks; data health shows each syn
 
   const mei = await signIn(browser, meiEmail)
   await mei.getByRole('link', { name: /Resolve the Untracked Ads/ }).click()
+  await mei.getByRole('link', { name: 'Open Ads to resolve' }).click()
   await expect(mei.getByRole('heading', { name: 'Results', exact: true })).toBeVisible()
   const toResolve = mei.getByRole('region', { name: 'Ads to resolve' })
   const strayAd = toResolve.getByRole('group', { name: stray.name })

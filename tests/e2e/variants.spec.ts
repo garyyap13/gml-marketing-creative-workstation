@@ -32,6 +32,7 @@ test('the Creative Owner picks up the hand-off, adds a Variant with its Footage,
 
   const jun = await signIn(browser, junEmail)
   await jun.getByRole('link', { name: 'Start the Creatives for this Brief' }).click()
+  await jun.getByRole('link', { name: 'Open the Brief' }).click()
   await jun.getByRole('link', { name: new RegExp(creativeCode) }).click()
   await jun.getByLabel('Narrative style').selectOption({ label: labels.style })
   await jun.getByRole('button', { name: 'Save Narrative style' }).click()

@@ -322,6 +322,27 @@ export function useCreative(id: string) {
   })
 }
 
+// A Creative with the Brief version it follows and that Brief's title, for headings and label chips.
+export function useCreativeContext(creativeId: string) {
+  return useQuery({
+    queryKey: ['creative-context', creativeId],
+    enabled: Boolean(creativeId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const creative = await supabase.schema('creative').from('creatives').select('id, code, title, brief_version_id, narrative_style_id, format_id').eq('id', creativeId).single()
+      if (creative.error) throw creative.error
+      const c = creative.data as Pick<Creative, 'id' | 'code' | 'title' | 'brief_version_id' | 'narrative_style_id' | 'format_id'>
+      if (!c.brief_version_id) return { creative: c, briefVersion: null, brief: null }
+      const version = await supabase.schema('brief').from('brief_versions').select('id, brief_id, product_id, avatar_id, angle_id, funnel_stage_id').eq('id', c.brief_version_id).single()
+      if (version.error) throw version.error
+      const v = version.data as Pick<BriefVersion, 'id' | 'brief_id' | 'product_id' | 'avatar_id' | 'angle_id' | 'funnel_stage_id'>
+      const brief = await supabase.schema('brief').from('briefs').select('id, title').eq('id', v.brief_id).single()
+      if (brief.error) throw brief.error
+      return { creative: c, briefVersion: v, brief: brief.data as { id: string; title: string } }
+    },
+  })
+}
+
 export function useVariant(id: string) {
   return useQuery({
     queryKey: ['variant', id],
