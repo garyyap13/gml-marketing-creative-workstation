@@ -68,9 +68,12 @@ export async function waitForApi(timeoutMs = 60_000): Promise<void> {
 export async function inviteThroughFunction(admin: SupabaseClient, args: Record<string, unknown>) {
   const { data, error } = await admin.functions.invoke('invite-member', { body: args })
   if (!error) return { data, error: null, status: 200 }
-  const response = (error as { context?: Response }).context
+  // An HTTP error carries the Response; a request that never got one (the network failed) carries the cause instead.
+  const context = (error as { context?: unknown }).context
+  const response = typeof (context as Response | undefined)?.json === 'function' ? (context as Response) : undefined
   const body = response ? await response.json().catch(() => ({})) : {}
-  return { data: null, error: { message: body.message ?? error.message, details: body.details ?? null }, status: response?.status ?? 0 }
+  const cause = context instanceof Error ? `: ${context.message}` : ''
+  return { data: null, error: { message: body.message ?? `${error.message}${cause}`, details: body.details ?? null }, status: response?.status ?? 0 }
 }
 
 // The 6-digit code in the newest message for an address.
