@@ -1,6 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { useQuery } from '@tanstack/react-query'
-import { selectAll, type VariantTotal } from './data'
+import { report, selectAll, type VariantTotal } from './data'
 import { byScope, lastDays } from './results'
 import { supabase } from './supabase'
 
@@ -56,7 +56,7 @@ export function useLiveThisWeek() {
     queryKey: ['overview', 'live', week.from, week.to],
     staleTime: 60_000,
     queryFn: async () => {
-      const totals = await selectAll<VariantTotal>((f, t) => supabase.schema('reporting').rpc('variant_totals', { p_from: week.from, p_to: week.to })
+      const totals = await selectAll<VariantTotal>((f, t) => report('variant_totals', { p_from: week.from, p_to: week.to })
         .order('variant_id').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t))
       const costed = totals.filter((r) => r.result_indicator !== 'reach' && r.unreported === 0 && Number(r.spend) > 0 && Number(r.results) > 0)
       const ids = [...new Set(costed.map((r) => r.variant_id))]

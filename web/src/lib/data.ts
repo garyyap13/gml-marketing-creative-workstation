@@ -30,6 +30,14 @@ async function selectIn<T>(ids: string[], page: (chunk: string[], from: number, 
   return rows
 }
 
+// Calls a reporting function, which only reads (they are all `stable`), as a GET. The gateway sends a GET again on a
+// fresh connection when PostgREST has just closed the idle one it picked, but answers a POST with a 502. A GET
+// carries the arguments in the URL, where null would arrive as the text "null", so an empty argument is left out and
+// the function's default applies.
+export function report(fn: string, args: Record<string, string | null | undefined>) {
+  return supabase.schema('reporting').rpc(fn, Object.fromEntries(Object.entries(args).filter(([, value]) => value)), { get: true })
+}
+
 export type MemberRow = {
   id: string
   email: string
@@ -810,7 +818,7 @@ export function useVariantWall(from: string, to: string) {
         selectIn<{ variant_id: string; footage_id: string }>(ids, (chunk, f, t2) =>
           supabase.schema('creative').from('variant_footage').select('variant_id, footage_id').in('variant_id', chunk).is('removed_at', null).order('id').range(f, t2)),
         selectAll<{ id: string; code: string; title: string }>((f, t2) => supabase.schema('creative').from('footage').select('id, code, title').order('code').range(f, t2)),
-        selectAll<VariantTotal>((f, t2) => supabase.schema('reporting').rpc('variant_totals', { p_from: from || null, p_to: to || null })
+        selectAll<VariantTotal>((f, t2) => report('variant_totals', { p_from: from, p_to: to })
           .order('variant_id').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t2)),
         selectIn<{ variant_id: string; baseline_evidence_id: string | null }>(ids, (chunk, f, t2) =>
           supabase.schema('learning').from('plan_actions').select('variant_id, baseline_evidence_id').in('variant_id', chunk).order('variant_id').range(f, t2)),
@@ -1077,7 +1085,7 @@ export function useCombinationAdSets(from: string, to: string) {
     staleTime: 60_000,
     queryFn: async () => {
       const [sets, accounts] = await Promise.all([
-        selectAll<CombinationAdSet>((f, t2) => supabase.schema('reporting').rpc('combination_ad_sets', { p_from: from || null, p_to: to || null })
+        selectAll<CombinationAdSet>((f, t2) => report('combination_ad_sets', { p_from: from, p_to: to })
           .order('spend', { ascending: false, nullsFirst: false }).order('ad_set_id').order('currency').range(f, t2)),
         selectAll<LaunchAccount>((f, t2) => supabase.schema('launch').from('accounts').select('id, platform, name, currency, time_zone, source').order('name').order('id').range(f, t2)),
       ])
@@ -1093,7 +1101,7 @@ export function useCombination(adSetId: string, from: string, to: string) {
     enabled: Boolean(adSetId),
     staleTime: 60_000,
     queryFn: async () => {
-      const slices = await selectAll<CombinationSlice>((f, t2) => supabase.schema('reporting').rpc('combination', { p_ad_set_id: adSetId, p_from: from || null, p_to: to || null })
+      const slices = await selectAll<CombinationSlice>((f, t2) => report('combination', { p_ad_set_id: adSetId, p_from: from, p_to: to })
         .order('slice').order('variant_code').order('currency').order('result_indicator').order('attribution_setting').order('time_zone').order('channel_scope').range(f, t2))
       const ids = [...new Set(slices.map((s) => s.variant_id).filter(Boolean) as string[])]
       const variants = await selectIn<{ id: string; creative_id: string; hook_type_id: string | null }>(ids, (chunk, f, t2) =>
@@ -1130,7 +1138,7 @@ export function useLabelResults(kind: string, from: string, to: string) {
   return useQuery({
     queryKey: ['label-results', kind, from, to],
     staleTime: 60_000,
-    queryFn: () => selectAll<LabelResult>((f, t2) => supabase.schema('reporting').rpc('label_results', { p_kind: kind, p_from: from || null, p_to: to || null })
+    queryFn: () => selectAll<LabelResult>((f, t2) => report('label_results', { p_kind: kind, p_from: from, p_to: to })
       .order('spend', { ascending: false, nullsFirst: false }).order('label_id').order('currency').order('result_indicator').order('attribution_setting')
       .order('time_zone').order('channel_scope').range(f, t2)),
   })
