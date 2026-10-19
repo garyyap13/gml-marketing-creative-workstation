@@ -259,14 +259,22 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Look.** Today's green light theme stays (D-66), and a dark theme is used in dark mode. A left sidebar holds the navigation and a Product → Brief tree for finding work. Codes are set in a monospace face.
   - The mockups use sample data. They decide the direction only, not every detail of the build.
 
+## Notifications channel
+
+- **D-82** Notifications start on Telegram, not WhatsApp. The owner decided this on 2026-10-20 and accepted the recommended details:
+  - **Who gets a message.** A Telegram bot sends a private message only to the person who must act, with the same routing as D-44 and D-56. My Tasks is unchanged and remains the full list.
+  - **Connecting.** Each member taps "Connect Telegram" in the workstation, opens the bot through a one-time link and presses Start. The bot then records their chat. A member who hasn't connected gets no messages, only tasks. A member can disconnect, either in the workstation or by stopping the bot.
+  - **WhatsApp later.** D-44's WhatsApp messages are deferred, not dropped. The delivery queue stays channel-neutral so WhatsApp can be added later, and O-02's WhatsApp number isn't needed before launch.
+  - **Bot setup.** The owner creates the bot with Telegram's BotFather. Its token is a secret, kept only in function secrets. The Admin manages Telegram settings where D-49 said WhatsApp settings.
+
 ## Open
 
 - **O-02** Setup facts needed before integration:
-  - the dedicated WhatsApp number
+  - the dedicated WhatsApp number (deferred by D-82; not needed before launch)
   - the Business Manager admin
   - the list of ad accounts, pages and Instagram accounts
   - ~~the Google Drive folder for Version files and the account that owns it~~ (answered 2026-10-20, below)
 
 *Answered 2026-10-12:* the team uses personal Gmail accounts, not Google Workspace. No Workspace policy limits sharing the Drive folder with a service account (D-69). D-70 settles sign-in.
 
-*Answered 2026-10-20:* Version files live in the team's existing "Video" folder. It has one subfolder per month, and another team account owns it. Its general access is Restricted. A service account in the owner's own Google Cloud project has Viewer access to the folder, and the project has the Google Drive API enabled (D-69). The service account has no key yet; the key is created when the Drive connection is built and is kept only in function secrets. The folder, project and service account IDs are kept out of this public repository.
+*Answered 2026-10-20:* Version files live in the team's existing "Video" folder. It has one subfolder per month, and another team account owns it. Its general access is Restricted. A service account in the owner's own Google Cloud project has Viewer access to the folder, and the project has the Google Drive API enabled (D-69). The service account's key was created on 2026-10-20 for the Drive connection (B2) and is kept only in function secrets. The folder, project and service account IDs are kept out of this public repository.
