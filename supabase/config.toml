@@ -422,3 +422,8 @@ verify_jwt = true
 # Imports a CSV of results made from the template (TRD §8.3). Callers must be signed in.
 [functions.import-csv]
 verify_jwt = true
+
+# Run by the schedule or an operator with the project's secret key, which the function checks itself; members never
+# call it (TRD T-19).
+[functions.drive-worker]
+verify_jwt = false

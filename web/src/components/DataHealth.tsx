@@ -10,7 +10,7 @@ const flags: Record<string, string> = { never_approved: 'live without approval',
 const rows = (n: number) => (n === 1 ? '1 row set aside' : `${n} rows set aside`)
 const shown = (a?: Pick<AccountHealth, 'account_name' | 'source'>) => (a ? (a.source === 'stand_in' ? `${a.account_name} (demo)` : a.account_name) : '')
 const driveStates: Record<string, string> = { changed: 'changed after it was registered', trashed: 'is in the Drive trash', inaccessible: "can't be read from Drive" }
-const jobNames: Record<string, string> = { resolve_post: 'Finding a post\'s Meta ID', drive_check: 'Checking a Drive file' }
+const jobNames: Record<string, string> = { resolve_post: 'Finding a post\'s Meta ID', drive_check: 'Checking a Drive file', drive_register: 'Reading a new Drive file' }
 const coverage = (a: AccountHealth) => (a.ads_seen ? `${a.ads_matched} of ${a.ads_seen} ads matched (${Math.round((a.ads_matched / a.ads_seen) * 100)}%)` : 'No ads yet')
 
 // Whether an account's data can be trusted right now. Only Meta ad accounts sync; Pages and Instagram arrive with B3,

@@ -119,6 +119,9 @@ const failures: Record<string, string> = {
   trashed: 'is in the Drive trash',
   no_checksum: "has no checksum in Drive",
   too_large: 'is over the size limit',
+  not_found: "can't be found in Drive. Check the link, and that the file is in the shared Version files folder",
+  still_processing: 'is still being processed by Drive. Register it again later',
+  not_read: "couldn't be read from Drive. Register it again later",
 }
 
 function fileState(file: FileRow) {
