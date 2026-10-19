@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { handedOffVideoBrief, inviteMember, memberClient, memberId, signIn } from './support'
+import { expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, test } from './support'
 
 test('Marketing starts a Rebrief from the Brief page and hands off version 2; the Creative Owner moves the Creative up', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

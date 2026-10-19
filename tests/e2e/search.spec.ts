@@ -1,6 +1,5 @@
-import { expect, test } from '@playwright/test'
 import { demoAccounts, metaId, publishRawMetaSync } from '../support/meta'
-import { handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test } from './support'
 
 const letters = () => Array.from({ length: 6 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('')
 

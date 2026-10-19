@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { driveLink, fakeDriveFileId } from '../support/drive'
-import { call, driveReportsVideo, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion } from './support'
+import { call, driveReportsVideo, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion, test } from './support'
 
 test('the Creative Owner resolves and submits Version 2, the Approver approves it, and the board shows it approved', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

@@ -1,9 +1,40 @@
 import { randomUUID } from 'node:crypto'
-import { expect, type Browser, type Page } from '@playwright/test'
+import { test as base, expect, type Browser, type BrowserContext, type ConsoleMessage, type Page } from '@playwright/test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../support/drive'
 import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../support/meta'
 import { inviteThroughFunction, magicLinkFor, operatorClient, signedOutClient, testEmail } from '../support/local'
+
+// A journey fails when one of its pages logs an error or a warning to the console, such as React's development
+// warnings (an input switching between controlled and uncontrolled, a missing key, an update while rendering, …).
+// Two are expected: the browser's line for a request that failed (journeys check refusals on the page), and React's
+// report of an error a boundary caught (the page shows that error, and the journey checks it there).
+const expected = /^Failed to load resource:|The above error occurred in the </
+const isProblem = (message: ConsoleMessage) => ['error', 'warning'].includes(message.type()) && !expected.test(message.text())
+
+// The running journey's console problems, so the contexts signIn opens report to it too.
+let journeyProblems: string[] | null = null
+
+function watchConsole(context: BrowserContext, problems: string[]) {
+  context.on('console', (message) => {
+    if (isProblem(message)) problems.push(`${message.page()?.url().replace(/^https?:\/\/[^/]+/, '') ?? ''}: ${message.text().replace(/\s+/g, ' ').slice(0, 300)}`)
+  })
+}
+
+export const test = base.extend<{ consoleProblems: string[] }>({
+  consoleProblems: [async ({}, use) => {
+    const problems: string[] = []
+    journeyProblems = problems
+    await use(problems)
+    journeyProblems = null
+    expect(problems, 'Pages logged console errors or warnings during this journey').toEqual([])
+  }, { auto: true }],
+  context: async ({ context, consoleProblems }, use) => {
+    watchConsole(context, consoleProblems)
+    await use(context)
+  },
+})
+export { expect }
 
 // The first Admin, signed in through the API, for arranging a journey's starting point. Journeys invite members through
 // the Admin over a hundred times a run and every password sign-in costs the local auth server a bcrypt check (seconds
@@ -45,7 +76,10 @@ export async function inviteMember(team: 'marketing' | 'creative', name: string,
 
 // Opens a fresh browser context and signs in with a real magic link from the local mail catcher.
 export async function signIn(browser: Browser, email: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage()
+  if (!journeyProblems) throw new Error("Import test from './support', so console errors and warnings fail the journey")
+  const context = await browser.newContext()
+  watchConsole(context, journeyProblems)
+  const page = await context.newPage()
   await page.goto('/sign-in')
   await page.getByLabel('Email').fill(email)
   expect((await sendSignInLink(page)).ok(), 'the sign-in email request').toBe(true)

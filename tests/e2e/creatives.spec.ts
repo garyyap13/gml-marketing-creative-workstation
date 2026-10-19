@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion } from './support'
+import { call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion, test } from './support'
 
 test('Creatives shows the same Variants as a Gallery, a Board by state and a Table by Brief, filtered once for all three', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei', true)

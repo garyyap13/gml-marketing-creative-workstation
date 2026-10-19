@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { addLabel, firstAdminClient, inviteMember, nav, signIn, unique } from './support'
+import { addLabel, expect, firstAdminClient, inviteMember, nav, signIn, test, unique } from './support'
 
 test('Marketing writes a Brief, sees what is missing, adds a Creative and hands it off', async ({ browser }) => {
   const admin = await firstAdminClient()

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test, type Page } from '@playwright/test'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import type { Page } from '@playwright/test'
+import { call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test } from './support'
 
 // Subtitles as a Windows editing tool exports them: a byte-order mark, CRLF line endings, a line break inside a
 // cue, an italic tag, a typo to fix, and a last cue that runs 40 ms past the end Drive measured.

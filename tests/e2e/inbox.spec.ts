@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
-import { call, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion } from './support'
+import { call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, submittedVideoVersion, test } from './support'
 
 test('My Tasks is an inbox: filter to Reviews, move with J and K, and decide a Version in place; a blocking comment holds Approve', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei', true)

@@ -12,7 +12,7 @@ export function DrivePreview({ driveFileId, name, tall = false, shape = 'wide', 
       <div className={['drive-preview', tall && 'tall', shape === 'portrait' && 'portrait'].filter(Boolean).join(' ')}>
         {playing ? (
           <iframe src={`https://drive.google.com/file/d/${driveFileId}/preview`} title={`Drive preview of ${name ?? 'the Version file'}`}
-            allow="autoplay; fullscreen" allowFullScreen />
+            allow="autoplay; fullscreen" />
         ) : (
           <button className="drive-play" onClick={() => setPlaying(true)}><span aria-hidden="true">▶</span> Play in Drive preview</button>
         )}

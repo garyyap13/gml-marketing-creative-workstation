@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion } from './support'
+import { expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test } from './support'
 
 test('a decision from a stale tab says someone else changed it, and reloading shows the decision that won', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

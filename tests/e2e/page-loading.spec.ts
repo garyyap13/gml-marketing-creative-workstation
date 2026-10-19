@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test'
-import { inviteMember, signIn } from './support'
+import { expect, inviteMember, signIn, test } from './support'
 
 test('a page whose code fails to load says so and offers a reload, keeping the navigation', async ({ browser }) => {
   const mei = await signIn(browser, await inviteMember('marketing', 'Mei'))

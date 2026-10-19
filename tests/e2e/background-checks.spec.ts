@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { operatorClient } from '../support/local'
 import { demoAccounts, metaId, publishMetaSync, publishRawMetaSync, sampleAd } from '../support/meta'
-import { addLabel, call, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, unique } from './support'
+import { addLabel, call, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, submittedVideoVersion, test, unique } from './support'
 
 const worker = () => operatorClient().schema('worker')
 const letters = () => Array.from({ length: 6 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('')

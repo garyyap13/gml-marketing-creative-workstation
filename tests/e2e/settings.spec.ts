@@ -1,6 +1,5 @@
-import { expect, test } from '@playwright/test'
 import { testEmail } from '../support/local'
-import { call, firstAdminClient, firstAdminEmail, inviteMember, memberClient, memberId, openSettings, signIn, unique } from './support'
+import { call, expect, firstAdminClient, firstAdminEmail, inviteMember, memberClient, memberId, openSettings, signIn, test, unique } from './support'
 
 test('the Admin invites a member in Settings, and each team adds items to its own label lists', async ({ browser }) => {
   const admin = await signIn(browser, firstAdminEmail())

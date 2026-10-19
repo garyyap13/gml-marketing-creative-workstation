@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { pdf, png } from '../support/files'
-import { answerTo, call, inviteMember, liveVersion, memberClient, memberId, signIn, unique } from './support'
+import { answerTo, call, expect, inviteMember, liveVersion, memberClient, memberId, signIn, test, unique } from './support'
 
 test('Marketing attaches a script and a reference link to a Brief; the Creative Team downloads the script', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')

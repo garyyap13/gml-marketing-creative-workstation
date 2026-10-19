@@ -1,6 +1,5 @@
-import { expect, test } from '@playwright/test'
 import { magicLinkFor, signInCodeFor, testEmail } from '../support/local'
-import { answerTo, call, firstAdminClient, inviteMember, memberClient, memberId, openSignInLink, sendSignInLink, signIn } from './support'
+import { answerTo, call, expect, firstAdminClient, inviteMember, memberClient, memberId, openSignInLink, sendSignInLink, signIn, test } from './support'
 
 test('an address nobody invited is told to ask the Admin', async ({ page }) => {
   await page.goto('/sign-in')

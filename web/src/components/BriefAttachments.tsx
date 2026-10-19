@@ -124,13 +124,14 @@ export function BriefAttachments({ briefId, versionId, editable, frozen, title =
                 {Object.entries(roles).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
               </select>
             </label>
+            {/* Keyed so switching swaps the inputs, rather than turning the uncontrolled file input into the controlled link field. */}
             {form.how === 'file' ? (
-              <label>File
+              <label key="file">File
                 <input ref={fileInput} type="file" accept={accepted}
                   onChange={(e) => chooseFile(e.target.files?.[0] ?? null)} />
               </label>
             ) : (
-              <label>Link<input type="url" inputMode="url" maxLength={2000} value={form.link} onChange={(e) => set({ link: e.target.value })} placeholder="https://drive.google.com/…" /></label>
+              <label key="link">Link<input type="url" inputMode="url" maxLength={2000} value={form.link} onChange={(e) => set({ link: e.target.value })} placeholder="https://drive.google.com/…" /></label>
             )}
             <label>Label<input maxLength={120} value={form.label} onChange={(e) => set({ label: e.target.value })} /></label>
           </div>

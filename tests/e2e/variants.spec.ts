@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { expect, test } from '@playwright/test'
 import { driveLink, fakeDriveFileId } from '../support/drive'
-import { addLabel, call, driveReportsVideo, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, unique } from './support'
+import { addLabel, call, driveReportsVideo, expect, handedOffVideoBrief, inviteMember, memberClient, memberId, signIn, test, unique } from './support'
 
 test('the Creative Owner picks up the hand-off, adds a Variant with its Footage, registers the Drive file and submits Version 1', async ({ browser }) => {
   const meiEmail = await inviteMember('marketing', 'Mei')
