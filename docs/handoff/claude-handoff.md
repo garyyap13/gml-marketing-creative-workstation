@@ -21,6 +21,15 @@ At handoff inspection HEAD was `e370946` (`docs: align requirements with owner i
 
 There is no running workstation, application scaffold, database migration or connected Meta/Drive integration in this repository. No Supabase project was provisioned in this conversation. Do not assume Codex connector credentials transfer to Claude.
 
+## Update 2026-10-20: the real Drive connection (B2)
+
+The app, migrations and tests now exist (see CLAUDE.md). B2 replaced the Drive stand-in with a real read-only connection; TRD T-19 "Configuration" has the details.
+
+- `supabase/functions/drive-worker` reads Version file metadata with Drive's `files.get` as the workstation's service account (scope `drive.metadata.readonly`). It signs a JWT with WebCrypto, with no Google SDK. Registering a file queues a `drive_register` job, and the change check queues `drive_check` jobs. The worker reports through the same worker functions the stand-in calls (`record_drive_metadata`, `record_drive_check`, plus the new `fail_drive_registration`).
+- Secrets: `DRIVE_SERVICE_ACCOUNT_KEY` and `DRIVE_VERSION_FOLDER_ID`. Locally they live in the gitignored `supabase/functions/.env` (see `.env.example`); on a hosted project, use `supabase secrets set`. The key is written by `node scripts/save-drive-key.ts <downloaded key>`. Never commit or print it, and keep the folder, project and service account IDs out of this public repo.
+- Tests and journeys still play the worker through `tests/support/drive.ts` and never call Google. `pnpm drive:smoke "<Drive file link>"` checks the real connection against one file. It resets the local database first.
+- Not built yet: the hosted schedule that runs the worker (B1: every minute or so, plus every 6 hours with `queue_checks`), a "check now" button for `request_drive_check`, and the D-69/D-75 playback test of Drive's preview against a streaming player.
+
 ## User's workflow
 
 1. Marketing chooses Avatar, Angle and rough material / 初稿 in a Brief.

@@ -94,7 +94,7 @@ flowchart LR
 | Storage | Private buckets for Brief attachments and Launch thumbnails, plus a separate private import area for CSV files (D-52, D-59, D-62). Access is by signed URL. Version files are not stored here (D-65) |
 | Google Drive | The team's existing folder holds every Version file, drafts and completed (D-64, D-65). The workstation has read-only access and never moves, shares or deletes a file; members view files under Drive's own sharing (T-19) |
 | Supabase scheduled jobs | SQL jobs for due-date and check-date events, automatic Verdicts, idempotency expiry and lease recovery. They also trigger the Edge Functions, including the daily never-attached file purge |
-| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook; Drive registration and the scheduled Drive check (T-19); `invite-member`, which creates an invited person's sign-in account through the Auth admin API (T-09). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
+| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook; the `drive-worker`, which reads Version file metadata from Drive for registration and the scheduled Drive check (T-19); `invite-member`, which creates an invited person's sign-in account through the Auth admin API (T-09). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
 | Reporting views | Curated, compatible aggregates for the browser. They are the only surface Claude's role can read (D-08) |
 
 There is no separate API server (D-48). Each environment is its own Supabase project, with staging and production kept separate; that operations default stays proposed (D-58). No warehouse or microservice split is needed, and Postgres-backed jobs and outbox are sufficient.
@@ -417,8 +417,9 @@ Worker-only functions, never executable by browser roles:
 - `match_ads`: runs after each published sync generation (T-14). It is exempt from the approval check and flags instead (D-54).
 - `worker.record_launch_accounts` and `worker.record_meta_sync`: stand-ins for the Meta connection until B3. They take Graph API-shaped accounts and one generation's campaigns, ad sets, ads and insights, then normalise, match and publish. Exposed only to the worker role.
 - `record_file_verification`: called by the file-verifier Edge Function for Storage uploads (D-58).
-- `worker.record_drive_metadata`: called by the Drive registration Edge Function with the Drive API's file metadata (T-19). Exposed only to the worker role; tests stand in for the worker until B2.
-- `record_drive_check`: called only by the Drive check Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19). Built as `worker.record_drive_check`, with `worker.drive_files_to_check` listing the files due.
+- `worker.record_drive_metadata`: called by the `drive-worker` Edge Function with the Drive API's file metadata (T-19). Exposed only to the worker role; tests stand in for the worker (`tests/support/drive.ts`) and never call Google.
+- `worker.fail_drive_registration`: called by the `drive-worker` when Drive can't give a registered file's details: `not_found`, `still_processing` or `not_read` (T-19).
+- `record_drive_check`: called only by the `drive-worker` Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19). Built as `worker.record_drive_check`, with `worker.drive_files_to_check` listing the files due and `worker.queue_drive_checks` queuing a `drive_check` job for each.
 - `worker.claim_jobs`, `complete_job`, `fail_job` and `enqueue_job`: the job queue's interface for every worker (`work.jobs`).
 - `worker.record_meta_connection`, `record_connection_state`, `record_raw_response`, `record_meta_posts` and `enabled_breakdowns`: the Meta connection's interface, used by stand-ins until B3.
 - `record_whatsapp_status`: called by the webhook Edge Function.
@@ -587,22 +588,22 @@ Anchors are validated against the exact Version's files. Preview proxies never c
 
 D-64 and D-65 keep every Version file in the team's Google Drive folder. The owner confirmed the access mechanism, naming, blocking and playback approach below as D-69, and the check timing as D-80. Verify Drive API behaviour against Google's current documentation during integration.
 
-**Access.** The Drive registration and Drive check Edge Functions read Drive metadata with a read-only scope, as a Google Cloud service account given Viewer access to the folder (D-69). If a Google Workspace policy blocks sharing the folder with a service account, that is raised as a new decision. The key lives in Edge Function secrets or Vault. The workstation has no write scope: it never moves, renames, shares, trashes or deletes a Drive file, and never makes one public. Members view files under Drive's own sharing, which the workstation does not grant.
+**Access.** The `drive-worker` Edge Function reads Drive metadata as a Google Cloud service account given Viewer access to the folder (D-69), with the `drive.metadata.readonly` scope. That scope returns the checksums, head revision and video and image metadata that registration needs, and cannot download, change or share a file. If a Google Workspace policy blocks sharing the folder with a service account, that is raised as a new decision. The key lives in Edge Function secrets (Configuration, below). The workstation has no write scope: it never moves, renames, shares, trashes or deletes a Drive file, and never makes one public. Members view files under Drive's own sharing, which the workstation does not grant.
 
-**Registration.** `register_drive_media` stores the pasted link or file ID as a `pending` `version_media` row and queues a job. The registration Edge Function reads the file's metadata: ID, name, MIME type, size, SHA-256 and MD5 checksums, head revision ID, version, modified time, trashed state, and video or image metadata. It rejects:
+**Registration.** `register_drive_media` stores the pasted link or file ID as a `pending` `version_media` row and queues a `drive_register` job. The `drive-worker` reads the file's metadata with `files.get`: ID, name, MIME type, size, SHA-256 and MD5 checksums, head revision ID, version, trashed state, parent folder, and video or image metadata. It rejects:
 - folders, shortcuts and Google Docs editor files;
 - a MIME type that does not fit the Creative's Format;
 - a file already attached to another Version. A Drive file ID backs at most one Version, so new content needs a new Drive file. The name is `<variant code>_v<number>` (D-69), e.g. `GML-0007-B_v2.mp4`, but the name is never trusted for identity.
 
-Drive may report video metadata some time after upload. The file stays `verifying` while the job retries with backoff, and after a bounded wait it fails with an actionable error. On success `worker.record_drive_metadata` records the identity and media metadata and marks the file ready. A file that is not media of the Creative's Format, is trashed, has no checksum or exceeds the proposed size limits (1 GiB video, 50 MiB image) fails with a reason.
+Drive may report video metadata some time after upload. The file stays `verifying` while the job retries with backoff, and after the job's last attempt, about an hour after the first, it fails as `still_processing`. Drive answers "not found" both for a missing file and for one not shared with the service account, so the worker also reads the Version files folder: while the folder reads, the registration fails as `not_found` (a wrong link, or a file outside the folder); while it doesn't, the job waits for access to return. A registration Drive keeps refusing, such as a bad key, fails as `not_read` and its job is parked, so data health shows why. The member registers the file again. On success `worker.record_drive_metadata` records the identity and media metadata and marks the file ready. A file that is not media of the Creative's Format, is trashed, has no checksum or exceeds the proposed size limits (1 GiB video, 50 MiB image) fails with a reason.
 
 **Identity.** A Version file's identity is its Drive file ID, head revision ID, checksum and size. SHA-256 is preferred; Drive's MD5 is recorded when no SHA-256 is reported, and the algorithm is stored with the checksum. `submit_version` freezes the identity with the Version, and T-17 annotations, T-18 Evidence and Review anchors cite it.
 
-**Change check.** A scheduled Drive check Edge Function runs every 6 hours, and on request from a Version or plan page (D-80). It re-reads the files of Versions with an open Review, approved Versions in effect, Versions of Live Variants and files cited by Evidence, then calls `record_drive_check`:
+**Change check.** Every 6 hours, and on request from a Version or plan page (D-80), a `drive_check` job is queued for each file due a check (`worker.queue_drive_checks`, `request_drive_check`), and the `drive-worker` re-reads the files of Versions with an open Review, approved Versions in effect, Versions of Live Variants and files cited by Evidence, then calls `record_drive_check`:
 - same revision, checksum and size: `unchanged`;
 - a different revision, checksum or size: `changed`;
 - trashed: `trashed`;
-- not found or permission denied: `inaccessible`.
+- not found or permission denied: `inaccessible`. A file Drive can't find is recorded as `not_found` while the Version files folder still reads, and as `permission_denied` once it doesn't, which asks the Admin to share the folder again.
 
 A new flag appends an activity-log event, appears on the Version and on data health, and routes a task to the Creative Owner. While a file is flagged, `submit_version`, `approve_version` and `plan_launch` reject its Version (D-69). The fix is a new Version before go-live, or a new Variant after (D-25, D-53). A Live Variant's existing Posts and Ads keep being reported honestly, and Meta's copy is checked by its Meta video ID (T-14). A flag clears only when a later check finds the recorded identity again, for example after a restore from Drive's trash. Earlier records, approvals and Evidence are never rewritten.
 
@@ -614,7 +615,13 @@ A new flag appends an activity-log event, appears on the Version and on data hea
 
 Until then, seeking from a Comment, cue, section or Finding stays conditional (FR-16, FR-17).
 
-**Failures.** Drive errors and rate limits are retried with backoff. Revoked folder access flags files `inaccessible` and raises a task for the Admin, and earlier records stay. The Drive check never deletes a record.
+**Failures.** Drive errors and rate limits are retried with backoff, honouring Drive's `Retry-After`. Revoked folder access flags files `inaccessible` and raises a task for the Admin, and earlier records stay. The Drive check never deletes a record.
+
+**Configuration (B2).** The `drive-worker` Edge Function claims due `drive_register` and `drive_check` jobs and reports through the worker functions above. It signs in as the service account without a Google SDK: a JWT signed with WebCrypto (RS256) is exchanged at `https://oauth2.googleapis.com/token`, and the access token is reused until shortly before it expires. Only callers holding the project's secret key may run it (`verify_jwt` is off and the function checks the key); members never call it. With `{"queue_checks": true}` it first queues the change check. It reads two function secrets, documented in `supabase/functions/.env.example`:
+- `DRIVE_SERVICE_ACCOUNT_KEY`: the service account's JSON key, stored as base64 on one line. `node scripts/save-drive-key.ts <downloaded key>` writes it without showing it.
+- `DRIVE_VERSION_FOLDER_ID`: the Version files folder's ID.
+
+Locally they live in the gitignored `supabase/functions/.env`, which `supabase start` loads, so the stack is restarted after a change. On a hosted project they are set with `supabase secrets set`. The real folder, project and service account IDs are kept out of this public repository (O-02). Without them the function answers `drive_not_configured` and touches nothing. Tests and journeys keep playing the worker through the stand-in and never call the function or Google. `pnpm drive:smoke "<Drive file link>"` resets the local database, registers one real Drive file, shows its recorded identity and runs the change check against it, reading metadata only. The hosted schedule (B1) runs the `drive-worker` every minute or so for registrations and on-request checks, and every 6 hours with `queue_checks`.
 
 ## 8. Measurement contract, Meta ingestion and matching
 
@@ -935,7 +942,7 @@ Deployment prerequisites:
 - Supabase Auth settings: public sign-up off, the `app.before_user_created` hook enabled, email confirmation and secure email change on, the sign-in email template with the link and the 6-digit code, and the web client's `/auth/callback` URL in the redirect allowlist.
 - The `invite-member` Edge Function deployed with JWT verification on.
 - Storage buckets and their policies: Brief attachments, Launch thumbnails, and the private CSV import area.
-- A Google Cloud project and read-only service account, given Viewer access to the Drive folder only after the owner authorises it (T-19, D-69).
+- A Google Cloud project and read-only service account, given Viewer access to the Drive folder only after the owner authorises it (T-19, D-69). Its key and the folder ID set as Edge Function secrets, and the `drive-worker` scheduled (T-19 Configuration).
 - Static hosting for the web client, chosen before deployment (D-66).
 - Vault secrets.
 - Supabase scheduled jobs for the SQL jobs and the Edge Function triggers.

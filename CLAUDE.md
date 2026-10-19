@@ -4,7 +4,7 @@ Start with `docs/handoff/claude-handoff.md`, then read `CONTEXT.md`, the decisio
 
 ## Project state
 
-This repository contains requirements, a UI concept, local Supabase migrations in `supabase/migrations` with database tests in `tests/db` (`pnpm test:db`), and the web app in `web/` with Playwright browser journeys in `tests/e2e` (`pnpm test:e2e`, using the installed Chrome). It does not yet contain any provisioned hosted project or real Google, Drive, Meta or WhatsApp connection; the Drive worker and the Meta connection are test stand-ins, and their accounts and data are demo data. The mockup's sample records and simulated actions are not production functionality.
+This repository contains requirements, a UI concept, local Supabase migrations in `supabase/migrations` with database tests in `tests/db` (`pnpm test:db`), and the web app in `web/` with Playwright browser journeys in `tests/e2e` (`pnpm test:e2e`, using the installed Chrome). It does not yet contain any provisioned hosted project, Google sign-in, or real Meta or WhatsApp connection; the Meta connection is a test stand-in, and its accounts and data are demo data. Drive is read for real, read-only, by the `drive-worker` Edge Function, configured through gitignored function secrets (TRD T-19 Configuration); tests and journeys play that worker through `tests/support/drive.ts` and never call Google. The mockup's sample records and simulated actions are not production functionality.
 
 ## Working agreement
 
