@@ -1,4 +1,5 @@
-// PROTOTYPE harness for the B2 playback test (D-69, D-75), on the LOCAL stack only. Run `pnpm drive:smoke "<link>"`
+// Harness for the B2 playback test (D-69, D-75), now run against the real drive-stream function (D-83), on the LOCAL
+// stack only. Run `pnpm drive:smoke "<link>"`
 // first, so a real Drive video is registered. This signs in as the smoke test's Creative member, asks drive-stream for a
 // playback token for that video, and serves one page that puts Drive's embedded preview beside the workstation's own
 // player. The page times the stream's first frame and three seeks by itself, so any browser can run it unattended.
