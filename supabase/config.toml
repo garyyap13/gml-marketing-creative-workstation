@@ -427,3 +427,8 @@ verify_jwt = true
 # call it (TRD T-19).
 [functions.drive-worker]
 verify_jwt = false
+
+# Run by the schedule or an operator with the project's secret key, or called by Telegram's webhook with its secret
+# token; the function checks both itself. Members never call it (TRD T-16).
+[functions.telegram-worker]
+verify_jwt = false

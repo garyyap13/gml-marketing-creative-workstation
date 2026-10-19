@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, test } from 'vitest'
+import { fakeChatId, recordStandInBot, startFromTelegram } from '../support/telegram'
 import {
   command,
   fieldErrors,
   fillBrief,
-  firstAdminClient,
   invitedMember,
   labelItem,
-  lockVersionOf,
   newBrief,
   newCreative,
 } from './support/stack'
+import { must } from './support/workflow'
 
 describe('Briefs', () => {
   test('Marketing creates a Brief and saves it incomplete; the Creative Team cannot create Briefs', async () => {
@@ -80,16 +80,13 @@ describe('Briefs', () => {
     expect(versions).toEqual([{ state: 'handed_off', handed_off_by: marketing.memberId, key_message: 'One easy routine' }])
   })
 
-  test('hand-off gives each Creative Owner one task and queues one WhatsApp message; repeating it adds nothing', async () => {
-    const admin = await firstAdminClient()
+  test('hand-off gives each Creative Owner one task, and a Telegram message to one who has connected; repeating it adds nothing', async () => {
+    must(await recordStandInBot(), 'record_telegram_bot')
     const marketing = await invitedMember('marketing')
     const jun = await invitedMember('creative')
     const aina = await invitedMember('creative')
-    await command(admin, 'update_member', {
-      p_member_id: jun.memberId,
-      p_changes: { whatsapp_number: '+60123456789', whatsapp_opt_in: true }, // test number
-      p_expected_lock_version: await lockVersionOf(admin, jun.memberId),
-    })
+    const code = must(await command(jun.client, 'start_telegram_connection'), 'start_telegram_connection').code
+    must(await startFromTelegram(code, fakeChatId()), 'connect_telegram')
     const brief = await newBrief(marketing)
     const lockVersion = await fillBrief(marketing, brief.id, brief.lock_version)
     const video = await labelItem(marketing, 'format', 'video')
@@ -106,14 +103,14 @@ describe('Briefs', () => {
     const { data: messages } = await jun.client
       .schema('work')
       .from('outbox')
-      .select('task_id, delivery_state')
+      .select('task_id, channel, delivery_state')
       .in('task_id', (tasks ?? []).map((t) => t.id))
     const taskFor = (memberId: string) => tasks?.filter((t) => t.recipient_member_id === memberId) ?? []
 
     expect(tasks).toHaveLength(2)
     expect(taskFor(jun.memberId).map((t) => t.kind)).toEqual(['brief_handed_off'])
     expect(taskFor(aina.memberId).map((t) => t.kind)).toEqual(['brief_handed_off'])
-    expect(messages).toEqual([{ task_id: taskFor(jun.memberId)[0].id, delivery_state: 'queued' }])
+    expect(messages).toEqual([{ task_id: taskFor(jun.memberId)[0].id, channel: 'telegram', delivery_state: 'queued' }])
   })
 
   test('a Rebrief starts a new version; Creatives keep theirs until a never-live one moves up', async () => {
