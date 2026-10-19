@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { addLabel, call, firstAdminClient, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, unique } from './support'
+import { addLabel, answerTo, call, firstAdminClient, handedOffVideoBrief, inviteMember, memberClient, memberId, nav, signIn, unique } from './support'
 
 test('the Footage page adds a shoot with its RAW code and lists the Variants that use it', async ({ browser }) => {
   const admin = await firstAdminClient()
@@ -63,6 +63,29 @@ test('Footage can be corrected after it is added, and its adder archives it', as
   await jun.getByRole('form', { name: `Edit ${code}` }).getByRole('button', { name: 'Archive…' }).click()
   await jun.getByRole('button', { name: 'Archive footage' }).click()
   await expect(jun.getByRole('row').filter({ hasText: code })).toHaveCount(0)
+})
+
+test('Footage added before the list has first loaded still shows up in it', async ({ browser }) => {
+  const jun = await signIn(browser, await inviteMember('creative', 'Jun'))
+  const title = unique('Early kitchen shoot')
+  // On a slow connection the list's first answer arrives after the add has: the list was read before the new Footage
+  // existed, so the page has to read it again.
+  const added = answerTo(jun, '/rest/v1/rpc/add_footage')
+  let read!: () => void
+  const listRead = new Promise<void>((resolve) => { read = resolve })
+  await jun.route((url) => url.pathname.endsWith('/rest/v1/footage'), async (route) => {
+    const response = await route.fetch()
+    read()
+    await added
+    await route.fulfill({ response })
+  }, { times: 1 })
+  await nav(jun).getByRole('link', { name: 'Footage' }).click()
+  await listRead
+  const add = jun.getByRole('region', { name: 'Add footage' })
+  await add.getByLabel('Title').fill(title)
+  await add.getByLabel('Drive folder link').fill('https://drive.google.com/drive/folders/1EarlyKitchenShoot')
+  await add.getByRole('button', { name: 'Add footage' }).click()
+  await expect(jun.getByRole('row').filter({ hasText: title })).toBeVisible()
 })
 
 test('a correction someone saves while the form is open is kept, not undone, when you save yours', async ({ browser }) => {
