@@ -72,8 +72,8 @@ flowchart LR
   CRON --> EF["Edge Functions (TypeScript)"]
   OUT --> EF
   ST <-->|"verify uploads, purge never-attached files"| EF
-  EF -->|"read-only metadata: register, check"| DRIVE["Google Drive team folder<br/>Version files"]
-  UI -.->|"preview under Drive sharing (D-69)"| DRIVE
+  EF -->|"read-only: register, check, stream for playback"| DRIVE["Google Drive team folder<br/>Version files"]
+  UI -->|"video byte ranges with a playback token (D-83)"| EF
   EF -->|"read-only system user"| META["Meta Marketing API<br/>Page + Instagram insights"]
   EF --> RAW[("ingest schema<br/>raw responses, not exposed")]
   RAW --> NORM["SQL: validate, normalise, match"]
@@ -229,7 +229,7 @@ Commands: `add_footage` and `update_footage` for either team; `archive_footage` 
 D-75 adds four views; the first three only read existing records.
 - **Creative canvas** (`/creatives/:id/canvas`): the client reads the Creative, its Brief, Variants, Versions, Reviews, Launches, `reporting.variant_daily_results` and the Optimization Plans and plan actions, and lays the map out itself. A Launch shows cost per result only when its rows share one currency, result type, attribution, time zone and channel scope, and never for Reach.
 - **Variant wall** (`/creatives/wall`): `reporting.variant_totals(p_from, p_to)` (security invoker) sums each Variant's paid results per scope in the database. The client compares Variants within one scope only.
-- **Review canvas** (`/reviews/:id/canvas`): the Review page's own data and commands in a larger layout. Drive's embedded preview (`https://drive.google.com/file/d/<id>/preview`) loads only when asked. Only the Version's own comments are pinned; carried-over comments keep the earlier cut's times and are listed without a pin.
+- **Review canvas** (`/reviews/:id/canvas`): the Review page's own data and commands in a larger layout. The workstation's own player streams the Version's video (D-83, T-19 "Preview and playback"); until it is built, Drive's embedded preview (`https://drive.google.com/file/d/<id>/preview`) loads only when asked. Only the Version's own comments are pinned; carried-over comments keep the earlier cut's times and are listed without a pin.
 - **Whiteboard**:
 
 | Table | Fields / relationships | Constraints |
@@ -588,7 +588,7 @@ Anchors are validated against the exact Version's files. Preview proxies never c
 
 D-64 and D-65 keep every Version file in the team's Google Drive folder. The owner confirmed the access mechanism, naming, blocking and playback approach below as D-69, and the check timing as D-80. Verify Drive API behaviour against Google's current documentation during integration.
 
-**Access.** The `drive-worker` Edge Function reads Drive metadata as a Google Cloud service account given Viewer access to the folder (D-69), with the `drive.metadata.readonly` scope. That scope returns the checksums, head revision and video and image metadata that registration needs, and cannot download, change or share a file. If a Google Workspace policy blocks sharing the folder with a service account, that is raised as a new decision. The key lives in Edge Function secrets (Configuration, below). The workstation has no write scope: it never moves, renames, shares, trashes or deletes a Drive file, and never makes one public. Members view files under Drive's own sharing, which the workstation does not grant.
+**Access.** The `drive-worker` Edge Function reads Drive metadata as a Google Cloud service account given Viewer access to the folder (D-69), with the `drive.metadata.readonly` scope. That scope returns the checksums, head revision and video and image metadata that registration needs, and cannot download, change or share a file. The playback stream reads content with the read-only `drive.readonly` scope (D-83), which still cannot change, share or delete a file. If a Google Workspace policy blocks sharing the folder with a service account, that is raised as a new decision. The key lives in Edge Function secrets (Configuration, below). The workstation has no write scope: it never moves, renames, shares, trashes or deletes a Drive file, and never makes one public. Members view files under Drive's own sharing, which the workstation does not grant.
 
 **Registration.** `register_drive_media` stores the pasted link or file ID as a `pending` `version_media` row and queues a `drive_register` job. The `drive-worker` reads the file's metadata with `files.get`: ID, name, MIME type, size, SHA-256 and MD5 checksums, head revision ID, version, trashed state, parent folder, and video or image metadata. It rejects:
 - folders, shortcuts and Google Docs editor files;
@@ -609,11 +609,13 @@ A new flag appends an activity-log event, appears on the Version and on data hea
 
 **Revision retention.** Drive purges a revision that is not kept forever 30 days after newer content is uploaded to the same file, and only write access can keep one. V1 has no write access, so a replaced file's approved revision may disappear from Drive. The workstation keeps the recorded identity and shows the loss; keeping revisions or a protected copy needs a later decision.
 
-**Preview and playback.** The playback method is chosen after a test (D-69):
-- Drive's embedded preview uses the viewer's Google sign-in and Drive sharing. It offers no programmatic seeking and may fail where the browser blocks third-party cookies.
-- An authenticated streaming Edge Function proxies byte ranges through the service account into the workstation's own player, which allows seeking. Edge Function limits and egress must be measured first.
-
-Until then, seeking from a Comment, cue, section or Finding stays conditional (FR-16, FR-17).
+**Preview and playback.** The B2 playback test ([results](../research/2026-10-20-b2-playback-test.md)) compared Drive's embedded preview with a streaming Edge Function, and the owner chose the workstation's own player (D-83):
+- A signed-in member asks a streaming Edge Function for a short-lived playback token for a ready video. The read runs as the member, so RLS decides access. The `<video>` element then requests byte ranges with that token, because it can't send a sign-in header.
+- The function reads those ranges of the exact recorded revision (`revisions.get` with `alt=media` and the browser's `Range` header) as the service account, and passes them straight through. Nothing is stored in the database or Storage.
+- Any active member can watch, without a Google sign-in. "Open in Drive" stays as a link.
+- Seeking from a Comment pin, cue, section or Finding jumps the player to its time (FR-16, FR-17).
+- The test measured about 1.1–1.5 times the file's size of egress per watch, at 3–13 function invocations. The token is signed with a dedicated function secret. Drive's response is piped through without per-chunk work, so long files stay inside the 2-second CPU limit, and a file near the 1 GiB limit is checked on the hosted project.
+- Drive's preview cannot seek, and in the test it was blocked in Safari and iPhone WebKit by Google's cookie wall. Until the player is built, it remains the interim player (D-75).
 
 **Failures.** Drive errors and rate limits are retried with backoff, honouring Drive's `Retry-After`. Revoked folder access flags files `inaccessible` and raises a task for the Admin, and earlier records stay. The Drive check never deletes a record.
 
@@ -1020,7 +1022,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | FR-15 Combination and Label views | T-08, T-15 |
 | FR-16 Video content metadata | T-17; measured duration, annotation revisions, transcript cues, Content Sections, provenance and frozen Evidence references; AC-29, AC-30 |
 | FR-18 Footage | T-20; Footage Codes, Variant links, lock at go-live, usable-until warning; AC-33 |
-| FR-19 Canvas views | T-21; Creative canvas, Variant wall, review canvas with Drive's preview, whiteboard; AC-34–AC-37 |
+| FR-19 Canvas views | T-21; Creative canvas, Variant wall, review canvas with the workstation's own player (D-83), whiteboard; AC-34–AC-37 |
 | FR-17 Creative Retrospective / 复盘 | T-18; frozen baseline, section findings, action links, comparison validity, existing Verdict lifecycle; AC-31 |
 
 ## 14. Decisions, open items and references

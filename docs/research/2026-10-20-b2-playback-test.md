@@ -1,6 +1,8 @@
 # B2 playback test: Drive's preview vs the workstation's own player — 2026-10-20
 
-D-69 and D-75 left the in-app player to a test during the Drive integration (B2). This compares the interim player, Drive's embedded preview, with a prototype that streams the Version file through an Edge Function into the workstation's own `<video>` player. The prototype is on branch `claude/playback-test-b2` and is not approved for use.
+D-69 and D-75 left the in-app player to a test during the Drive integration (B2). This compares the interim player, Drive's embedded preview, with a prototype that streams the Version file through an Edge Function into the workstation's own `<video>` player. The prototype is on branch `claude/playback-test-b2`.
+
+**Decided 2026-10-20 (D-83):** the owner chose the workstation's own player, as recommended below. The prototype isn't wired into the app; the real build follows.
 
 ## What was tested
 

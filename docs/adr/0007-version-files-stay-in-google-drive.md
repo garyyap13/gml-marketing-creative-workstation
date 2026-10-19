@@ -11,5 +11,5 @@ The team keeps completed creatives in a shared Google Drive folder, but approval
 
 - The workstation can detect edits in Drive but cannot prevent them, and without write access it cannot keep a replaced revision from Drive's 30-day purge.
 - Version file durability depends on the Drive account holding the folder, outside the workstation's backups.
-- In-app seeking depends on a playback method chosen by test (D-69).
+- In-app seeking depends on a playback method chosen by test (D-69). *D-83 chose the workstation's own player, streamed from Drive on demand; nothing is copied out of Drive.*
 - Video size no longer justifies a paid Supabase plan; the plan is re-evaluated before provisioning.

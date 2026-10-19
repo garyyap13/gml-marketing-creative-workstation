@@ -29,7 +29,8 @@ The app, migrations and tests now exist (see CLAUDE.md). B2 replaced the Drive s
 - Secrets: `DRIVE_SERVICE_ACCOUNT_KEY` and `DRIVE_VERSION_FOLDER_ID`. Locally they live in the gitignored `supabase/functions/.env` (see `.env.example`); on a hosted project, use `supabase secrets set`. The key is written by `node scripts/save-drive-key.ts <downloaded key>`. Never commit or print it, and keep the folder, project and service account IDs out of this public repo.
 - Tests and journeys still play the worker through `tests/support/drive.ts` and never call Google. `pnpm drive:smoke "<Drive file link>"` checks the real connection against one file. It resets the local database first.
 - Verified 2026-10-20 against one existing video in the real folder. Under `drive.metadata.readonly` Drive returned the SHA-256 checksum, head revision, size, type, dimensions and duration. The file registered as ready, the change check found it unchanged, and a made-up file ID failed as `not_found` while the folder read fine. The team's files are named like `GML VIDEO 203 VER 1.mp4`, not D-69's `<variant code>_v<number>`. Nothing enforces the name, since identity is the file ID, revision and checksum.
-- Not built yet: the hosted schedule that runs the worker (B1: every minute or so, plus every 6 hours with `queue_checks`), a "check now" button for `request_drive_check`, and the D-69/D-75 playback test of Drive's preview against a streaming player.
+- Not built yet: the hosted schedule that runs the worker (B1: every minute or so, plus every 6 hours with `queue_checks`) and a "check now" button for `request_drive_check`.
+- Playback: the B2 playback test (`docs/research/2026-10-20-b2-playback-test.md`) led the owner to choose the workstation's own player (D-83). A prototype, `supabase/functions/drive-stream` plus `scripts/playback-test.ts`, is on branch `claude/playback-test-b2`. It isn't wired into the app; the real build is pending.
 
 ## User's workflow
 
