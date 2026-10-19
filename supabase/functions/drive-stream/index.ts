@@ -1,20 +1,17 @@
-// PROTOTYPE for the B2 playback test (D-69, D-75; TRD T-19 "Preview and playback"): streams a Version file's video
-// from Drive into the workstation's own player, so it can seek. Two steps:
+// Streams Version videos from Drive into the workstation's own player (D-83; TRD T-19 "Preview and playback"). Two steps:
 //   POST {"file_id"} with a member's sign-in → a playback token for that ready video, valid for an hour. The read runs
-//     as the member, so RLS decides whether they may see the file.
+//     as the member, so row-level security decides whether they may watch.
 //   GET ?t=<token>, with the browser's Range header → those bytes of the exact recorded Drive revision, read as the
-//     service account with the read-only content scope. A <video> element can't send a sign-in header, hence the token.
-// Each GET logs the bytes it sent and how long it ran, for the egress measurement.
+//     service account with the read-only content scope and passed straight through. A <video> element can't send a
+//     sign-in header, hence the token.
+// The logic lives in ../_shared/stream.ts, which the tests drive with a fake Google. Each request logs one line.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { driveContentScope, parseServiceAccountKey, serviceAccountTokens, type AccessTokens } from '../_shared/drive.ts'
+import { issuePlayback, playbackSigner, streamPlayback, type Answer, type Issued, type PlaybackSigner } from '../_shared/stream.ts'
 
 const url = Deno.env.get('SUPABASE_URL') ?? ''
-const key = (single: string, named: string, legacy: string) =>
-  Deno.env.get(single) ?? JSON.parse(Deno.env.get(named) ?? '{}').default ?? Deno.env.get(legacy) ?? ''
-const publishableKey = key('SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_ANON_KEY')
-// Prototype only: tokens are signed with a key derived from the project's secret key. A real build gets its own secret.
-const secretKey = key('SUPABASE_SECRET_KEY', 'SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY')
-const tokenLifetimeSeconds = 3600
+const publishableKey = Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') ?? '{}').default ??
+  Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -22,112 +19,63 @@ const cors = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Expose-Headers': 'content-range, content-length, accept-ranges',
 }
-const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+const reply = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+const now = () => Math.floor(Date.now() / 1000)
 
-const encoder = new TextEncoder()
-const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-let hmacKey: Promise<CryptoKey> | undefined
-const signingKey = () =>
-  (hmacKey ??= crypto.subtle.digest('SHA-256', encoder.encode(`drive-stream:${secretKey}`))
-    .then((raw) => crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])))
-
-type Playback = { d: string; r: string; m: string; e: number }
-
-async function sign(playback: Playback) {
-  const body = b64url(encoder.encode(JSON.stringify(playback)))
-  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', await signingKey(), encoder.encode(body)))
-  return `${body}.${b64url(signature)}`
-}
-
-async function verify(token: string): Promise<Playback | null> {
-  const [body, signature] = token.split('.')
-  if (!body || !signature) return null
-  const bytes = Uint8Array.from(atob(signature.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0))
-  if (!(await crypto.subtle.verify('HMAC', await signingKey(), bytes, encoder.encode(body)))) return null
-  const playback = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/'))) as Playback
-  return playback.e > Date.now() / 1000 ? playback : null
-}
-
-async function issue(request: Request) {
-  const args = await request.json().catch(() => null)
-  if (typeof args?.file_id !== 'string') return reply({ message: 'invalid' }, 422)
-  const caller = createClient(url, publishableKey, {
-    global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const { data: file, error } = await caller.schema('core').from('files')
-    .select('drive_file_id, drive_revision_id, mime, verification_state, provider').eq('id', args.file_id).maybeSingle()
-  if (error) return reply({ message: error.message }, 401)
-  if (!file || file.provider !== 'google_drive' || file.verification_state !== 'ready' || !String(file.mime).startsWith('video/')) {
-    return reply({ message: 'not_found' }, 404)
+// Without its own signing secret the function issues and accepts nothing.
+let signer: PlaybackSigner | null | undefined
+function playback(): PlaybackSigner | null {
+  if (signer === undefined) {
+    try {
+      signer = playbackSigner(Deno.env.get('DRIVE_STREAM_SIGNING_SECRET') ?? '')
+    } catch (error) {
+      console.error('drive stream not configured', error instanceof Error ? error.message : String(error))
+      signer = null
+    }
   }
-  const token = await sign({ d: file.drive_file_id, r: file.drive_revision_id, m: file.mime, e: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds })
-  return reply({ token, expires_in: tokenLifetimeSeconds })
+  return signer
 }
 
 let tokens: AccessTokens | undefined
 
-async function stream(request: Request) {
-  const started = performance.now()
-  const playback = await verify(new URL(request.url).searchParams.get('t') ?? '')
-  if (!playback) return reply({ message: 'forbidden' }, 403)
-  const stored = Deno.env.get('DRIVE_SERVICE_ACCOUNT_KEY')
-  if (!stored) return reply({ message: 'drive_not_configured' }, 503)
-  tokens ??= serviceAccountTokens(parseServiceAccountKey(stored), driveContentScope)
+async function answer(request: Request): Promise<{ answer: Answer | Issued; file?: string; range?: string | null }> {
+  const signer = playback()
+  if (!signer) return { answer: { status: 503, json: { message: 'stream_not_configured' } } }
+  if (request.method === 'POST') {
+    const args = await request.json().catch(() => null)
+    const caller = createClient(url, publishableKey, {
+      global: { headers: { Authorization: request.headers.get('Authorization') ?? '' } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+    return { answer: await issuePlayback(caller, args?.file_id, signer, now()), file: typeof args?.file_id === 'string' ? args.file_id : undefined }
+  }
+  const verified = await signer.verify(new URL(request.url).searchParams.get('t') ?? '', now())
+  if ('refused' in verified) return { answer: { status: 403, json: { message: verified.refused === 'expired' ? 'expired' : 'forbidden' } } }
   const range = request.headers.get('Range')
-  // The recorded revision, so the player shows exactly what was registered, even after newer content is uploaded.
-  const source = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(playback.d)}/revisions/${encodeURIComponent(playback.r)}?alt=media`
-  let upstream: Response | undefined
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const bearer = await tokens.get()
-    if (typeof bearer !== 'string') return reply({ message: 'drive_sign_in_failed', details: bearer.error }, 502)
-    upstream = await fetch(source, { headers: { Authorization: `Bearer ${bearer}`, ...(range ? { Range: range } : {}) } })
-    if (upstream.status !== 401) break
-    await upstream.body?.cancel()
-    tokens.drop()
-  }
-  if (!upstream || !upstream.body || (upstream.status !== 200 && upstream.status !== 206)) {
-    const text = upstream ? await upstream.text() : ''
-    console.error('drive stream refused', upstream?.status, text.slice(0, 300))
-    return reply({ message: 'drive_refused', status: upstream?.status }, upstream?.status === 416 ? 416 : 502)
-  }
-  const firstByteMs = Math.round(performance.now() - started)
-  const headers = new Headers({ ...cors, 'Content-Type': playback.m, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' })
-  for (const name of ['Content-Length', 'Content-Range']) {
-    const value = upstream.headers.get(name)
-    if (value) headers.set(name, value)
-  }
-  let sent = 0
-  const log = (end: string) =>
-    console.log('drive stream', JSON.stringify({ range, status: upstream!.status, bytes: sent, first_byte_ms: firstByteMs, ms: Math.round(performance.now() - started), end }))
-  const reader = upstream.body.getReader()
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const { done, value } = await reader.read()
-      if (done) {
-        log('complete')
-        controller.close()
-        return
-      }
-      sent += value.byteLength
-      controller.enqueue(value)
-    },
-    cancel(reason) {
-      log('cancelled')
-      return reader.cancel(reason)
-    },
-  })
-  return new Response(body, { status: upstream.status, headers })
+  const stored = Deno.env.get('DRIVE_SERVICE_ACCOUNT_KEY')
+  if (!stored) return { answer: { status: 503, json: { message: 'drive_not_configured' } }, file: verified.playback.file, range }
+  tokens ??= serviceAccountTokens(parseServiceAccountKey(stored), driveContentScope)
+  return { answer: await streamPlayback(verified.playback, range, { tokens }), file: verified.playback.file, range }
 }
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { headers: cors })
+  if (request.method !== 'GET' && request.method !== 'POST') return reply({ message: 'invalid' }, 405)
+  const started = performance.now()
+  let result: Awaited<ReturnType<typeof answer>>
   try {
-    if (request.method === 'POST') return await issue(request)
-    if (request.method === 'GET') return await stream(request)
-    return reply({ message: 'invalid' }, 405)
+    result = await answer(request)
   } catch (error) {
-    console.error('drive stream crashed', error instanceof Error ? error.message : String(error))
-    return reply({ message: 'stream_failed' }, 502)
+    result = { answer: { status: 502, json: { message: 'stream_failed' }, log: error instanceof Error ? error.message : String(error) } }
   }
+  const { answer: a, file, range } = result
+  // One line per request: what was asked, what Drive gave and how long it took to start. Bytes are what Drive said it
+  // would send; a player that stops early sends fewer.
+  console.log('drive stream', JSON.stringify({
+    method: request.method, file, range, status: a.status, ms: Math.round(performance.now() - started),
+    ...('stream' in a ? { bytes: Number(a.headers['Content-Length'] ?? 0) || null } : { message: (a.json as { message?: string }).message }),
+    ...('log' in a && a.log ? { detail: a.log } : {}),
+  }))
+  if ('stream' in a) return new Response(a.stream, { status: a.status, headers: { ...cors, ...a.headers } })
+  return reply(a.json, a.status)
 })
