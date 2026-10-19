@@ -265,6 +265,8 @@ The owner accepted the recommended answers on 2026-10-12.
   - the dedicated WhatsApp number
   - the Business Manager admin
   - the list of ad accounts, pages and Instagram accounts
-  - the Google Drive folder for Version files and the account that owns it
+  - ~~the Google Drive folder for Version files and the account that owns it~~ (answered 2026-10-20, below)
 
 *Answered 2026-10-12:* the team uses personal Gmail accounts, not Google Workspace. No Workspace policy limits sharing the Drive folder with a service account (D-69). D-70 settles sign-in.
+
+*Answered 2026-10-20:* Version files live in the team's existing "Video" folder. It has one subfolder per month, and another team account owns it. Its general access is Restricted. A service account in the owner's own Google Cloud project has Viewer access to the folder, and the project has the Google Drive API enabled (D-69). The service account has no key yet; the key is created when the Drive connection is built and is kept only in function secrets. The folder, project and service account IDs are kept out of this public repository.
