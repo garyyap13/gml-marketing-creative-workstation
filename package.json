@@ -7,6 +7,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "demo": "supabase db reset && tsx scripts/demo.ts",
+    "drive:smoke": "supabase db reset && tsx scripts/drive-smoke.ts",
     "test:db": "vitest run",
     "web:dev": "vite --config web/vite.config.ts",
     "web:build": "vite build --config web/vite.config.ts",
