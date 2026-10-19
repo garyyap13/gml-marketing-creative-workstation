@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { ContentTimeline, title } from '../components/ContentTimeline'
 import { DrivePreview } from '../components/DrivePreview'
 import { describedBy, FieldError, formProblem } from '../components/FieldError'
+import { VideoPlayer, type VideoPlayerHandle } from '../components/VideoPlayer'
 import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useLabels, useMembers, usePlan, useVideoContent, type ContentSection, type Finding, type PlanEvidence } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -93,11 +94,12 @@ function EvidencePanel({ data }: { data: Data }) {
   )
 }
 
-function FindingsPanel({ data, sections, picked, onPickSection, open, refresh }: {
+function FindingsPanel({ data, sections, picked, onPickSection, open, refresh, onSeek }: {
   data: Data
   sections: ContentSection[]
   picked: ContentSection | null
   onPickSection: (section: ContentSection | null) => void
+  onSeek?: (ms: number) => void
   open: boolean
   refresh: () => Promise<unknown>
 }) {
@@ -145,6 +147,8 @@ function FindingsPanel({ data, sections, picked, onPickSection, open, refresh }:
       {current.length === 0 && <p className="small muted">No notes yet. Record what the results show, and what you'd test next.</p>}
       {current.map((f) => {
         const who = author(f.author_id)
+        // A Finding on a section or a moment jumps the player to its start (D-83).
+        const start = f.target === 'section' ? sections.find((s) => s.id === f.section_id)?.start_ms : f.target === 'time_range' ? f.start_ms ?? undefined : undefined
         return (
           <article key={f.id} className="stack finding" style={{ gap: 6 }}>
             <div className="row spread small">
@@ -159,6 +163,7 @@ function FindingsPanel({ data, sections, picked, onPickSection, open, refresh }:
             <span className="small muted">
               {f.target === 'section' ? sectionTitle(f.section_id) : f.target === 'time_range' ? `${formatTime(f.start_ms ?? 0)}–${formatTime(f.end_ms ?? 0)}` : 'Whole video'}
               {f.evidence_id && data.baseline && ` · Evidence: paid results · ${dateRange(data.baseline.date_from, data.baseline.date_to)}`}
+              {onSeek && start !== undefined && <button className="time-jump" style={{ marginLeft: 8 }} onClick={() => onSeek(start)}>Jump to {formatTime(start)}</button>}
             </span>
             {actionFor(f.id) && (() => {
               const action = actionFor(f.id)!
@@ -405,6 +410,7 @@ function PlanWorkspace({ id }: { id: string }) {
   const uid = useId()
   const [tab, setTab] = useState<'evidence' | 'findings' | 'next'>('evidence')
   const [picked, setPicked] = useState<ContentSection | null>(null)
+  const player = useRef<VideoPlayerHandle>(null)
   const frozen = data.data?.baseline?.annotation_revision_id ?? null
   const content = useVideoContent(data.data?.version.id ?? '', frozen, Boolean(frozen))
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: ['plan', id] }), queryClient.invalidateQueries({ queryKey: ['plans'] })])
@@ -419,6 +425,8 @@ function PlanWorkspace({ id }: { id: string }) {
   const intents = [plan.intent_brief_hypothesis, plan.intent_source_plan_hypothesis].filter(Boolean) as string[]
   const tabs = [{ key: 'evidence', label: 'Evidence' }, { key: 'findings', label: 'Team findings' }, { key: 'next', label: 'Next action' }] as const
   const verdictBy = plan.verdict_by ? members.data?.find((m) => m.id === plan.verdict_by)?.display_name : null
+  const video = d.baselineFile?.mime?.startsWith('video/') ? d.baselineFile : null
+  const seek = video ? (ms: number) => player.current?.seek(ms) : undefined
 
   return (
     <main className="page" style={{ maxWidth: 1200 }}>
@@ -452,11 +460,14 @@ function PlanWorkspace({ id }: { id: string }) {
 
       <div className="workspace">
         <div className="stack" style={{ alignContent: 'start' }}>
-          {baseline?.files.length === 1 && baseline.files[0].drive_file_id && (
+          {/* The stream plays the revision the Version recorded, which is what the 复盘 froze. */}
+          {baseline?.files.length === 1 && baseline.files[0].drive_file_id && (video ? (
+            <VideoPlayer ref={player} key={video.id} fileId={video.id} driveFileId={baseline.files[0].drive_file_id} name={video.name} width={video.width} height={video.height} />
+          ) : (
             <DrivePreview key={baseline.files[0].drive_file_id} driveFileId={baseline.files[0].drive_file_id} note="It shows the file as it is in Drive now; the 复盘 froze its checksum." />
-          )}
+          ))}
           {frozen ? (
-            <ContentTimeline versionId={version.id} revisionId={frozen} canEdit={false}
+            <ContentTimeline versionId={version.id} revisionId={frozen} canEdit={false} onSeek={seek}
               onUseSection={open ? (section) => { setPicked(section); setTab('findings') } : undefined} />
           ) : (
             <section className="panel"><p className="small muted">No transcript or sections were frozen with this 复盘.</p></section>
@@ -481,7 +492,7 @@ function PlanWorkspace({ id }: { id: string }) {
             <EvidencePanel data={d} />
           </div>
           <div role="tabpanel" id={`${uid}-panel-findings`} aria-labelledby={`${uid}-tab-findings`} hidden={tab !== 'findings'}>
-            <FindingsPanel data={d} sections={content.data?.sections ?? []} picked={picked} onPickSection={setPicked} open={open} refresh={refresh} />
+            <FindingsPanel data={d} sections={content.data?.sections ?? []} picked={picked} onPickSection={setPicked} open={open} refresh={refresh} onSeek={seek} />
           </div>
           <div role="tabpanel" id={`${uid}-panel-next`} aria-labelledby={`${uid}-tab-next`} hidden={tab !== 'next'}>
             <NextActionPanel data={d} canSteer={canSteer} refresh={refresh} />

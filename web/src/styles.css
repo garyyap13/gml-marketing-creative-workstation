@@ -152,6 +152,7 @@ button[aria-disabled='true'] { opacity: 0.6; cursor: progress; }
 .timebar .segment.other { background: var(--line); }
 fieldset.entry { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 10px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
 fieldset.entry legend { float: left; width: 100%; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+fieldset.entry legend .time-jump { margin-left: 10px; text-transform: none; letter-spacing: 0; font-size: 11px; }
 fieldset.entry .time { flex: 0 1 84px; }
 fieldset.entry .short { flex: 1 1 120px; max-width: 170px; }
 fieldset.entry .wide { flex: 1 1 260px; }
@@ -217,6 +218,14 @@ svg.canvas:active { cursor: grabbing; }
 .drive-preview.tall { height: min(62vh, 560px); }
 .drive-preview iframe { width: 100%; height: 100%; border: 0; }
 .drive-play { display: inline-flex; align-items: center; gap: 8px; }
+.player { aspect-ratio: 16 / 9; max-height: 420px; border-radius: var(--radius); background: #000; border: 1px solid var(--line); overflow: hidden; display: grid; place-items: center; }
+.player.tall { max-height: min(72vh, 680px); }
+.player.portrait { aspect-ratio: 9 / 16; max-height: min(80vh, 640px); border-radius: 14px; }
+.player video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+.player > p, .player-problem { color: #e7ebee; padding: 16px; text-align: center; max-width: 46ch; }
+.time-jump { padding: 1px 6px; border-radius: 5px; font-size: inherit; color: var(--accent); }
+.player-dock { position: sticky; top: 0; z-index: 3; background: var(--bg); padding-block: 6px; }
+.player-dock .player { height: min(34vh, 360px); max-height: none; width: auto; max-width: 100%; justify-self: start; }
 .review-canvas { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .review-canvas { grid-template-columns: 1fr; } }
 .rv-timeline { display: grid; gap: 8px; }
