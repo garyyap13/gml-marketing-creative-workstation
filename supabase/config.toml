@@ -427,3 +427,8 @@ verify_jwt = true
 # call it (TRD T-19).
 [functions.drive-worker]
 verify_jwt = false
+
+# PROTOTYPE for the B2 playback test: a <video> element can't send a sign-in header, so the function checks the
+# member's sign-in when it issues a playback token, and the token on each byte-range request.
+[functions.drive-stream]
+verify_jwt = false

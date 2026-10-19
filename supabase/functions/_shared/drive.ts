@@ -8,6 +8,9 @@
 // Metadata only: the worker never downloads, changes or shares a file. The scope still returns checksums, the head
 // revision and video and image metadata.
 export const driveScope = 'https://www.googleapis.com/auth/drive.metadata.readonly'
+// Reading a file's content, as the playback stream does, needs the read-only content scope. It still can't change,
+// share or delete anything.
+export const driveContentScope = 'https://www.googleapis.com/auth/drive.readonly'
 export const tokenUrl = 'https://oauth2.googleapis.com/token'
 const filesUrl = 'https://www.googleapis.com/drive/v3/files/'
 // What T-19 records. Drive returns only the fields asked for.
@@ -57,9 +60,9 @@ export function importSigningKey(key: ServiceAccountKey): Promise<CryptoKey> {
 
 // The JWT the service account presents at the token endpoint (Google's "Using OAuth 2.0 for Server to Server
 // Applications", HTTP/REST): RS256, valid for at most an hour.
-export async function signedAssertion(key: ServiceAccountKey, signingKey: CryptoKey, nowSeconds: number): Promise<string> {
+export async function signedAssertion(key: ServiceAccountKey, signingKey: CryptoKey, nowSeconds: number, scope = driveScope): Promise<string> {
   const header = { alg: 'RS256', typ: 'JWT', ...(key.private_key_id ? { kid: key.private_key_id } : {}) }
-  const claims = { iss: key.client_email, scope: driveScope, aud: tokenUrl, iat: nowSeconds, exp: nowSeconds + 3600 }
+  const claims = { iss: key.client_email, scope, aud: tokenUrl, iat: nowSeconds, exp: nowSeconds + 3600 }
   const unsigned = `${encoded(header)}.${encoded(claims)}`
   const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', signingKey, new TextEncoder().encode(unsigned))
   return `${unsigned}.${base64url(new Uint8Array(signature))}`
@@ -78,15 +81,18 @@ async function driveError(response: Response): Promise<{ reasons: string[]; text
   return { reasons, text: `Drive answered ${response.status}${reasons.length ? ` (${reasons.join(', ')})` : ''}: ${message}` }
 }
 
-// Reads Drive as the service account. The access token is kept until a minute before it expires.
-export function googleDrive(key: ServiceAccountKey, fetchFn: Fetch = fetch, now: () => number = Date.now): DriveReader {
+export type SignInFailure = Exclude<DriveRead, { outcome: 'found' | 'missing' }>
+export type AccessTokens = { get(): Promise<string | SignInFailure>; drop(): void }
+
+// The service account's access tokens for one scope, each kept until a minute before it expires.
+export function serviceAccountTokens(key: ServiceAccountKey, scope = driveScope, fetchFn: Fetch = fetch, now: () => number = Date.now): AccessTokens {
   let signingKey: Promise<CryptoKey> | undefined
   let token: { value: string; expiresAt: number } | undefined
 
-  async function accessToken(): Promise<string | Exclude<DriveRead, { outcome: 'found' | 'missing' }>> {
+  async function accessToken(): Promise<string | SignInFailure> {
     if (token && token.expiresAt - 60_000 > now()) return token.value
     signingKey ??= importSigningKey(key)
-    const assertion = await signedAssertion(key, await signingKey, Math.floor(now() / 1000))
+    const assertion = await signedAssertion(key, await signingKey, Math.floor(now() / 1000), scope)
     let response: Response
     try {
       response = await fetchFn(tokenUrl, {
@@ -107,8 +113,15 @@ export function googleDrive(key: ServiceAccountKey, fetchFn: Fetch = fetch, now:
     return response.status === 429 || response.status >= 500 ? { outcome: 'retry', error: why, afterSeconds: retryAfter(response) } : { outcome: 'refused', error: why }
   }
 
+  return { get: accessToken, drop: () => { token = undefined } }
+}
+
+// Reads Drive metadata as the service account.
+export function googleDrive(key: ServiceAccountKey, fetchFn: Fetch = fetch, now: () => number = Date.now): DriveReader {
+  const tokens = serviceAccountTokens(key, driveScope, fetchFn, now)
+
   async function read(driveFileId: string, signedInAgain: boolean): Promise<DriveRead> {
-    const bearer = await accessToken()
+    const bearer = await tokens.get()
     if (typeof bearer !== 'string') return bearer
     let response: Response
     try {
@@ -121,7 +134,7 @@ export function googleDrive(key: ServiceAccountKey, fetchFn: Fetch = fetch, now:
     if (response.ok) return { outcome: 'found', file: await response.json() }
     if (response.status === 404) return { outcome: 'missing' }
     if (response.status === 401 && !signedInAgain) {
-      token = undefined
+      tokens.drop()
       return read(driveFileId, true)
     }
     const { reasons, text } = await driveError(response)
