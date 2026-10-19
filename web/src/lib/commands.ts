@@ -67,6 +67,7 @@ const reasons: Record<string, string> = {
   approval_not_in_effect: 'This approval has already ended.',
   not_a_post: 'Only a post Launch takes a post link.',
   footage_archived: 'This Footage has been archived.',
+  telegram_not_set_up: "Telegram messages aren't set up yet. The Admin sets up the workstation's bot.",
 }
 
 export function explain(error: unknown): string {

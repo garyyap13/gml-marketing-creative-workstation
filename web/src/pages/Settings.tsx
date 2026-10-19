@@ -306,6 +306,117 @@ function TeamTimeZone() {
   )
 }
 
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+type TelegramBot = { state: 'ready' | 'not_configured' | 'refused'; username: string | null; last_error: string | null; checked_at: string }
+type TelegramConnection = { member_id: string; connected_at: string }
+type FailedMessage = { id: string; last_error: string | null; created_at: string; task: { action_needed: string; recipient_member_id: string | null } | null }
+
+// Telegram notifications (D-82). Each member connects their own Telegram: the workstation issues a one-time link to its
+// bot, the member presses Start, and from then on the bot sends them a private message when something needs them. My
+// Tasks still lists everything. The Admin also sees whether the bot is set up, who has connected and any message that
+// couldn't be sent (D-49 as amended by D-82). The bot's token itself lives only in function secrets.
+function Telegram() {
+  const me = useMember()
+  const members = useMembers()
+  const queryClient = useQueryClient()
+  const headingId = useId()
+  const bot = useQuery({
+    queryKey: ['telegram-bot'],
+    queryFn: async () => {
+      const { data, error } = await supabase.schema('core').from('telegram_bot').select('state, username, last_error, checked_at').maybeSingle()
+      if (error) throw error
+      return data as TelegramBot | null
+    },
+  })
+  // The link the member is about to open. While it waits, the page checks every few seconds for the connection.
+  const [pending, setPending] = useState<{ link: string; username: string; expiresAt: string } | null>(null)
+  const connections = useQuery({
+    queryKey: ['telegram-connections'],
+    refetchInterval: pending ? 3000 : false,
+    queryFn: async () => {
+      const { data, error } = await supabase.schema('core').from('telegram_connections').select('member_id, connected_at').is('disconnected_at', null)
+      if (error) throw error
+      return data as TelegramConnection[]
+    },
+  })
+  const failed = useQuery({
+    queryKey: ['telegram-failures'],
+    enabled: me.is_admin,
+    queryFn: async () => {
+      const { data, error } = await supabase.schema('work').from('outbox').select('id, last_error, created_at, task:tasks(action_needed, recipient_member_id)')
+        .eq('channel', 'telegram').eq('delivery_state', 'failed').gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString())
+        .order('created_at', { ascending: false }).limit(5)
+      if (error) throw error
+      return data as unknown as FailedMessage[]
+    },
+  })
+  const mine = connections.data?.find((c) => c.member_id === me.id)
+  const connect = useMutation({
+    mutationFn: () => run<{ code: string; bot_username: string; expires_at: string }>('start_telegram_connection'),
+    onSuccess: (r) => setPending({ link: `https://t.me/${r.bot_username}?start=${r.code}`, username: r.bot_username, expiresAt: r.expires_at }),
+    onError: () => queryClient.invalidateQueries({ queryKey: ['telegram-bot'] }),
+  })
+  const disconnect = useMutation({
+    mutationFn: () => run('disconnect_telegram'),
+    onSuccess: () => { setPending(null); return queryClient.invalidateQueries({ queryKey: ['telegram-connections'] }) },
+  })
+  const ready = bot.data?.state === 'ready'
+  const nameOf = (id: string | null | undefined) => members.data?.find((m) => m.id === id)?.display_name ?? 'A member'
+  const active = members.data?.filter((m) => m.active && m.auth_user_id) ?? []
+  const connected = active.filter((m) => connections.data?.some((c) => c.member_id === m.id))
+
+  return (
+    <section className="panel stack" aria-labelledby={headingId}>
+      <h2 id={headingId}>Telegram</h2>
+      <p className="small muted">Get a private Telegram message when something needs you, with a link to it. My Tasks still lists everything.</p>
+      {(bot.error || connections.error) && <p className="error" role="alert">{explain(bot.error ?? connections.error)}</p>}
+      {mine ? (
+        <div className="row" style={{ alignItems: 'center' }}>
+          <p style={{ flex: '1 1 240px' }}>Connected since {when(mine.connected_at)}.{bot.data?.username ? ` Messages come from @${bot.data.username}.` : ''}</p>
+          <button type="button" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>Disconnect Telegram</button>
+        </div>
+      ) : pending ? (
+        <div className="stack" style={{ gap: 8 }}>
+          <p>Open the bot in Telegram and press <strong>Start</strong>. The link works once, until {new Date(pending.expiresAt).toLocaleTimeString(undefined, { timeStyle: 'short' })}.</p>
+          <div className="row" style={{ alignItems: 'center' }}>
+            <a className="button primary" href={pending.link} target="_blank" rel="noreferrer">Open @{pending.username} in Telegram</a>
+            <span className="small muted" aria-live="polite">Waiting for Telegram…</span>
+          </div>
+        </div>
+      ) : ready ? (
+        <div><button type="button" className="primary" onClick={() => connect.mutate()} disabled={connect.isPending}>Connect Telegram</button></div>
+      ) : bot.data !== undefined && (
+        <p className="notice">Telegram messages aren't set up yet. {me.is_admin ? 'See the bot below.' : 'The Admin sets up the workstation\'s bot.'}</p>
+      )}
+      {connect.error && <p className="error" role="alert">{explain(connect.error)}</p>}
+      {disconnect.error && <p className="error" role="alert">{explain(disconnect.error)}</p>}
+      {me.is_admin && (
+        <div className="stack" style={{ gap: 8, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+          <h3 style={{ fontSize: 15 }}>Bot</h3>
+          <p className="small">
+            {!bot.data ? "Not checked yet: the Telegram worker hasn't run since the workstation was set up."
+              : bot.data.state === 'ready' ? `@${bot.data.username} is set up. Checked ${when(bot.data.checked_at)}.`
+                : bot.data.state === 'not_configured' ? "Not set up: the bot's token isn't in the function secrets. Create the bot with Telegram's @BotFather and save its token there."
+                  : `Telegram refused the bot's token, so nothing is sent: ${bot.data.last_error ?? 'no reason given'}. Checked ${when(bot.data.checked_at)}.`}
+          </p>
+          <h3 style={{ fontSize: 15 }}>Connected</h3>
+          <p className="small">{connected.length ? `${connected.length} of ${active.length} members: ${connected.map((m) => m.display_name).join(', ')}.` : 'No one has connected yet.'}</p>
+          <h3 style={{ fontSize: 15 }}>Messages that couldn't be sent</h3>
+          {failed.error && <p className="error" role="alert">{explain(failed.error)}</p>}
+          {failed.data?.length ? (
+            <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+              {failed.data.map((f) => (
+                <li key={f.id}>{f.task?.action_needed ?? 'A task'}, to {nameOf(f.task?.recipient_member_id)}, {when(f.created_at)}: {f.last_error ?? 'no reason given'}</li>
+              ))}
+            </ul>
+          ) : failed.data && <p className="small muted">None in the last 7 days. The task stays in the person's My Tasks either way.</p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
 const breakdownNames: Record<string, string> = {
   age_gender: 'Age × gender', placement: 'Placement', placement_device: 'Placement × device', country: 'Country', region: 'Region',
 }
@@ -361,6 +472,7 @@ export function Settings() {
     <main className="page">
       <h1>Settings</h1>
       <Members />
+      <Telegram />
       <TeamTimeZone />
       <Breakdowns />
       <h2>Label lists</h2>

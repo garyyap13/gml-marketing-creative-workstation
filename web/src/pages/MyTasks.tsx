@@ -154,6 +154,21 @@ function TaskSummary({ task }: { task: Task }) {
   )
 }
 
+// A Telegram message about this task that couldn't be sent shows on the task, which stays in My Tasks (T-16).
+function DeliveryNote({ taskId }: { taskId: string }) {
+  const failed = useQuery({
+    queryKey: ['task-delivery', taskId],
+    queryFn: async () => {
+      const { data, error } = await supabase.schema('work').from('outbox').select('last_error')
+        .eq('task_id', taskId).eq('channel', 'telegram').eq('delivery_state', 'failed').maybeSingle()
+      if (error) throw error
+      return data as { last_error: string | null } | null
+    },
+  })
+  if (!failed.data) return null
+  return <p className="notice small" role="status" style={{ margin: '12px 24px 0' }}>The Telegram message about this task couldn't be sent{failed.data.last_error ? ` (${failed.data.last_error})` : ''}.</p>
+}
+
 // My Tasks as an inbox (D-81): the list on the left with filters, the selected task beside it. J and K move between
 // tasks unless the member is typing.
 export function MyTasks() {
@@ -227,6 +242,7 @@ export function MyTasks() {
       </section>
       <section className="inbox-detail" aria-label="Selected task">
         {id && <Link to={`/tasks${suffix}`} className="inbox-back small">← All tasks</Link>}
+        {selected && <DeliveryNote taskId={selected.id} />}
         {selected && selected.entity_type === 'review' ? <InboxReview key={selected.id} reviewId={selected.entity_id} />
           : selected ? <TaskSummary key={selected.id} task={selected} />
             : tasks.data && <p className="muted inbox-pad">{id ? 'This task could not be found.' : 'Pick a task to see it here.'}</p>}
