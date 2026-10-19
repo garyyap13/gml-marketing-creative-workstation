@@ -50,7 +50,12 @@ test('the Admin sees the bot, who has connected and a message that couldn\'t be 
   const telegram = fakeTelegram({
     sendMessage: (p) => (p.chat_id === chatId ? { outcome: 'refused', status: 400, error: 'Telegram answered 400: Bad Request: chat not found', recipientGone: false } : { outcome: 'ok', result: { message_id: 1 } }),
   })
-  await sendQueuedMessages({ rpc, bot: telegram.bot, appBaseUrl: 'http://127.0.0.1:5173' }, Date.now() + 15_000)
+  // The worker sends it. A run that finds nothing to send leaves the message for the next one, as the schedule would;
+  // once, in a full run, a run claimed nothing just after the Version was submitted.
+  await expect.poll(async () => {
+    await sendQueuedMessages({ rpc, bot: telegram.bot, appBaseUrl: 'http://127.0.0.1:5173' }, Date.now() + 5_000)
+    return (await meiApi.schema('work').from('outbox').select('delivery_state').eq('task_id', task!.id).single()).data?.delivery_state
+  }, { timeout: 15_000 }).toBe('failed')
 
   const admin = await signIn(browser, firstAdminEmail())
   await openSettings(admin)
