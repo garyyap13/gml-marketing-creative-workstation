@@ -1,7 +1,7 @@
 // Invites a member (D-49, D-70, TRD T-09). The invite_member command runs as the calling Admin, so the
 // Admin check, validation, idempotency and activity log all happen in Postgres (T-03). The function then
-// creates the person's sign-in account, confirmed and without a password, with the secret key. Public
-// sign-up stays off, so nobody can create an account for an invited address before its owner signs in.
+// creates the person's sign-in account, confirmed and without a password, with the secret key, and emails them
+// a link to choose one (D-86). Public sign-up stays off, so nobody can create an account for an invited address.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const url = Deno.env.get('SUPABASE_URL') ?? ''
@@ -39,5 +39,10 @@ Deno.serve(async (request) => {
     console.error('createUser failed', created.error.code, invited.data?.correlation_id)
     return reply({ message: 'account_not_created', details: JSON.stringify({ correlationId: invited.data?.correlation_id }) }, 502)
   }
-  return reply(invited.data)
+
+  // The invitation email is Auth's "set your password" email (D-86), so a repeated invitation sends a fresh link. The
+  // member is invited even if it can't be sent; they can still ask for one with "Forgot your password?".
+  const emailed = await admin.auth.resetPasswordForEmail(args.p_email.trim().toLowerCase())
+  if (emailed.error) console.error('set-password email failed', emailed.error.code ?? emailed.error.status, invited.data?.correlation_id)
+  return reply({ ...invited.data, password_email: emailed.error ? 'not_sent' : 'sent' })
 })

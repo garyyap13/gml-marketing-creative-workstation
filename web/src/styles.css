@@ -125,6 +125,8 @@ label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
 
 .centered { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .signin { width: min(380px, 100%); }
+/* A text-style button for a secondary action, such as "Forgot your password?". */
+button.link-button { justify-self: start; border: 0; background: transparent; padding: 4px 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 
 /* At phone width the sidebar becomes a top bar; the menu button opens the rest of it. */
 @media (max-width: 760px) {

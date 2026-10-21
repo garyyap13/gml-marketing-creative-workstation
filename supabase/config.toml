@@ -174,7 +174,8 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
+# 8: members sign in with an email and password (D-86).
+minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
 password_requirements = ""
@@ -210,7 +211,7 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-# Must stay true: false disables email sign-in, including magic links. [auth] enable_signup = false blocks sign-ups.
+# Must stay true: false disables email sign-in, including passwords (D-86). [auth] enable_signup = false blocks sign-ups.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
@@ -242,10 +243,11 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# The sign-in email carries the link and a 6-digit code, so people can sign in on another device.
-[auth.email.template.magic_link]
-subject = "Your GML studio sign-in"
-content_path = "./supabase/templates/magic_link.html"
+# One email both for an invited member's first password and for "Forgot your password?" (D-86). Its link
+# carries a token hash for the set-password page, so it works in any browser, not only the one that asked.
+[auth.email.template.recovery]
+subject = "Set your GML studio password"
+content_path = "./supabase/templates/set_password.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

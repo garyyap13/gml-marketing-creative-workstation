@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { Layout } from './components/Layout'
 import { rememberReturnPath, returnPath, useSession } from './lib/session'
 import { Overview } from './pages/Overview'
+import { SetPassword } from './pages/SetPassword'
 import { SignIn } from './pages/SignIn'
 
 // Every page but sign-in and the Overview is fetched when it first opens, so signing in does not wait for the canvas,
@@ -49,6 +50,7 @@ export function App() {
     return (
       <Routes>
         <Route path="/sign-in" element={<SignIn problem={session.status === 'not_member' ? 'not_member' : undefined} />} />
+        <Route path="/auth/set-password" element={<SetPassword />} />
         {/* Reached only when the link's sign-in did not produce a session: used, expired or opened elsewhere. */}
         <Route path="/auth/callback" element={<Navigate to="/sign-in?link=failed" replace />} />
         <Route path="*" element={session.status === 'not_member' ? <Navigate to="/sign-in" replace /> : <RememberAndSignIn />} />
@@ -59,6 +61,8 @@ export function App() {
     <Routes>
       <Route path="/sign-in" element={<Navigate to={returnPath()} replace />} />
       <Route path="/auth/callback" element={<Navigate to={returnPath()} replace />} />
+      {/* A signed-in member can follow a set-password link too, for themselves or another account. */}
+      <Route path="/auth/set-password" element={<SetPassword />} />
       <Route element={<Layout />}>
         <Route index element={<Overview />} />
         <Route path="/tasks" element={<MyTasks />} />

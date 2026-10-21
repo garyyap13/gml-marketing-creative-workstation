@@ -37,18 +37,19 @@ export async function mailFor(email: string): Promise<Array<{ ID: string; Subjec
   return (await response.json()).messages ?? []
 }
 
-// The sign-in link in the newest message for an address.
-export async function magicLinkFor(email: string): Promise<string> {
+// The set-password link in the newest message for an address (D-86), as a path on the app, so it opens on whichever
+// port the journey's server uses. The email builds it from the stack's site_url with a token hash.
+export async function passwordLinkFor(email: string): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const [newest] = await mailFor(email)
     if (newest) {
-      const response = await fetch(`${stack().MAILPIT_URL}/api/v1/message/${newest.ID}`)
-      const link = ((await response.json()).Text as string).match(/https?:\/\/\S+\/auth\/v1\/verify\?\S+/)?.[0]
-      if (link) return link
+      const message = await (await fetch(`${stack().MAILPIT_URL}/api/v1/message/${newest.ID}`)).json()
+      const tokenHash = `${message.HTML ?? ''} ${message.Text ?? ''}`.match(/token_hash=([A-Za-z0-9_-]+)/)?.[1]
+      if (tokenHash) return `/auth/set-password?token_hash=${tokenHash}&type=recovery`
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`no sign-in link arrived for ${email}`)
+  throw new Error(`no set-password link arrived for ${email}`)
 }
 
 // After a database reset the API reloads its schema cache; wait until it answers normally.
@@ -64,7 +65,7 @@ export async function waitForApi(timeoutMs = 60_000): Promise<void> {
 }
 
 // Invites a member the way the web app does: through the invite-member Edge Function, which runs the
-// invite_member command as the calling Admin and then creates the confirmed sign-in account.
+// invite_member command as the calling Admin, creates the confirmed sign-in account and emails the set-password link.
 export async function inviteThroughFunction(admin: SupabaseClient, args: Record<string, unknown>) {
   const { data, error } = await admin.functions.invoke('invite-member', { body: args })
   if (!error) return { data, error: null, status: 200 }
@@ -74,18 +75,4 @@ export async function inviteThroughFunction(admin: SupabaseClient, args: Record<
   const body = response ? await response.json().catch(() => ({})) : {}
   const cause = context instanceof Error ? `: ${context.message}` : ''
   return { data: null, error: { message: body.message ?? `${error.message}${cause}`, details: body.details ?? null }, status: response?.status ?? 0 }
-}
-
-// The 6-digit code in the newest message for an address.
-export async function signInCodeFor(email: string): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const [newest] = await mailFor(email)
-    if (newest) {
-      const response = await fetch(`${stack().MAILPIT_URL}/api/v1/message/${newest.ID}`)
-      const code = ((await response.json()).Text as string).match(/\b(\d{6})\b/)?.[1]
-      if (code) return code
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250))
-  }
-  throw new Error(`no sign-in code arrived for ${email}`)
 }

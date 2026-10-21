@@ -127,9 +127,10 @@ function Members() {
   const [form, setForm, clearIfUnchanged] = useDraft({ email: '', name: '', team: 'marketing', approver: false })
   const formKey = useFormKey()
   const invite = useMutation({
-    // The invite-member Edge Function runs invite_member as the Admin, then creates the sign-in account.
+    // The invite-member Edge Function runs invite_member as the Admin, creates the sign-in account and emails the
+    // link to choose a password.
     mutationFn: (submitted: typeof form) =>
-      runFunction('invite-member', {
+      runFunction<{ password_email?: 'sent' | 'not_sent' }>('invite-member', {
         p_email: submitted.email,
         p_display_name: submitted.name,
         p_team: submitted.team,
@@ -204,9 +205,16 @@ function Members() {
           <button type="submit" className="primary" disabled={invite.isPending}>Invite member</button>
         </form>
       )}
-      {me.is_admin && <p className="small muted">For a Gmail address, enter it exactly as it appears in the person's Google account, so Google sign-in recognises them.</p>}
+      {me.is_admin && <p className="small muted">Each invited member gets an email with a link to choose their password (D-86). Inviting someone again sends a fresh link.</p>}
       {invite.error && !fieldError(invite.error, 'email') && !fieldError(invite.error, 'display_name') && (
         <p className="error" role="alert">{fieldError(invite.error, 'is_approver') ?? explain(invite.error)}</p>
+      )}
+      {invite.isSuccess && (
+        <p className={invite.data.password_email === 'not_sent' ? 'notice' : 'small muted'} role="status">
+          {invite.data.password_email === 'not_sent'
+            ? `${invite.variables.email} is invited, but the password email couldn't be sent. They can use "Forgot your password?" on the sign-in page.`
+            : `Invited. ${invite.variables.email} has been emailed a link to choose a password.`}
+        </p>
       )}
     </section>
   )

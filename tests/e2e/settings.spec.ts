@@ -15,6 +15,7 @@ test('the Admin invites a member in Settings, and each team adds items to its ow
   await members.getByLabel('Team').selectOption('creative')
   await members.getByRole('button', { name: 'Invite member' }).click()
   await expect(members.getByRole('row', { name: new RegExp(`${aina}.*Creative Team.*Invited`) })).toBeVisible()
+  await expect(members.getByRole('status')).toContainText(`${ainaEmail} has been emailed a link to choose a password`)
   const adminAvatars = admin.getByRole('region', { name: 'Avatar' })
   await adminAvatars.getByLabel('New Avatar').fill(avatar)
   await adminAvatars.getByRole('button', { name: 'Add' }).click()

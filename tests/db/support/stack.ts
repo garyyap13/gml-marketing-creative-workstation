@@ -9,7 +9,7 @@ export { mailFor, operatorClient, signedOutClient, testEmail, waitForApi } from 
 export const dateIn = (timeZone: string, days = 0) => new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(Date.now() + days * 86_400_000))
 export const daysFromToday = (days: number) => dateIn('Asia/Kuala_Lumpur', days)
 
-// Local test sign-in uses generated passwords; real members sign in with Google or a magic link (D-70).
+// Local test sign-in uses generated passwords; members choose theirs from the invitation email (D-86).
 export async function signedInClient(email = testEmail()): Promise<{ client: SupabaseClient; email: string }> {
   const password = randomUUID()
   const created = await operatorClient().auth.admin.createUser({ email, password, email_confirm: true })

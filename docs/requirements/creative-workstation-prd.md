@@ -15,7 +15,7 @@ Vocabulary follows CONTEXT.md. If this document conflicts with the decision log,
 ## Changes in 1.1
 
 - **One company, no tenancy.** One brand (GML), about seven people. Workspaces, brand memberships and the viewer and workspace-admin roles are removed, and everyone signed in sees everything. Roles are Marketing or Creative plus an Approver flag, and the workstation owner holds the Admin flag (D-01–D-03, D-49, ADR 0005).
-- **Platform and sign-in.** Supabase (Postgres, Auth, Storage, scheduled jobs) with company Google sign-in and a magic-link fallback. Domain commands run as Postgres functions (D-04, D-06, D-48, ADR 0001, ADR 0006).
+- **Platform and sign-in.** Supabase (Postgres, Auth, Storage, scheduled jobs) with email and password sign-in for invited members (D-86). Domain commands run as Postgres functions (D-04, D-06, D-48, ADR 0001, ADR 0006).
 - **Glossary vocabulary.** Brief → Creative → Variant → Version (D-09, D-10). Codes `GML-0007` / `GML-0007-B` replace `CR-000123`, and older codes stay valid as Legacy Codes (D-11, D-12, ADR 0002).
 - **Labels.** Fixed per-level lists; Product and Initiative on the Brief; labels lock at go-live; only the Marketing Team sets or confirms Format (D-13–D-15, D-51; new FR-13).
 - **Brief lifecycle.** Hand-off lock and Rebrief; owners and due dates; Production Stages; video, static and carousel. Brief attachments may be uploaded or linked (D-16–D-19, D-52).
@@ -42,7 +42,7 @@ Vocabulary follows CONTEXT.md. If this document conflicts with the decision log,
   - Every Version file, drafts and completed, stays in Google Drive. The workstation records each file's identity through read-only Drive access and flags later changes; Supabase Storage no longer holds review or final files (D-64, D-65, ADR 0007). This amends the Storage parts of D-06, D-07, D-52 and D-62, and of ADR 0001, for Version files.
   - PD-23 and PD-24 are confirmed, with SRT/WebVTT transcript import and no automatic transcription (D-68). Most of PD-25 is confirmed as the Drive Version file rules (D-69).
   - Briefs gain an optional hypothesis (D-67). The web client is a Vite + React + TypeScript single-page app (D-66).
-  - Sign-in uses Google with personal Gmail accounts, limited to invited members, with magic links as a backup (D-70).
+  - Sign-in uses Google with personal Gmail accounts, limited to invited members, with magic links as a backup (D-70). *D-86: an email and password instead; invited members choose their password from the invitation email.*
   - Raw footage is tracked as Footage with `RAW-` codes, linked to the Variants that use it (D-71; new FR-18).
 - **Requirement IDs.**
   - Added FR-13–FR-18 and AC-17–AC-33.
@@ -83,7 +83,7 @@ The first successful end-to-end use is one Creative completing all six steps. Th
 
 ## 3. Users and permissions
 
-The workstation serves one company with one brand (D-01, ADR 0005). Everyone signed in sees everything: Briefs, files, Comments and results (D-02). People sign in with Google using their personal Gmail accounts, or with an email magic link as a backup; only members the Admin has invited can sign in (D-04, D-70).
+The workstation serves one company with one brand (D-01, ADR 0005). Everyone signed in sees everything: Briefs, files, Comments and results (D-02). People sign in with their email and a password they chose from their invitation email, and can reset a forgotten password by email; only members the Admin has invited can sign in (D-04, D-70, D-86).
 
 Each person is Marketing or Creative. One or more Marketing Team members carry the Approver flag (D-03). The workstation owner holds the Admin flag (D-49).
 
@@ -561,7 +561,7 @@ No duration or cost estimate is committed until staffing, the Supabase plan (re-
 | Topic | Decision | Source |
 |---|---|---|
 | Users and tenancy | One company, one brand, about seven people; no multi-tenancy; everyone sees everything | D-01, D-02, ADR 0005 |
-| Roles and sign-in | Marketing or Creative plus an Approver flag; Google sign-in with personal Gmail for invited members, with a magic-link backup | D-03, D-04, D-70 |
+| Roles and sign-in | Marketing or Creative plus an Approver flag; email and password sign-in for invited members, who choose their password from the invitation email | D-03, D-04, D-70, D-86 |
 | Admin | The workstation owner holds the Admin flag, which manages members and flags, the Meta connection, Telegram settings and Breakdown settings | D-49, D-82 |
 | System boundary | Separate from the Video Orchestrator; no import bridge in V1 | D-05, ADR 0003 |
 | Platform | New Supabase project (Postgres, Auth, Storage, scheduled jobs). The paid-plan expectation rested on video size and is re-evaluated, since Version files stay in Drive | D-06, D-65, ADR 0001 |

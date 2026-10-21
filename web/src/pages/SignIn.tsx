@@ -6,40 +6,49 @@ import { supabase } from '../lib/supabase'
 const callback = () => `${window.location.origin}/auth/callback`
 const googleEnabled = import.meta.env.VITE_GOOGLE_SIGN_IN === 'on'
 
+// Members sign in with an email and password (D-86). Only invited addresses have an account, and an invited member
+// chooses a password from the link in their invitation email; "Forgot your password?" sends the same kind of link.
 export function SignIn({ problem }: { problem?: 'not_member' | 'unreachable'; retry?: () => void }) {
   const [params] = useSearchParams()
+  const [mode, setMode] = useState<'sign_in' | 'forgot' | 'sent'>(params.get('forgot') === '1' ? 'forgot' : 'sign_in')
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [sent, setSent] = useState(false)
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(
-    params.get('link') === 'failed'
-      ? 'This sign-in link no longer works. Links work once, expire after an hour and must be opened in the browser that asked for them. Send a new one, or use the code from the email.'
-      : null,
+    params.get('link') === 'failed' ? "That sign-in didn't finish. Sign in with your email and password." : null,
   )
+
+  async function signIn(event: FormEvent) {
+    event.preventDefault()
+    if (busy) return
+    setError(null)
+    if (!email.trim()) return setError('Enter your email address')
+    if (!password) return setError('Enter your password')
+    setBusy(true)
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    setBusy(false)
+    if (!error) return // the session settles and the app opens
+    if (error.status === 429) setError('Too many attempts. Wait a minute and try again.')
+    else if (!error.status || error.status >= 500) setError("Couldn't reach the workstation. Try again.")
+    else setError('That email and password don\'t match. Check them, or use "Forgot your password?".')
+  }
 
   async function sendLink(event: FormEvent) {
     event.preventDefault()
+    if (busy) return
     setError(null)
     if (!email.trim()) return setError('Enter your email address')
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: callback(), shouldCreateUser: false },
-    })
-    if (!error) return setSent(true)
-    setError(error.status === 429 ? 'Too many requests. Wait a minute and try again.' : "This email address hasn't been invited. Ask your Admin to add you.")
-  }
-
-  async function useCode(event: FormEvent) {
-    event.preventDefault()
-    setError(null)
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' })
-    if (error) setError("That code didn't work. Codes work once and expire after an hour.")
+    setBusy(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
+    setBusy(false)
+    if (!error) return setMode('sent')
+    setError(error.status === 429 ? 'Too many requests. Wait a minute and try again.' : "Couldn't send the email. Try again.")
   }
 
   async function withGoogle() {
     setError(null)
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: callback() } })
-    if (error) setError("Couldn't start Google sign-in. Use an email link instead.")
+    if (error) setError("Couldn't start Google sign-in. Sign in with your email and password instead.")
   }
 
   if (problem === 'not_member') {
@@ -58,27 +67,38 @@ export function SignIn({ problem }: { problem?: 'not_member' | 'unreachable'; re
     <main className="centered">
       <div className="panel signin stack">
         <div className="brand">GML<span> / </span>studio</div>
-        {sent ? (
-          <>
-            <p className="notice">Check your email for a sign-in link.</p>
-            <form className="stack" onSubmit={useCode}>
-              <label>
-                6-digit code
-                <input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
-              </label>
-              <button type="submit" className="primary">Sign in with the code</button>
-              <button type="button" onClick={() => { setSent(false); setCode('') }}>Use a different email</button>
-            </form>
-          </>
-        ) : (
-          <form className="stack" onSubmit={sendLink}>
+        {mode === 'sign_in' && (
+          <form className="stack" onSubmit={signIn}>
             {googleEnabled && <button type="button" onClick={withGoogle}>Continue with Google</button>}
             <label>
               Email
               <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@gmail.com" />
             </label>
-            <button type="submit" className="primary">Email me a sign-in link</button>
+            <label>
+              Password
+              <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+            <button type="submit" className="primary" aria-disabled={busy || undefined}>Sign in</button>
+            <button type="button" className="link-button" onClick={() => { setError(null); setMode('forgot') }}>Forgot your password?</button>
           </form>
+        )}
+        {mode === 'forgot' && (
+          <form className="stack" onSubmit={sendLink}>
+            <h1 style={{ fontSize: 17 }}>Set a new password</h1>
+            <p className="small muted">Enter the email you were invited with. We'll email you a link to choose a password.</p>
+            <label>
+              Email
+              <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@gmail.com" />
+            </label>
+            <button type="submit" className="primary" aria-disabled={busy || undefined}>Email me a link</button>
+            <button type="button" className="link-button" onClick={() => { setError(null); setMode('sign_in') }}>Back to sign in</button>
+          </form>
+        )}
+        {mode === 'sent' && (
+          <div className="stack">
+            <p className="notice" role="status">If {email.trim()} has been invited, a link to choose a password is on its way. It works once and expires after an hour.</p>
+            <button type="button" onClick={() => { setPassword(''); setMode('sign_in') }}>Back to sign in</button>
+          </div>
         )}
         {error && <p className="error" role="alert">{error}</p>}
       </div>

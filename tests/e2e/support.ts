@@ -4,7 +4,7 @@ import { test as base, expect, type Browser, type BrowserContext, type ConsoleMe
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../support/drive'
 import { dailyInsights, demoAccounts, publishMetaSync, sampleAd } from '../support/meta'
-import { inviteThroughFunction, magicLinkFor, operatorClient, signedOutClient, testEmail } from '../support/local'
+import { inviteThroughFunction, operatorClient, signedOutClient, testEmail } from '../support/local'
 
 // A journey fails when one of its pages logs an error or a warning to the console, such as React's development
 // warnings (an input switching between controlled and uncontrolled, a missing key, an update while rendering, …).
@@ -107,18 +107,50 @@ export async function inviteMember(team: 'marketing' | 'creative', name: string,
   return email
 }
 
-// Opens a fresh browser context and signs in with a real magic link from the local mail catcher.
+// A password for an invited address, set through the operator once per run, as if the person had chosen it from their
+// invitation email (D-86). generateLink only looks the account up: it sends nothing and leaves the emailed
+// set-password link working. Auth can refuse a lookup within a second of the last link for that address, so this waits.
+const passwords = new Map<string, string>()
+export async function passwordFor(email: string): Promise<string> {
+  // The first Admin already has the password global setup gave them, which firstAdminClient also signs in with.
+  if (email === process.env.FIRST_ADMIN_EMAIL) return process.env.FIRST_ADMIN_PASSWORD as string
+  const known = passwords.get(email)
+  if (known) return known
+  for (let attempt = 1; ; attempt++) {
+    const found = await operatorClient().auth.admin.generateLink({ type: 'magiclink', email })
+    if (found.error && found.error.status === 429 && attempt < 4) { await new Promise((resolve) => setTimeout(resolve, 1_100)); continue }
+    if (found.error) throw new Error(`no account for ${email} (invite them first): ${found.error.message}`)
+    const password = `pw-${randomUUID()}`
+    const set = await operatorClient().auth.admin.updateUserById(found.data.user.id, { password })
+    if (set.error) throw new Error(`could not set a password for ${email}: ${set.error.message}`)
+    passwords.set(email, password)
+    return password
+  }
+}
+
+// Fills the sign-in page and submits it. When Auth gives up with a 5xx because the database didn't answer in time, a
+// person would press the button again, so this does too, up to twice more.
+export async function submitPassword(page: Page, email: string, password: string) {
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password', { exact: true }).fill(password)
+  for (let attempt = 1; ; attempt++) {
+    const answered = answerTo(page, '/auth/v1/token')
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    const answer = await answered
+    if (answer.status() < 500 || attempt === 3) return answer
+  }
+}
+
+// Opens a fresh browser context and signs in on the sign-in page with the member's email and password.
 export async function signIn(browser: Browser, email: string): Promise<Page> {
   if (!journeyProblems) throw new Error("Import test from './support', so console errors and warnings fail the journey")
+  const password = await passwordFor(email)
   const context = await browser.newContext()
   watchConsole(context, journeyProblems)
   await standInForDriveStream(context)
   const page = await context.newPage()
   await page.goto('/sign-in')
-  await page.getByLabel('Email').fill(email)
-  expect((await sendSignInLink(page)).ok(), 'the sign-in email request').toBe(true)
-  await expect(page.getByText('Check your email')).toBeVisible()
-  await openSignInLink(page, email)
+  expect((await submitPassword(page, email, password)).ok(), 'signing in').toBe(true)
   await expect(page.getByRole('region', { name: 'The loop' })).toBeVisible()
   return page
 }
@@ -134,36 +166,6 @@ export async function signIn(browser: Browser, email: string): Promise<Page> {
 //   more, before the page changes.
 export const answerTo = (page: Page, path: string) =>
   page.waitForResponse((r) => r.url().includes(path) && r.request().method() === 'POST')
-
-// The mail catcher has the message by the time the email request answers. Auth can refuse it for reasons a person
-// would answer by pressing the button again, so this does too, up to twice more:
-// - a 5xx when the database doesn't answer in time (504 after 12.9s, "error finding user");
-// - a 429 when the address had a sign-in link less than a second ago (max_frequency), which memberClient's link can be.
-export async function sendSignInLink(page: Page) {
-  for (let attempt = 1; ; attempt++) {
-    const sent = answerTo(page, '/auth/v1/otp')
-    await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
-    const answer = await sent
-    const refusal = answer.status() === 429 ? await answer.json().catch(() => ({})) : {}
-    const tooSoon = (refusal.code ?? refusal.error_code) === 'over_email_send_rate_limit'
-    if ((answer.status() < 500 && !tooSoon) || attempt === 3) return answer
-    if (tooSoon) await page.waitForTimeout(1_100)
-  }
-}
-
-// Opens the newest emailed link and waits for the session exchange. When Auth gives up on the exchange with a 5xx (504
-// after 10.2s), the link has failed and a person would ask for another, so this does too, once.
-export async function openSignInLink(page: Page, email: string) {
-  for (let attempt = 1; ; attempt++) {
-    const exchanged = answerTo(page, '/auth/v1/token')
-    await page.goto(await magicLinkFor(email))
-    const answer = await exchanged
-    if (answer.status() < 500 || attempt === 2) return expect(answer.ok(), 'the sign-in link').toBe(true)
-    await page.goto('/sign-in')
-    await page.getByLabel('Email').fill(email)
-    expect((await sendSignInLink(page)).ok(), 'the sign-in email request').toBe(true)
-  }
-}
 
 // The sidebar's main navigation. Brief titles in the sidebar's tree can contain a page's name, so journeys move
 // between pages through this navigation rather than any link on the page.
@@ -193,8 +195,8 @@ export const unique = (name: string) => `${name} ${randomUUID().slice(0, 6)}`
 
 // An invited member signed in through the API, for arranging data. The session comes from a sign-in link the operator
 // generates (no email is sent) rather than a password, which would cost the auth server a bcrypt hash to set and
-// another to check: 0.7–2.8s per member on a busy machine against 0.2–0.5s for the link. The same person can still sign
-// in to the browser with an emailed link.
+// another to check: 0.7–2.8s per member on a busy machine against 0.2–0.5s for the link. The same person signs in to the
+// browser with a password (passwordFor).
 export async function memberClient(email: string): Promise<SupabaseClient> {
   const link = await operatorClient().auth.admin.generateLink({ type: 'magiclink', email })
   if (link.error) throw new Error(`no sign-in link for ${email} (invite them first): ${link.error.message}`)

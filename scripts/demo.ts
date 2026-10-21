@@ -43,18 +43,25 @@ async function upload(client: SupabaseClient, kind: string, targetId: string, na
 }
 const daysFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
 
-// Signs a demo person in through the API with a generated local password; in the browser they use a magic link or
-// the 6-digit code from the local mail catcher.
-async function signedIn(email: string): Promise<SupabaseClient> {
-  const password = randomUUID()
+// Every demo person signs in with this password (D-86). Local demo data only: the demo resets this machine's stack and
+// never runs against a hosted project.
+const demoPassword = 'demo-pass-2026'
+
+// Gives a demo person the demo password, as if they had chosen it from their invitation email.
+async function setDemoPassword(email: string): Promise<void> {
   const { data: users, error } = await operatorClient().auth.admin.listUsers({ perPage: 1000 })
   if (error) throw error
   const user = users.users.find((u) => u.email === email)
   if (!user) throw new Error(`no account for ${email}`)
-  const updated = await operatorClient().auth.admin.updateUserById(user.id, { password })
+  const updated = await operatorClient().auth.admin.updateUserById(user.id, { password: demoPassword })
   if (updated.error) throw updated.error
+}
+
+// Signs a demo person in through the API with the demo password, as they would on the sign-in page.
+async function signedIn(email: string): Promise<SupabaseClient> {
+  await setDemoPassword(email)
   const client = signedOutClient()
-  const result = await client.auth.signInWithPassword({ email, password })
+  const result = await client.auth.signInWithPassword({ email, password: demoPassword })
   if (result.error) throw result.error
   await call(client, 'accept_invitation', {})
   return client
@@ -95,15 +102,14 @@ async function main() {
   console.log('Loading the six-step demo into the local stack…')
 
   // People: a first Admin, then Mei (Marketing, Approver), Jun and Aina (Creative), invited as the app does.
-  const ownerPassword = randomUUID()
-  const created = await operatorClient().auth.admin.createUser({ email: people.owner.email, password: ownerPassword, email_confirm: true })
+  const created = await operatorClient().auth.admin.createUser({ email: people.owner.email, password: demoPassword, email_confirm: true })
   if (created.error) throw created.error
   const bootstrapped = await operatorClient().schema('api').rpc('bootstrap_admin', { p_email: people.owner.email, p_display_name: people.owner.name, p_team: 'marketing' })
   if (bootstrapped.error) {
     throw new Error(`This local database already has an Admin. Run \`pnpm demo\`, which resets it first. (${bootstrapped.error.message})`)
   }
   const owner = signedOutClient()
-  const ownerSignIn = await owner.auth.signInWithPassword({ email: people.owner.email, password: ownerPassword })
+  const ownerSignIn = await owner.auth.signInWithPassword({ email: people.owner.email, password: demoPassword })
   if (ownerSignIn.error) throw ownerSignIn.error
   await call(owner, 'accept_invitation', {})
   for (const person of [people.mei, people.jun, people.aina]) {
@@ -114,6 +120,7 @@ async function main() {
   }
   const mei = await signedIn(people.mei.email)
   const jun = await signedIn(people.jun.email)
+  await setDemoPassword(people.aina.email)
   const meiId = (await call(mei, 'accept_invitation', {})).id as string
   const junId = (await call(jun, 'accept_invitation', {})).id as string
 
@@ -321,8 +328,8 @@ Canvas views:
     Review canvas    ${appUrl}/reviews/${a2.review_id}/canvas
     Whiteboard       ${appUrl}/boards/${board.id}
 
-Sign in at ${appUrl}/sign-in as one of the demo people, then open the local mail catcher at
-${MAILPIT_URL} and use the link or the 6-digit code from the newest email:
+Sign in at ${appUrl}/sign-in as one of the demo people, with the password ${demoPassword}
+(their invitation emails, with links to choose another password, are in the local mail catcher at ${MAILPIT_URL}):
   ${people.mei.email}   Mei, Marketing Owner and Approver
   ${people.jun.email}   Jun, Creative Owner
   ${people.aina.email}  Aina, Creative Team
