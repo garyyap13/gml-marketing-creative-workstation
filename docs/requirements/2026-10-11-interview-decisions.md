@@ -191,7 +191,7 @@ The owner accepted the recommended answers on 2026-10-12.
   - V1 stays read-only, so the workstation does not keep old Drive revisions from Drive's purge; the flag and recorded identity remain.
   - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step. *Settled by D-83: the workstation's own player.*
   - The change check's timing and scope remained proposed under PD-25 until D-80 confirmed them.
-- **D-70** The team uses personal Gmail accounts, not Google Workspace. People sign in with Google using their personal Gmail, and email magic links remain as a backup. Only email addresses the Admin has invited can sign in, whichever method they use. Members view Version files in Drive with the same Google login.
+- **D-70** The team uses personal Gmail accounts, not Google Workspace. People sign in with Google using their personal Gmail, and email magic links remain as a backup. Only email addresses the Admin has invited can sign in, whichever method they use. *Refined by D-86: email and password replace the email link, and Google sign-in is not built for now.* Members view Version files in Drive with the same Google login.
 - **D-71** Raw footage gets its own code. The owner accepted the recommended answers on 2026-10-12:
   - **Footage** is one batch of raw material, a shoot session or one creator's delivery, kept in one Drive folder.
   - Its **Footage Code** is a separate meaningless sequence: `RAW-0001`, `RAW-0002` and so on. It has no brand prefix, so it can never be mistaken for a Creative, Variant or Legacy Code in ad names (ADR 0002). The brand prefix may not be `RAW`.
@@ -292,6 +292,18 @@ The owner accepted the recommended answers on 2026-10-21.
   - **Website.** The web client is a separate project on the Vercel account OHERP uses, at an address like `creative.oherp.com`.
   - **Before anything is created,** the owner confirms both accounts are on paid plans and approves the spend. The owner creates the projects; nothing is provisioned on their behalf.
   - D-83's video playback passes through the project's Edge Functions, so its egress counts toward the plan's allowance. It is checked once the project exists.
+
+## Sign-in
+
+- **D-86** Members sign in with an email and password instead of an email link. The owner decided this on 2026-10-21, after seeing the app. It refines D-70.
+  - Sign-in stays invite-only: only addresses the Admin has invited can sign in (D-70).
+  - The email-link and 6-digit-code sign-in is removed. Google sign-in (D-70) was never built and isn't part of this change; it can be added later.
+  - *Proposed defaults, not interviewed:*
+    - An invited member chooses their own password from a one-time link in the invitation email.
+    - "Forgot password" emails a reset link.
+    - A password needs at least 8 characters.
+    - Nobody, the Admin included, ever sees or sets another member's password.
+  - Invitations and resets still send email, so the hosted project (D-85) needs working outgoing email before the team uses it.
 
 ## Open
 
