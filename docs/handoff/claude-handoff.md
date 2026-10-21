@@ -102,7 +102,7 @@ The default view is 复盘 for a fictional GML-0007-B video. Sample spending, le
 2. Present a milestone implementation plan tied to the PRD acceptance criteria. Keep unresolved external connections separate from work that can be implemented locally.
 3. When asked to implement, start with one complete local workflow: Brief → Creative/Variant → Version → Review/approval; then Launch/results; then retrospective findings → actions → Verdict. Include realistic seed data clearly marked as demo data.
 4. Implement RLS, command authorization, exact-Version integrity and meaningful acceptance checks alongside those workflows.
-5. Configure real Supabase, Drive, Meta and WhatsApp connections only after project/account selection, permissions and any costs are settled. Never use the unrelated OHCRM/socialflow projects as a shortcut.
+5. Configure real Supabase, Drive, Meta and WhatsApp connections only after project/account selection, permissions and any costs are settled. Never use the unrelated socialflow project, or OHERP's production database, as a shortcut. D-85 places the workstation in its own Supabase project inside the Supabase account OHERP uses, with its website on OHERP's Vercel account.
 
 ## Ready-to-paste starting prompt
 

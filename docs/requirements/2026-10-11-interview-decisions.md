@@ -12,7 +12,7 @@ Outcome of the `/grill-with-docs` interview with the workstation owner (2026-10-
 
 ## Platform
 
-- **D-06** Hosted on a new Supabase project: Postgres, Auth, Storage and scheduled jobs ([ADR 0001](../adr/0001-supabase-hosts-the-creative-workstation.md)). Not the unrelated `socialflow` project. The paid plan is expected, since the free plan's per-file limit is too small for video. *Amended by D-65: Version files no longer go in Storage, so this reason for the paid plan no longer applies, and the plan is re-evaluated before provisioning.*
+- **D-06** Hosted on a new Supabase project: Postgres, Auth, Storage and scheduled jobs ([ADR 0001](../adr/0001-supabase-hosts-the-creative-workstation.md)). Not the unrelated `socialflow` project. The paid plan is expected, since the free plan's per-file limit is too small for video. *Amended by D-65: Version files no longer go in Storage, so this reason for the paid plan no longer applies, and the plan is re-evaluated before provisioning.* *Re-evaluated in D-85: a paid project in the Supabase account OHERP uses, for daily backups and no pausing.*
 - **D-07** Storage holds only what Marketing reviews and approves (review and final files). The Creative Team's working files stay wherever they edit and are linked from the Variant. Follow-up on 2026-10-11: the owner confirmed the team already uses Google Drive. Use the existing Drive location for working-file links; whether it is a Shared Drive or a shared My Drive folder remains to be confirmed. This does not change the review/final-file storage decision. *Superseded for review and final files by D-64 and D-65: every Version file stays in Google Drive.*
 - **D-08** Claude gets a read-only database role limited to curated reporting views, not raw tables. The `content-ads-monitor` skill moves from its JSON ledger to these views.
 
@@ -186,7 +186,7 @@ The owner accepted the recommended answers on 2026-10-12.
 - **D-68** PD-23 (video annotations, FR-16 / T-17) and PD-24 (retrospective, FR-17 / T-18) are confirmed as written. In V1, transcripts are typed or imported from SRT or WebVTT subtitle files exported by the editing tool. There is no automatic transcription, retention-data acquisition or AI diagnosis.
 - **D-69** Most of PD-25 is confirmed (T-19):
   - Read-only Drive access is through a Google Cloud service account given Viewer access to the folder. If a Google Workspace policy blocks that sharing, it is raised as a new decision.
-  - Each Version has its own Drive file, named `<variant code>_v<number>` (e.g. `GML-0007-B_v2.mp4`). Nobody uploads new content over an older Version's file, and a Drive file backs at most one Version.
+  - Each Version has its own Drive file, named `<variant code>_v<number>` (e.g. `GML-0007-B_v2.mp4`). Nobody uploads new content over an older Version's file, and a Drive file backs at most one Version. *Refined by D-84: the name is suggested with a copy button and a differing name only warns.*
   - While a file is flagged as changed, trashed or unreadable, its Version cannot be submitted, approved or used for a new Launch.
   - V1 stays read-only, so the workstation does not keep old Drive revisions from Drive's purge; the flag and recorded identity remain.
   - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step. *Settled by D-83: the workstation's own player.*
@@ -278,6 +278,20 @@ The owner accepted the recommended answers on 2026-10-12.
   - "Open in Drive" stays as a link.
   - **Cost.** Each watch passes about 1.1–1.5 times the file's size through the function. That is egress, not storage.
   - **Still to check.** A file near the 1 GiB limit is checked on the hosted project before the player is relied on for long videos.
+
+## File names and hosting
+
+The owner accepted the recommended answers on 2026-10-21.
+
+- **D-84** Version file names guide but never block. This refines D-69's naming rule after B2 found the team's existing files named like `GML VIDEO 203 VER 1.mp4`.
+  - New Version files use the code: `<variant code>_v<number>`, e.g. `GML-0203-A_v1.mp4`. When a Version is submitted, the workstation shows that exact name with a copy button.
+  - If the registered Drive file's name differs, the workstation shows a warning but still accepts the file. Identity is the file ID, revision and checksum (D-65), not the name.
+  - Existing videos keep their names. Nothing renames files in Drive, which stays read-only (D-69).
+- **D-85** Where the workstation runs: next to OHERP, but with its own database. This refines D-06.
+  - **Database.** A new Supabase project of its own, in the Supabase account OHERP already pays for. The smallest compute size cost about US$10 a month on 2026-10-21. It gets daily backups and never pauses, unlike the free plan. OHERP's database is never used: it holds live orders and money with no staging copy.
+  - **Website.** The web client is a separate project on the Vercel account OHERP uses, at an address like `creative.oherp.com`.
+  - **Before anything is created,** the owner confirms both accounts are on paid plans and approves the spend. The owner creates the projects; nothing is provisioned on their behalf.
+  - D-83's video playback passes through the project's Edge Functions, so its egress counts toward the plan's allowance. It is checked once the project exists.
 
 ## Open
 
