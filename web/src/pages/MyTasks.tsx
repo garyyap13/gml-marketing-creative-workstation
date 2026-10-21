@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
-import { DrivePreview } from '../components/DrivePreview'
 import { CommentForm, CommentList, Decision, ReviewTimeline, useReviewSession } from '../components/ReviewParts'
+import { VideoPlayer, type VideoPlayerHandle } from '../components/VideoPlayer'
 import { explain } from '../lib/commands'
 import { useCreativeContext, useLabels } from '../lib/data'
 import { supabase } from '../lib/supabase'
@@ -43,11 +43,13 @@ const keyHint = (
   <span className="small muted key-hint"><kbd>J</kbd> / <kbd>K</kbd> next or previous task</span>
 )
 
-// A Version under review, watched and decided without leaving My Tasks (D-81): the preview with its Content Sections
+// A Version under review, watched and decided without leaving My Tasks (D-81): the player with its Content Sections
 // and comment pins, the comments, and Request Changes or Approve.
 function InboxReview({ reviewId }: { reviewId: string }) {
   const session = useReviewSession(reviewId, { withContent: true })
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const player = useRef<VideoPlayerHandle>(null)
+  const seek = (ms: number) => player.current?.seek(ms)
   const context = useCreativeContext(session.view?.variant.creative_id ?? '')
   const labels = useLabels()
   if (session.data.isPending) return <p className="muted inbox-pad">Loading…</p>
@@ -82,12 +84,13 @@ function InboxReview({ reviewId }: { reviewId: string }) {
         <div className={portrait ? 'inbox-media portrait' : 'inbox-media'}>
           {session.isVideo ? (
             <>
-              <DrivePreview key={file.drive_file_id} driveFileId={file.drive_file_id} name={file.name} shape={portrait ? 'portrait' : 'wide'} />
+              <VideoPlayer ref={player} key={file.id} fileId={file.id} driveFileId={file.drive_file_id} name={file.name} width={file.width} height={file.height}
+                shape={portrait ? 'portrait' : 'wide'} />
               {/* Only this Version's comments are pinned: carried-over ones have the earlier cut's times. */}
               <ReviewTimeline duration={duration} sections={session.content.data?.sections ?? []}
                 sectionsState={session.content.isPending ? 'loading' : session.content.error ? 'error' : 'ready'}
                 comments={shown.filter((c) => c.version_id === review.version_id)} selected={selected}
-                onSelect={(c) => setSelectedId(c?.id ?? null)} />
+                onSelect={(c) => setSelectedId(c?.id ?? null)} onSeek={seek} />
             </>
           ) : (
             <div className="panel stack" style={{ gap: 8 }}>
@@ -101,7 +104,7 @@ function InboxReview({ reviewId }: { reviewId: string }) {
           )}
         </div>
         <div className="inbox-comments">
-          <CommentList session={session} view={view} selectedId={selectedId} heading={`Comments on Version ${version?.version_number}`}
+          <CommentList session={session} view={view} selectedId={selectedId} heading={`Comments on Version ${version?.version_number}`} onSeek={session.isVideo ? seek : undefined}
             aside={blockingOpen > 0 && <span className="small" style={{ color: 'var(--danger)' }}>{blockingOpen} blocking open</span>} />
           <CommentForm session={session} view={view} />
         </div>

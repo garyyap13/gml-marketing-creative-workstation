@@ -52,13 +52,14 @@ function spoken(state: TranscriptState, cues: TranscriptCue[], section: ContentS
   return heard.map((c) => (speakers.size > 1 && c.speaker ? `${c.speaker}: “${c.text}”` : `“${c.text}”`)).join(' ')
 }
 
-// On a Review, picking a section shows what is said and what is on screen in it (FR-16). A 复盘 shows the annotation
-// revision it froze, and can hand the picked section to a Finding (FR-17).
-export function ContentTimeline({ versionId, revisionId, canEdit, onUseSection }: {
+// On a Review, picking a section shows what is said and what is on screen in it (FR-16), and jumps the player to its
+// start (D-83). A 复盘 shows the annotation revision it froze, and can hand the picked section to a Finding (FR-17).
+export function ContentTimeline({ versionId, revisionId, canEdit, onUseSection, onSeek }: {
   versionId: string
   revisionId?: string | null
   canEdit: boolean
   onUseSection?: (section: ContentSection) => void
+  onSeek?: (ms: number) => void
 }) {
   const content = useVideoContent(versionId, revisionId)
   const [picked, setPicked] = useState(0)
@@ -84,7 +85,7 @@ export function ContentTimeline({ versionId, revisionId, canEdit, onUseSection }
               part.kind === 'gap' ? (
                 <span key={`gap-${i}`} aria-hidden="true" style={{ flex: `${part.length} 1 0` }} />
               ) : (
-                <button key={part.index} aria-pressed={part.section === selected} style={{ flex: `${part.length} 1 0` }} onClick={() => setPicked(part.index)}>
+                <button key={part.index} aria-pressed={part.section === selected} style={{ flex: `${part.length} 1 0` }} onClick={() => { setPicked(part.index); onSeek?.(part.section.start_ms) }}>
                   {shortName(part.section)}
                   <span className="sr-only"> {range(part.section)}</span>
                 </button>

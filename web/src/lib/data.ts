@@ -707,7 +707,8 @@ export function usePlan(id: string) {
       const comparator = ev.find((e) => e.role === 'comparator')
       const baselineVariant = variant.data as { id: string; code: string; creative_id: string; state: Variant['state']; live_at: string | null }
       const baselineVersion = version.data as { id: string; version_number: number; brief_version_id: string | null }
-      const [creative, brief, actionVariants, comparatorVariant, revision] = await Promise.all([
+      const baselineFiles = ev.find((e) => e.role === 'baseline')?.files ?? []
+      const [creative, brief, actionVariants, comparatorVariant, revision, baselineFile] = await Promise.all([
         supabase.schema('creative').from('creatives').select('id, code, title, narrative_style_id').eq('id', baselineVariant.creative_id).single(),
         baselineVersion.brief_version_id
           ? supabase.schema('brief').from('brief_versions').select('avatar_id, angle_id').eq('id', baselineVersion.brief_version_id).single()
@@ -717,8 +718,12 @@ export function usePlan(id: string) {
         ev[0]?.annotation_revision_id
           ? supabase.schema('creative').from('annotation_revisions').select('revision_number').eq('id', ev[0].annotation_revision_id).single()
           : Promise.resolve({ data: null, error: null }),
+        // A single baseline file decides the player: a video streams (D-83), a still image keeps Drive's preview.
+        baselineFiles.length === 1
+          ? supabase.schema('core').from('files').select('id, name, mime, width, height').eq('id', baselineFiles[0].file_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ])
-      for (const result of [creative, brief, actionVariants, comparatorVariant, revision]) if (result.error) throw result.error
+      for (const result of [creative, brief, actionVariants, comparatorVariant, revision, baselineFile]) if (result.error) throw result.error
       return {
         plan: p,
         baseline: ev.find((e) => e.role === 'baseline') ?? null,
@@ -735,6 +740,7 @@ export function usePlan(id: string) {
         creative: creative.data as { id: string; code: string; title: string; narrative_style_id: string | null },
         brief: brief.data as { avatar_id: string | null; angle_id: string | null } | null,
         annotationRevisionNumber: (revision.data as { revision_number: number } | null)?.revision_number ?? null,
+        baselineFile: baselineFile.data as Pick<FileRow, 'id' | 'name' | 'mime' | 'width' | 'height'> | null,
       }
     },
   })

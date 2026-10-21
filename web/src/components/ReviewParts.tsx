@@ -96,15 +96,16 @@ export function useReviewSession(id: string, { withContent = false }: { withCont
 export type ReviewSession = ReturnType<typeof useReviewSession>
 type ReviewView = NonNullable<ReviewSession['view']>
 
-// Sections and comment pins on one timeline, for the review canvas (D-75). Drive's preview cannot seek, so picking a
-// pin says where to scrub to.
-export function ReviewTimeline({ duration, sections, sectionsState, comments, selected, onSelect }: {
+// Sections and comment pins on one timeline, for the review canvas (D-75). Picking a pin jumps the player to its time
+// (D-83).
+export function ReviewTimeline({ duration, sections, sectionsState, comments, selected, onSelect, onSeek }: {
   duration: number
   sections: ContentSection[]
   sectionsState: 'loading' | 'error' | 'ready'
   comments: Comment[]
   selected: Comment | null
   onSelect: (comment: Comment | null) => void
+  onSeek: (ms: number) => void
 }) {
   if (duration <= 0) return <p className="small muted">This file has no measured duration, so there is no timeline.</p>
   // Pins are placed in time order; positions stay on the track.
@@ -132,7 +133,11 @@ export function ReviewTimeline({ duration, sections, sectionsState, comments, se
             const kind = c.resolved_at ? ' resolved' : c.kind === 'blocking' ? ' blocking' : ''
             return (
               <button key={c.id} aria-label={`${c.kind === 'blocking' ? 'Blocking comment' : 'Suggestion'}${c.resolved_at ? ', resolved,' : ''} at ${when(c)}`} aria-pressed={selected?.id === c.id}
-                className={`rv-pin${kind}${range ? ' range' : ''}`} onClick={() => onSelect(selected?.id === c.id ? null : c)}
+                className={`rv-pin${kind}${range ? ' range' : ''}`} onClick={() => {
+                  if (selected?.id === c.id) return onSelect(null)
+                  onSelect(c)
+                  onSeek(start)
+                }}
                 style={range ? { left: `${at(start)}%`, width: `${at(end) - at(start)}%` } : { left: `calc(${at(start)}% - 7px)` }} />
             )
           })}
@@ -140,7 +145,7 @@ export function ReviewTimeline({ duration, sections, sectionsState, comments, se
         <div className="row spread small muted"><span>00:00</span><span>{formatTime(duration / 2)}</span><span>{formatTime(duration)}</span></div>
       </div>
       <p className={selected?.anchor?.start_ms !== undefined ? 'notice small' : 'sr-only'} aria-live="polite">
-        {selected?.anchor?.start_ms !== undefined ? `Scrub to ${formatTime(selected.anchor.start_ms)} in the player: ${selected.body}` : ''}
+        {selected?.anchor?.start_ms !== undefined ? `Jumped to ${formatTime(selected.anchor.start_ms)}: ${selected.body}` : ''}
       </p>
     </div>
   )
@@ -192,13 +197,15 @@ function Replies({ comment, replies, author, onSent }: { comment: Comment; repli
   )
 }
 
-// The Review's comments, blocking ones marked 必改, with Resolve for the Creative Team and replies for everyone.
-export function CommentList({ session, view, selectedId, heading = 'Comments', aside }: {
+// The Review's comments, blocking ones marked 必改, with Resolve for the Creative Team and replies for everyone. A
+// comment's time on this Version jumps the player there; a carried-over comment's time belongs to the earlier cut.
+export function CommentList({ session, view, selectedId, heading = 'Comments', aside, onSeek }: {
   session: ReviewSession
   view: ReviewView
   selectedId: string | null
   heading?: string
   aside?: ReactNode
+  onSeek?: (ms: number) => void
 }) {
   const me = useMember()
   const headingId = useId()
@@ -214,7 +221,9 @@ export function CommentList({ session, view, selectedId, heading = 'Comments', a
         <article key={c.id} className={`stack comment${c.kind === 'blocking' && !c.resolved_at ? ' blocking' : ''}${c.resolved_at ? ' resolved' : ''}${selectedId === c.id ? ' selected' : ''}`} aria-current={selectedId === c.id || undefined}>
           <div className="row small">
             <span className={c.kind === 'blocking' ? 'tag danger' : 'tag info'}>{c.kind === 'blocking' ? '必改 Blocking' : '建议 Suggestion'}</span>
-            {when(c) && <span className="code muted">{when(c)}</span>}
+            {when(c) && (onSeek && c.version_id === review.version_id
+              ? <button className="code time-jump" aria-label={`Jump to ${when(c)}`} onClick={() => onSeek(c.anchor!.start_ms!)}>{when(c)}</button>
+              : <span className="code muted">{when(c)}</span>)}
             {c.version_id !== review.version_id && <span className="muted">on Version {versionNumber(c.version_id)}</span>}
             <span className="muted">· {session.author(c.author_id)}</span>
           </div>

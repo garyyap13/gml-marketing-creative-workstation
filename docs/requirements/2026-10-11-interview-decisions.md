@@ -189,7 +189,7 @@ The owner accepted the recommended answers on 2026-10-12.
   - Each Version has its own Drive file, named `<variant code>_v<number>` (e.g. `GML-0007-B_v2.mp4`). Nobody uploads new content over an older Version's file, and a Drive file backs at most one Version.
   - While a file is flagged as changed, trashed or unreadable, its Version cannot be submitted, approved or used for a new Launch.
   - V1 stays read-only, so the workstation does not keep old Drive revisions from Drive's purge; the flag and recorded identity remain.
-  - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step.
+  - In-app playback is chosen after testing Drive's embedded preview against an authenticated streaming player, during the Drive integration step. *Settled by D-83: the workstation's own player.*
   - The change check's timing and scope remained proposed under PD-25 until D-80 confirmed them.
 - **D-70** The team uses personal Gmail accounts, not Google Workspace. People sign in with Google using their personal Gmail, and email magic links remain as a backup. Only email addresses the Admin has invited can sign in, whichever method they use. Members view Version files in Drive with the same Google login.
 - **D-71** Raw footage gets its own code. The owner accepted the recommended answers on 2026-10-12:
@@ -221,7 +221,7 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Creative canvas.** One read-only map per Creative, laid out automatically from Brief to Creative, Variants, Versions and Reviews, Launches with their results, and 复盘, with the 复盘 pointing to the follow-up Variants it created. It opens from the Creative and Variant pages, and every box opens its record.
   - **Variant wall.** Every Variant as a tile with its labels, state and results, filtered by labels and Footage and sorted by cost per result. Only results of one currency, result type and attribution are compared; others show "not comparable", never a converted number (D-37). Tiles use placeholders until thumbnails exist (A1c uploads, or Drive thumbnails after B2).
   - **Review canvas.** A large player with the Content Sections and comment pins on one timeline and the comments beside it.
-  - **Interim player.** Drive's embedded preview plays a Version's video on the review canvas, the Video content page and the 复盘. It needs the viewer signed into a Google account with access to the file, often fails in Safari and on iPhone, and cannot jump to a time, so pins show the time to scrub to. The B2 playback test decides whether the workstation's own streaming player replaces it (D-69).
+  - **Interim player.** Drive's embedded preview plays a Version's video on the review canvas, the Video content page and the 复盘. It needs the viewer signed into a Google account with access to the file, often fails in Safari and on iPhone, and cannot jump to a time, so pins show the time to scrub to. The B2 playback test decides whether the workstation's own streaming player replaces it (D-69). *Replaced by D-83: the workstation's own player.*
   - **Whiteboard.** Any number of boards, each optionally attached to a Brief or Creative, holding text sticky notes in a few colours and labelled frames, with links to Briefs, Creatives, Variants, Footage and Findings. Both teams edit any board. Each note saves on its own with a version check and the board refreshes every few seconds; there are no live cursors yet. Removing a note or board archives it. Images wait for uploads (A1c).
 - **D-76** The rest of the results (milestone A5). The owner accepted the recommended answers on 2026-10-14:
   - **Scope.** A5 builds three slices: resolving Untracked and Mismatched Ads with data health (A5a), the Combination and Label views (A5b), and manual entry with CSV import (A5c). Legacy Codes and backfill, Breakdowns and organic Post results wait for the Meta connection (B3), because they depend on what real accounts return.
@@ -266,6 +266,18 @@ The owner accepted the recommended answers on 2026-10-12.
   - **Connecting.** Each member taps "Connect Telegram" in the workstation, opens the bot through a one-time link and presses Start. The bot then records their chat. A member who hasn't connected gets no messages, only tasks. A member can disconnect, either in the workstation or by stopping the bot.
   - **WhatsApp later.** D-44's WhatsApp messages are deferred, not dropped. The delivery queue stays channel-neutral so WhatsApp can be added later, and O-02's WhatsApp number isn't needed before launch.
   - **Bot setup.** The owner creates the bot with Telegram's BotFather. Its token is a secret, kept only in function secrets. The Admin manages Telegram settings where D-49 said WhatsApp settings.
+
+## Version playback
+
+- **D-83** Version videos play in the workstation's own player. The owner chose this on 2026-10-20, after the B2 playback test ([results](../research/2026-10-20-b2-playback-test.md)). It replaces D-75's interim player and settles D-69's playback question. *Numbered D-83 because D-82 is already taken on the `claude/telegram-notifications-d3da34` branch.*
+  - **Why.** Drive's embedded preview didn't play in Safari or on iPhone, or without a Google sign-in, and it can't jump to a time. The workstation's player played in Chrome, Safari and iPhone WebKit, and jumped exactly to the requested times.
+  - **How it works.** When someone presses play, an Edge Function reads the parts of the video the browser asks for from Drive and passes them straight through. Nothing is copied into the database or Storage, and the file stays only in Drive (D-64, D-65).
+  - **Exact Version.** The player plays the Drive revision recorded for the Version, even after the file changes, until Drive purges that revision (30 days after newer content, T-19).
+  - **Access.** Any active member can watch Version videos in the workstation, without a Google sign-in. The service account gains Drive's read-only content scope for this. It still can't change, share or delete a file, and still sees only what the Version files folder shares with it.
+  - **Seeking.** Comment pins, transcript cues, Content Sections and Findings can now jump the player to their time (FR-16, FR-17).
+  - "Open in Drive" stays as a link.
+  - **Cost.** Each watch passes about 1.1–1.5 times the file's size through the function. That is egress, not storage.
+  - **Still to check.** A file near the 1 GiB limit is checked on the hosted project before the player is relied on for long videos.
 
 ## Open
 

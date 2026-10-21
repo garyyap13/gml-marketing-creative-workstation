@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '../components/Button'
 import { detailLabels, sectionStates, sectionTypes, segments, transcriptStates } from '../components/ContentTimeline'
-import { DrivePreview } from '../components/DrivePreview'
+import { VideoPlayer, type VideoPlayerHandle } from '../components/VideoPlayer'
 import { CommandError, explain, fieldError, run } from '../lib/commands'
 import { useMembers, useVideoContent, type ContentSection, type TranscriptCue } from '../lib/data'
 import { useFormKey } from '../lib/forms'
@@ -96,6 +96,7 @@ function VideoContentEditor({ id }: { id: string }) {
   const [importNote, setImportNote] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
   const [saved, setSaved] = useState<number | null>(null)
+  const player = useRef<VideoPlayerHandle>(null)
 
   // Start from the latest saved revision, never from a cached copy that is still being refreshed.
   useEffect(() => {
@@ -209,6 +210,19 @@ function VideoContentEditor({ id }: { id: string }) {
   // The time fields of the row an error names point at the error; every time field points at the format hint.
   const timeProps = (row: number, bad: number | null, errorId: string) =>
     row === bad ? { 'aria-invalid': true, 'aria-describedby': `${errorId} ${hintId}` } : { 'aria-describedby': hintId }
+  // Each cue and section jumps the player to its start (D-83). The button sits in the row's legend, so it works for
+  // everyone while the row's fields are read-only to other teams; the row keeps its plain name ("Cue 3").
+  const rowLegend = (labelId: string, label: string, start: string) => {
+    const at = parseTime(start)
+    return (
+      <legend>
+        <span id={labelId}>{label}</span>
+        <button type="button" className="time-jump" disabled={at === null} onClick={() => player.current?.seek(at ?? 0)}>
+          {at === null ? 'Jump to start' : `Jump to ${formatPreciseTime(at)}`}
+        </button>
+      </legend>
+    )
+  }
 
   return (
     <main className="page">
@@ -226,10 +240,12 @@ function VideoContentEditor({ id }: { id: string }) {
       </div>
       {!canEdit && <p className="notice small">Only the Creative Team edits the transcript and sections.</p>}
       {content.error && <p className="error" role="alert">Couldn't refresh this page. Your unsaved changes are still here.</p>}
-      <DrivePreview driveFileId={video.drive_file_id} name={video.name} />
+      <div className="player-dock">
+        <VideoPlayer ref={player} key={video.id} fileId={video.id} driveFileId={video.drive_file_id} name={video.name} width={video.width} height={video.height} />
+      </div>
       <p id={hintId} className="small muted">Times are minutes and seconds, like 0:02.5.</p>
 
-      <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} className="stack">
+      <div style={{ minWidth: 0 }} className="stack">
         <section className="panel stack" aria-labelledby={`${uid}-transcript`}>
           <div className="row spread">
             <h2 id={`${uid}-transcript`}>Transcript</h2>
@@ -237,15 +253,15 @@ function VideoContentEditor({ id }: { id: string }) {
           </div>
           <div className="row" style={{ alignItems: 'end' }}>
             <label style={{ flex: '1 1 260px' }}>Import subtitles (SRT or WebVTT)
-              <input type="file" accept=".srt,.vtt,text/vtt,application/x-subrip" onChange={(e) => void importSubtitles(e)} />
+              <input type="file" accept=".srt,.vtt,text/vtt,application/x-subrip" disabled={!canEdit} onChange={(e) => void importSubtitles(e)} />
             </label>
             <label style={{ flex: '0 1 180px' }}>Spoken language
-              <select value={draft.language} onChange={(e) => change({ language: e.target.value })}>
+              <select value={draft.language} disabled={!canEdit} onChange={(e) => change({ language: e.target.value })}>
                 {Object.entries(languages).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
               </select>
             </label>
             <label style={{ flex: '0 1 240px' }}>Transcript state
-              <select value={draft.transcriptState} onChange={(e) => change({ transcriptState: e.target.value as Draft['transcriptState'] })}>
+              <select value={draft.transcriptState} disabled={!canEdit} onChange={(e) => change({ transcriptState: e.target.value as Draft['transcriptState'] })}>
                 <option value="draft">Draft, to check</option>
                 <option value="reviewed" disabled={!!draft.importedFrom}>Reviewed{draft.importedFrom ? ' (save the import first)' : ''}</option>
                 <option value="no_speech" disabled={draft.cues.length > 0}>No speech</option>
@@ -256,8 +272,8 @@ function VideoContentEditor({ id }: { id: string }) {
           {importError && <p className="error" role="alert">{importError}</p>}
           {draft.cues.length === 0 && <p className="small muted">{draft.transcriptState === 'no_speech' ? 'Marked as no speech.' : 'No cues yet. Import the editor\'s subtitles or add cues by hand.'}</p>}
           {draft.cues.map((cue, index) => (
-            <fieldset key={cue.key} className={index + 1 === badCue ? 'entry invalid' : 'entry'}>
-              <legend>Cue {index + 1}</legend>
+            <fieldset key={cue.key} className={index + 1 === badCue ? 'entry invalid' : 'entry'} disabled={!canEdit} aria-labelledby={`${uid}-cue-name-${index + 1}`}>
+              {rowLegend(`${uid}-cue-name-${index + 1}`, `Cue ${index + 1}`, cue.start)}
               <label className="time">Start<input id={`${uid}-cue-${index + 1}`} value={cue.start} onChange={(e) => changeCue(index, { start: e.target.value })} {...timeProps(index + 1, badCue, cuesErrorId)} /></label>
               <label className="time">End<input value={cue.end} onChange={(e) => changeCue(index, { end: e.target.value })} {...timeProps(index + 1, badCue, cuesErrorId)} /></label>
               <label className="short">Speaker<input value={cue.speaker} onChange={(e) => changeCue(index, { speaker: e.target.value })} /></label>
@@ -266,7 +282,7 @@ function VideoContentEditor({ id }: { id: string }) {
             </fieldset>
           ))}
           <div className="row spread">
-            <button type="button" onClick={addCue}>Add cue</button>
+            <button type="button" disabled={!canEdit} onClick={addCue}>Add cue</button>
             {cuesError && <span id={cuesErrorId} className="error" role="alert">{cuesError}</span>}
           </div>
         </section>
@@ -290,8 +306,8 @@ function VideoContentEditor({ id }: { id: string }) {
           )}
           {draft.sections.length === 0 && <p className="small muted">No sections marked yet.</p>}
           {draft.sections.map((section, index) => (
-            <fieldset key={section.key} className={index + 1 === badSection ? 'entry invalid' : 'entry'}>
-              <legend>Section {index + 1}</legend>
+            <fieldset key={section.key} className={index + 1 === badSection ? 'entry invalid' : 'entry'} disabled={!canEdit} aria-labelledby={`${uid}-section-name-${index + 1}`}>
+              {rowLegend(`${uid}-section-name-${index + 1}`, `Section ${index + 1}`, section.start)}
               <label className="short">Type
                 <select value={section.type} onChange={(e) => changeSection(index, { type: e.target.value as SectionDraft['type'] })}>
                   {Object.entries(sectionTypes).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
@@ -314,9 +330,9 @@ function VideoContentEditor({ id }: { id: string }) {
           ))}
           <div className="row spread">
             <div className="row">
-              <button type="button" onClick={addSection}>Add section</button>
+              <button type="button" disabled={!canEdit} onClick={addSection}>Add section</button>
               <label className="row" style={{ gap: 6 }}>Section state
-                <select style={{ width: 'auto' }} value={draft.sectionState} onChange={(e) => change({ sectionState: e.target.value as Draft['sectionState'] })}>
+                <select style={{ width: 'auto' }} value={draft.sectionState} disabled={!canEdit} onChange={(e) => change({ sectionState: e.target.value as Draft['sectionState'] })}>
                   <option value="draft">Draft</option>
                   <option value="reviewed">Reviewed</option>
                 </select>
@@ -325,7 +341,7 @@ function VideoContentEditor({ id }: { id: string }) {
             {sectionsError && <span id={sectionsErrorId} className="error" role="alert">{sectionsError}</span>}
           </div>
         </section>
-      </fieldset>
+      </div>
 
       {canEdit && (
         <div className="row spread">

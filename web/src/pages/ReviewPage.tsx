@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useMatch, useParams } from 'react-router'
 import { ContentTimeline } from '../components/ContentTimeline'
-import { DrivePreview } from '../components/DrivePreview'
 import { CommentForm, CommentList, Decision, ReviewTimeline, useReviewSession } from '../components/ReviewParts'
+import { VideoPlayer, type VideoPlayerHandle } from '../components/VideoPlayer'
 import { explain } from '../lib/commands'
 import { useMember } from '../lib/session'
 import { formatTime } from '../lib/time'
@@ -11,6 +11,8 @@ export function ReviewPage() {
   const { id = '' } = useParams()
   const canvas = useMatch('/reviews/:id/canvas') !== null
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const player = useRef<VideoPlayerHandle>(null)
+  const seek = (ms: number) => player.current?.seek(ms)
   const me = useMember()
   const session = useReviewSession(id, { withContent: canvas })
 
@@ -33,7 +35,7 @@ export function ReviewPage() {
       </span>
     </div>
   )
-  const comments = <CommentList session={session} view={view} selectedId={selectedId} />
+  const comments = <CommentList session={session} view={view} selectedId={selectedId} onSeek={isVideo ? seek : undefined} />
   const form = <CommentForm session={session} view={view} />
   const decision = <Decision session={session} view={view} />
 
@@ -44,13 +46,13 @@ export function ReviewPage() {
         {header}
         <section aria-label="Review canvas" className="review-canvas">
           <div className="stack" style={{ alignContent: 'start' }}>
-            <DrivePreview key={file.drive_file_id} driveFileId={file.drive_file_id} name={file.name} tall />
+            <VideoPlayer ref={player} key={file.id} fileId={file.id} driveFileId={file.drive_file_id} name={file.name} width={file.width} height={file.height} tall />
             <div className="panel">
               {/* Only this Version's comments are pinned: carried-over ones have the earlier cut's times. */}
               <ReviewTimeline duration={duration} sections={session.content.data?.sections ?? []}
                 sectionsState={session.content.isPending ? 'loading' : session.content.error ? 'error' : 'ready'}
                 comments={shown.filter((c) => c.version_id === review.version_id)} selected={selected}
-                onSelect={(c) => setSelectedId(c?.id ?? null)} />
+                onSelect={(c) => setSelectedId(c?.id ?? null)} onSeek={seek} />
               {shown.some((c) => c.version_id !== review.version_id) && (
                 <p className="small muted">Comments carried over from an earlier Version are listed beside the player without a pin; their times belong to that cut.</p>
               )}
@@ -81,7 +83,7 @@ export function ReviewPage() {
               <a href={`https://drive.google.com/file/d/${f.drive_file_id}/view`} target="_blank" rel="noreferrer">Open in Drive</a>
             </div>
           ))}
-          {isVideo && <DrivePreview key={file.drive_file_id} driveFileId={file.drive_file_id} name={file.name} />}
+          {isVideo && <VideoPlayer ref={player} key={file.id} fileId={file.id} driveFileId={file.drive_file_id} name={file.name} width={file.width} height={file.height} />}
           {isVideo && <Link to={`/reviews/${id}/canvas`} className="small">Open review canvas</Link>}
           {isVideo && duration > 0 && (
             <div aria-hidden="true" style={{ position: 'relative', height: 10, background: 'var(--soft)', borderRadius: 4 }}>
@@ -97,7 +99,7 @@ export function ReviewPage() {
           )}
           {isVideo && <div className="row spread small muted"><span>00:00</span><span>{formatTime(duration)}</span></div>}
         </section>
-        {isVideo && <ContentTimeline versionId={review.version_id} canEdit={me.team === 'creative'} />}
+        {isVideo && <ContentTimeline versionId={review.version_id} canEdit={me.team === 'creative'} onSeek={seek} />}
         </div>
 
         {comments}

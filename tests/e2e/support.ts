@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { test as base, expect, type Browser, type BrowserContext, type ConsoleMessage, type Page } from '@playwright/test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { driveLink, fakeDriveFileId, reportDriveDetails, videoDetails } from '../support/drive'
@@ -21,6 +22,37 @@ function watchConsole(context: BrowserContext, problems: string[]) {
   })
 }
 
+// Stands in for the drive-stream Edge Function (D-83) in every journey: a playback token for any file, then the bytes of
+// a tiny local 30-second video for whatever ranges the player asks for. No journey reaches the function or Google; the
+// function's own logic is tested in tests/db (drive-stream, playback-tokens).
+const standInVideo = readFileSync(new URL('./fixtures/stand-in-30s.mp4', import.meta.url))
+const streamCors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, range',
+  'Access-Control-Expose-Headers': 'content-range, content-length, accept-ranges',
+}
+export async function standInForDriveStream(context: BrowserContext) {
+  await context.route((url) => url.pathname.endsWith('/functions/v1/drive-stream'), (route) => {
+    const request = route.request()
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: streamCors })
+    if (request.method() === 'POST') {
+      return route.fulfill({ headers: streamCors, json: { token: `stand-in.${request.postDataJSON()?.file_id}`, expires_in: 3600 } })
+    }
+    const size = standInVideo.length
+    const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers().range ?? '')
+    const start = range ? Number(range[1]) : 0
+    const end = range?.[2] ? Math.min(Number(range[2]), size - 1) : size - 1
+    return route.fulfill({
+      status: range ? 206 : 200,
+      headers: { ...streamCors, 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', ...(range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}) },
+      body: standInVideo.subarray(start, end + 1),
+    })
+  })
+}
+
+// Where a page's player is in the video, in seconds.
+export const playerTime = (page: Page) => page.locator('video').evaluate((video: HTMLVideoElement) => video.currentTime)
+
 export const test = base.extend<{ consoleProblems: string[] }>({
   consoleProblems: [async ({}, use) => {
     const problems: string[] = []
@@ -31,6 +63,7 @@ export const test = base.extend<{ consoleProblems: string[] }>({
   }, { auto: true }],
   context: async ({ context, consoleProblems }, use) => {
     watchConsole(context, consoleProblems)
+    await standInForDriveStream(context)
     await use(context)
   },
 })
@@ -79,6 +112,7 @@ export async function signIn(browser: Browser, email: string): Promise<Page> {
   if (!journeyProblems) throw new Error("Import test from './support', so console errors and warnings fail the journey")
   const context = await browser.newContext()
   watchConsole(context, journeyProblems)
+  await standInForDriveStream(context)
   const page = await context.newPage()
   await page.goto('/sign-in')
   await page.getByLabel('Email').fill(email)

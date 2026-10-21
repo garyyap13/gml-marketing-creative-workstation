@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
-// Drive's own embedded preview, the interim player (D-69, D-75). It loads only when asked, plays for people signed
-// into a Google account with access to the file, and cannot jump to a time. A portrait preview is a 9:16 frame, as in
-// the My Tasks inbox (D-81).
+// Drive's own embedded preview, D-75's interim player. Version videos now play in the workstation's own player
+// (VideoPlayer, D-83); this stays only for a 复盘 whose baseline is a still image, until the owner decides whether the
+// stream extends to images. It loads only when asked and works for people signed into a Google account with access.
 export function DrivePreview({ driveFileId, name, tall = false, shape = 'wide', note }: {
   driveFileId: string; name?: string | null; tall?: boolean; shape?: 'wide' | 'portrait'; note?: string
 }) {
