@@ -31,6 +31,19 @@ The app, migrations and tests now exist (see CLAUDE.md). B2 replaced the Drive s
 - Verified 2026-10-20 against one existing video in the real folder. Under `drive.metadata.readonly` Drive returned the SHA-256 checksum, head revision, size, type, dimensions and duration. The file registered as ready, the change check found it unchanged, and a made-up file ID failed as `not_found` while the folder read fine. The team's files are named like `GML VIDEO 203 VER 1.mp4`, not D-69's `<variant code>_v<number>`. Nothing enforces the name, since identity is the file ID, revision and checksum.
 - Not built yet: the hosted schedule that runs the worker (B1: every minute or so, plus every 6 hours with `queue_checks`), a "check now" button for `request_drive_check`, and the D-69/D-75 playback test of Drive's preview against a streaming player.
 
+## Update 2026-10-20: Telegram notifications (D-82)
+
+Notifications now start on Telegram (D-82); TRD T-16 has the details. My Tasks is unchanged and stays the full list.
+
+- **Queue.** `work.outbox` is channel-neutral: each row has a channel (`telegram`; `whatsapp` later) and a recipient address, unique per task and channel. `app.notify` queues one Telegram message per personal task whose recipient is an active member with Telegram connected. Untracked Ads stay a team task with no message (D-56). WhatsApp is deferred, not dropped; `core.members` keeps its unused WhatsApp fields.
+- **Connecting.** Settings → Telegram → Connect Telegram calls `start_telegram_connection`, which issues a one-time code (15 minutes, only its hash kept) and opens `https://t.me/<bot>?start=<code>`. The worker passes the `/start <code>` to `worker.connect_telegram`, and the bot replies. Members disconnect in Settings (`disconnect_telegram`), with `/stop`, or by blocking the bot; waiting messages are then cancelled. Members see who has connected, never a chat ID.
+- **Sending.** `supabase/functions/telegram-worker` (shared code in `_shared/telegram.ts`) checks the bot with `getMe`, polls `getUpdates` locally (a webhook with `secret_token` when hosted), then sends due messages: the task's action and code in plain words with a link to `/tasks/<id>` under `APP_BASE_URL`. 429s wait for `retry_after`, other passing failures back off like jobs, a 403 disconnects the member. A failed message shows on its task in My Tasks and in the Admin's Telegram settings, which also show the bot's username and who has connected.
+- **Secrets.** `TELEGRAM_BOT_TOKEN` and `APP_BASE_URL` in the gitignored `supabase/functions/.env` (see `.env.example`), and `TELEGRAM_WEBHOOK_SECRET` on a hosted project. `node scripts/save-telegram-token.ts` writes the token without showing it. The local stack loads function secrets only on `supabase stop && supabase start` from the checkout that holds them, and serves that checkout's functions.
+- **Tests.** `tests/support/telegram.ts` plays the worker and a fake Telegram, so tests and journeys never call Telegram. `pnpm telegram:smoke` resets the local database, prints a Connect link for the owner, waits for their Start, then sends one real message from a real task.
+- **Still to do: the bot and the live test.** On 2026-10-20 the owner put the Telegram setup on hold and shipped the code ahead of the bot. Nobody has created the bot with @BotFather yet, there is no token, and `pnpm telegram:smoke` has never run against the real Bot API. Until `TELEGRAM_BOT_TOKEN` is set, the worker records `not_configured`, answers `telegram_not_configured` and sends nothing; Settings tells members Telegram isn't set up yet. When the owner is ready: install Telegram, create the bot with `/newbot` (a name such as "GML Studio", a username ending in "bot"), save the token with `node scripts/save-telegram-token.ts` (never in chat), restart the stack from that checkout, then `pnpm telegram:smoke`. Whether Telegram accepts a link to a local `http://127.0.0.1:5173` address in a message is also unchecked until then.
+- **Unexplained once:** in one full e2e run the worker's claim found no message just after a Version was submitted, although the message was committed, due and unlocked; repeated loops never reproduced it. The scheduled worker would send it on its next run, and the journey now runs the worker until the message leaves the queue.
+- Not built yet: the hosted schedule that runs the worker (B1, every minute or so) and registering the webhook on a hosted project.
+
 ## User's workflow
 
 1. Marketing chooses Avatar, Angle and rough material / 初稿 in a Brief.
@@ -48,7 +61,7 @@ One company (GML), approximately seven users. Marketing/Creative teams, an Appro
 - Domain commands through transactional Postgres RPC functions; reads under member RLS / curated reporting views.
 - Edge Functions for external operations; no separate API server required by the current architecture.
 - Read-only Meta ingestion, code/media matching, separate paid/organic reporting scopes, raw provenance and data health.
-- My Tasks plus one-to-one WhatsApp notifications; no messages have been sent from this conversation.
+- My Tasks plus one-to-one notifications, on Telegram since D-82 (WhatsApp deferred).
 - Reporting access for Claude is a future restricted role, not current database access.
 - Frontend stack and deployment are not established by the HTML mockup.
 

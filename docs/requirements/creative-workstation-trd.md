@@ -24,7 +24,7 @@ Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md]
 - **Meta.** System user; 6-hourly sync plus a daily 28-day re-pull; 6-month backfill with Legacy Creatives; configurable Breakdowns; CSV for other platforms; data health (D-32–D-38).
 - **Results.** Combination view, Label view, spend share and Controlled Test (D-35, D-39–D-41; new T-15).
 - **Learning.** v1.0 performance reviews fold into Optimization Plans with frozen Evidence and a Verdict (D-42, D-43).
-- **Notifications.** One-to-one WhatsApp Cloud API plus My Tasks (D-44; new T-16), activity log, and archive, never delete (D-45, D-46).
+- **Notifications.** One-to-one WhatsApp Cloud API plus My Tasks (D-44; new T-16), activity log, and archive, never delete (D-45, D-46). *Since D-82 the messages go by Telegram, and WhatsApp is deferred (T-16).*
 - **Confirmed defaults (second pass)** are now decisions D-49–D-59:
   - Only Marketing sets or confirms Format (D-51).
   - Brief attachments and CSV files go in Storage, CSV in a private import area (D-52, D-59).
@@ -41,7 +41,7 @@ Product contract: [PRD](creative-workstation-prd.md) · Vocabulary: [CONTEXT.md]
   - Creative Retrospective / 复盘 extends Optimization Plans (D-63; new T-18, confirmed as D-68), with the command `append_retrospective_finding`.
   - Version files stay in Google Drive (D-64, D-65, ADR 0007; new T-19, details confirmed in D-69, check timing in D-80). The `review` and `final` file kinds merge into `version_media`, registered by `register_drive_media` and checked by a scheduled Drive check. Storage keeps Brief attachments, Launch thumbnails and CSV imports.
   - The web client is a Vite + React + TypeScript single-page app (D-66). Brief versions gain an optional hypothesis (D-67). Transcripts can be imported from SRT or WebVTT (D-68). Sign-in uses Google with personal Gmail for invited members, with a magic-link backup (D-70). Footage with `RAW-` codes, linked to Variants (D-71; new T-20).
-- **Tasks model.** My Tasks and notifications derive from activity-log events inside the command transaction. The outbox is only the WhatsApp delivery queue (D-45).
+- **Tasks model.** My Tasks and notifications derive from activity-log events inside the command transaction. The outbox is only the delivery queue for messages (D-45), channel-neutral since D-82.
 - **Repository boundary.** The ContentAI import bridge and the plan to add modules to the existing API are removed (D-05, ADR 0003), and T-11 is rewritten.
 - **Sizing.** Pilot and NFR numbers are rescaled to one company of about seven people and stay proposed (D-58).
 
@@ -65,7 +65,7 @@ flowchart LR
   UI -->|"reads under RLS"| DB[("Postgres<br/>business tables, activity log, My Tasks")]
   UI -->|"signed upload / download"| ST["Storage<br/>Brief attachments, Launch thumbnails,<br/>private CSV import area"]
   CMD -->|"writes + activity-log event + derived tasks"| DB
-  CMD --> OUT[("outbox<br/>WhatsApp delivery queue")]
+  CMD --> OUT[("outbox<br/>message delivery queue")]
   CRON["Supabase scheduled jobs"] --> SQLJ["SQL jobs<br/>due-date events, auto Verdicts, leases"]
   SQLJ --> DB
   SQLJ --> OUT
@@ -78,8 +78,8 @@ flowchart LR
   EF --> RAW[("ingest schema<br/>raw responses, not exposed")]
   RAW --> NORM["SQL: validate, normalise, match"]
   NORM --> DB
-  EF --> WA["WhatsApp Cloud API"]
-  WA -->|"delivery webhook"| EF
+  EF -->|"sendMessage, getUpdates"| TG["Telegram Bot API"]
+  TG -->|"webhook when hosted"| EF
   DB --> RV["reporting views"]
   RV --> UI
   RV --> CLAUDE["Claude read-only role"]
@@ -90,11 +90,11 @@ flowchart LR
 | Web client | Vite + React + TypeScript single-page app (D-66) in `web/`, using React Router and TanStack Query; only the publishable key reaches the browser: My Tasks, boards, Creative detail, previews, anchored Comments, lock-conflict UX and results views. Reads tables and views through the Supabase client under RLS. Writes only by calling RPC command functions |
 | Supabase Auth | Google sign-in with personal Gmail, limited to invited members, with a magic-link backup. Issues the JWT that every command checks (D-04, D-70) |
 | Postgres command functions (`api.*`) | Each domain command runs the full T-03 sequence in one transaction: caller identity from the JWT, idempotency, row lock, `lock_version`, validation, then the writes, the activity-log event, the My Tasks rows derived from it and any outbox rows (D-48, ADR 0006) |
-| Postgres | Business tables, constraints, RLS, activity log, My Tasks, WhatsApp outbox, jobs, measurement, normalisation and matching SQL, reporting views |
+| Postgres | Business tables, constraints, RLS, activity log, My Tasks, the message outbox and Telegram connections, jobs, measurement, normalisation and matching SQL, reporting views |
 | Storage | Private buckets for Brief attachments and Launch thumbnails, plus a separate private import area for CSV files (D-52, D-59, D-62). Access is by signed URL. Version files are not stored here (D-65) |
 | Google Drive | The team's existing folder holds every Version file, drafts and completed (D-64, D-65). The workstation has read-only access and never moves, shares or deletes a file; members view files under Drive's own sharing (T-19) |
 | Supabase scheduled jobs | SQL jobs for due-date and check-date events, automatic Verdicts, idempotency expiry and lease recovery. They also trigger the Edge Functions, including the daily never-attached file purge |
-| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; WhatsApp sending from the outbox; the WhatsApp delivery webhook; the `drive-worker`, which reads Version file metadata from Drive for registration and the scheduled Drive check (T-19); `invite-member`, which creates an invited person's sign-in account through the Auth admin API (T-09). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
+| Edge Functions (TypeScript) | External calls only (D-48): the Meta sync, re-pull and backfill; post-link resolution; the `telegram-worker`, which sends the outbox's Telegram messages and reads what members send the bot (T-16); the `drive-worker`, which reads Version file metadata from Drive for registration and the scheduled Drive check (T-19); `invite-member`, which creates an invited person's sign-in account through the Auth admin API (T-09). Two narrow extensions also run here because they need Storage object access: file verification (D-58), and the never-attached file purge through the Storage API (D-59, D-62) |
 | Reporting views | Curated, compatible aggregates for the browser. They are the only surface Claude's role can read (D-08) |
 
 There is no separate API server (D-48). Each environment is its own Supabase project, with staging and production kept separate; that operations default stays proposed (D-58). No warehouse or microservice split is needed, and Postgres-backed jobs and outbox are sufficient.
@@ -136,7 +136,9 @@ Unless stated otherwise, the primary key is a UUID `id`.
 
 | Table | Fields / relationships | Constraints |
 |---|---|---|
-| `core.members` | → `auth.users`, set when the invitation is accepted; email (unique, case-insensitive); display name; team (`marketing`/`creative`); `is_approver`; `is_admin` (held by the workstation owner, D-49); WhatsApp number; WhatsApp opt-in time; active; archived time | Unique auth user. `is_approver` only for Marketing. Only the Admin changes flags |
+| `core.members` | → `auth.users`, set when the invitation is accepted; email (unique, case-insensitive); display name; team (`marketing`/`creative`); `is_approver`; `is_admin` (held by the workstation owner, D-49); WhatsApp number; WhatsApp opt-in time (both unused while WhatsApp is deferred, D-82); active; archived time | Unique auth user. `is_approver` only for Marketing. Only the Admin changes flags |
+| `core.telegram_connections` | → member; Telegram chat ID; connected time; disconnected time and reason (`member`, `stopped`, `blocked`, `replaced`) | At most one connected chat per member and one member per chat (partial unique indexes). Ended connections are kept (D-46). Members read who has connected, never a chat ID (T-16) |
+| `core.telegram_bot` | state (`ready`, `not_configured`, `refused`); bot username; last error; checked time | Single row, written by the `telegram-worker` on each run. The token itself is only in function secrets (T-16) |
 | `core.settings` | brand prefix (`GML`), team time zone (`Asia/Kuala_Lumpur`, D-78), reporting currency | Single row. "Today" for due dates, Verdict check dates and plan actions is the team's date in this zone (`app.team_today()`); results keep each account's own time zone |
 | `core.code_counters` | prefix, last issued number | Row-locked while issuing (T-01) |
 | `core.breakdown_settings` | breakdown set (e.g. age + gender, placement), enabled, changed by and time | On by default: age × gender and placement (D-35) |
@@ -300,7 +302,8 @@ The following v1.0 tables are removed (D-27, ADR 0004): `distribution.package_ve
 | `audit.activity_log` | actor (member, worker or `system`); time; entity and version; action (domain event type); reason; payload; correlation ID; before and after checksums | Append-only. Readable by members. The single source of My Tasks, notifications and round counts (D-45) |
 | `work.tasks` | → activity-log event; kind; recipient member, or recipient team (`marketing`); action needed; → entity; created; done time | Exactly one recipient kind. Unique (event, recipient member). At most one open team task per kind (partial unique index), used for Untracked Ads (D-56) |
 | `work.task_reads` | → task, member, read time | PK (task, member). Read is tracked per person, including on the team task |
-| `work.outbox` | → task; recipient number; template; payload; delivery state; attempts; next attempt; WhatsApp message ID; delivery status; last error | WhatsApp delivery queue only. Unique task. Never used for team tasks (D-56). Statuses come from verified webhooks |
+| `work.outbox` | → task; channel (`telegram`, later `whatsapp`); recipient address (a Telegram chat ID); template; payload; delivery state (`queued`, `sending`, `sent`, `delivered`, `read`, `failed`, `cancelled`); attempts; next attempt; lease while sending; provider message ID; sent time; last error | Message delivery queue only. Unique (task, channel). Never used for team tasks (D-56). Members read the state and error, never the address or payload |
+| `work.telegram_connect_codes` | → member; SHA-256 of the code; created, expires, used and revoked times; the chat that used it | One-time, 15 minutes; a newer code revokes the member's older ones. Never readable by members (T-16) |
 | `work.jobs` | type, payload, state, lease, attempts, next attempt, last error | At-least-once delivery; idempotent handlers |
 | `work.idempotency_keys` | actor, command, key, request hash, result, expiry | Unique (actor, command, key) |
 
@@ -407,6 +410,8 @@ The states are:
 | `record_verdict` | Approver | On or after the check date | Verdict recorded |
 | `archive_record` | Per D-61: a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; any record by the Admin | Record not already archived | `archived_at` set; the record is hidden, but its history, Launches and results are kept and no state changes (D-46, D-61) |
 | `mark_task_read` | Recipient (any Marketing Team member for a team task) | Task addressed to the caller or the caller's team | `work.task_reads` row |
+| `start_telegram_connection` | Any active member | The bot is set up (`telegram_not_set_up` otherwise); at most 10 codes in 10 minutes. No idempotency key, since its stored result would keep the code | A one-time connect code and the bot's username for `t.me/<bot>?start=<code>`; older codes revoked (T-16, D-82) |
+| `disconnect_telegram` | Any member, for themselves | None; safe to repeat | The member's connection ended (`member`) and their waiting messages cancelled |
 | `invite_member`, `update_member` | Admin (D-49) | Valid email, name and team; only Marketing Team members can be Approvers; an invited email is not already a member or invited; `update_member` takes the expected lock version and never demotes or deactivates the last active Admin (D-78); only Admins who have signed in count, a safeguard added in implementation | Member invited, or name, team, flags, active state, WhatsApp number or WhatsApp opt-in changed |
 | `accept_invitation` | Any signed-in user | An active, unaccepted invitation for the email address in the verified sign-in token (D-70) | Sign-in linked to the member |
 | `update_team_settings`, `request_sync` | Admin (D-49) | A time zone the database knows; the expected lock version | Team time zone or sync job updated (D-78) |
@@ -422,7 +427,8 @@ Worker-only functions, never executable by browser roles:
 - `record_drive_check`: called only by the `drive-worker` Edge Function. It appends a `core.file_checks` row, updates the file's drift state and, on a new flag, appends the activity-log event that data health and routing use (T-19). Built as `worker.record_drive_check`, with `worker.drive_files_to_check` listing the files due and `worker.queue_drive_checks` queuing a `drive_check` job for each.
 - `worker.claim_jobs`, `complete_job`, `fail_job` and `enqueue_job`: the job queue's interface for every worker (`work.jobs`).
 - `worker.record_meta_connection`, `record_connection_state`, `record_raw_response`, `record_meta_posts` and `enabled_breakdowns`: the Meta connection's interface, used by stand-ins until B3.
-- `record_whatsapp_status`: called by the webhook Edge Function.
+- `worker.record_telegram_bot`, `connect_telegram`, `disconnect_telegram_chat`, `claim_telegram_messages`, `record_message_sent` and `record_message_failed`: the `telegram-worker`'s interface (T-16). Tests stand in for the worker (`tests/support/telegram.ts`) and never call Telegram.
+- `record_whatsapp_status`: called by a WhatsApp webhook Edge Function, once WhatsApp is added (deferred by D-82).
 - `emit_due_events`: a scheduled SQL job. It appends activity-log events when a Variant passes its due date or a plan reaches its check date, and routing then creates the tasks (D-56).
 - `auto_verdicts`: a daily SQL job. It records "not enough data" when spend falls below the plan's minimum. Spend counts the Launches linked to the plan's actions between acceptance and the check date, in the minimum's currency only (D-43, D-57, D-74). Built in A4 as `worker.run_due_checks` together with the plan part of `emit_due_events`.
 - `record_file_purge`: called only by the purge Edge Function. It deletes a `core.files` row after its Storage object is gone, and only if the file was never attached and is older than 30 days (D-59).
@@ -453,7 +459,7 @@ General rules:
 6. **Check preconditions** on related rows, e.g. that no Blocking Comment is unresolved.
 7. **Write.**
    - Perform the writes and append the domain event to `audit.activity_log`.
-   - The routing function (T-16) derives the `work.tasks` rows from that event and enqueues one `work.outbox` row for each personal task that needs a WhatsApp message.
+   - The routing function (T-16) derives the `work.tasks` rows from that event and enqueues one `work.outbox` row for each personal task whose recipient has connected Telegram.
    - Increment `lock_version`.
    - The function returns, and the RPC transaction commits as a whole. Functions never commit partway.
 
@@ -794,7 +800,7 @@ As built in milestone A5a (D-76):
   - An ad that backs a Launch and is renamed to another Variant's code, to no code or to several codes becomes Mismatched against that Launch's Variant and keeps its Launch. It can only be linked to that Variant. Where the media really differs, the Creative Owner adds the new Variant first, because creating Variants stays with the Creative Team.
   - Resolving re-runs matching for that one ad (`app.match_ad`). It locks the ad's row, then takes the same matching lock as the sync; a sync writes its ads before taking that lock, so the two wait for each other instead of deadlocking. Every resolution, including keeping an ad out again, goes into `meta.ad_match_events` with its actor and reason, and into the activity log.
   - A newly Mismatched Ad gives its Variant's Marketing Owner a task (D-56), done when the ad is linked or kept out.
-- **The team task.** After each sync and each resolution, `refresh_untracked_task` keeps one open `untracked_ads` task for the Marketing Team: opened by the first Untracked Ad, updated with the count, and done when none is left. A partial unique index allows only one open task, and it never sends WhatsApp (D-56, T-16).
+- **The team task.** After each sync and each resolution, `refresh_untracked_task` keeps one open `untracked_ads` task for the Marketing Team: opened by the first Untracked Ad, updated with the count, and done when none is left. A partial unique index allows only one open task, and it never sends a message (D-56, T-16).
 - **Data health.** `reporting.data_health` gives each account's last published sync, the rows that sync set aside, failed runs since, match coverage (matched ads ÷ synced ads, PRD §9) and whether the account is stale. Stale means no sync for 12 hours, two missed 6-hourly syncs; the threshold is proposed. Staleness is null for accounts that don't sync yet. `reporting.sync_problems` lists set-aside rows with their location and reason, never their raw payload. The stand-in never records a failed sync; B3 does.
 - Later: undoing a link to the wrong Variant, and a check that the page resolving an ad wasn't stale.
 
@@ -843,7 +849,7 @@ As built in milestone A5b (D-76):
 Database access rules:
 - **RLS** is enabled on every table in exposed schemas. Policies for `authenticated` allow SELECT to active members (D-02). Browser roles never get INSERT, UPDATE or DELETE on business tables; writes happen only through `api.*` functions (D-48). `anon` has no access.
 - **Raw ingest.** The `ingest` schema is not exposed through the Data API, and `anon`, `authenticated` and Claude's role have no grants on it (D-06, D-08).
-- **Worker roles.** The Meta sync, file verifier, Drive registration and check, WhatsApp sender and file-purge Edge Functions each have their own database role with the minimum grants they need. Edge Functions use these roles, or the service role server-side. The `service_role` key never reaches the browser.
+- **Worker roles.** The Meta sync, file verifier, Drive registration and check, Telegram sender and file-purge Edge Functions each have their own database role with the minimum grants they need. Edge Functions use these roles, or the service role server-side. The `service_role` key never reaches the browser.
 - **Deletion.** Only the purge Edge Function can delete (D-59, D-62):
   - it removes Storage objects through the Storage API;
   - it removes `core.files` rows through `record_file_purge`;
@@ -857,23 +863,23 @@ Database access rules:
   - **Token (proposed).** The Admin mints Claude's token with an expiry and replaces it before it lapses, outside the repository. Whoever holds the signing key can mint a token for any role, so it is kept like the secret key. To cut Claude off at once, without touching the key, revoke `reporting_reader` from `authenticator`.
 
 Other protections:
-- **Secrets.** The Meta system-user token, the Google service-account key, the WhatsApp token and the webhook secret live in Supabase Vault or Edge Function secrets. They never appear in tables, the browser or logs, and signed URLs are redacted from logs.
+- **Secrets.** The Meta system-user token, the Google service-account key, the Telegram bot token and webhook secret, and later the WhatsApp token, live in Supabase Vault or Edge Function secrets. They never appear in tables, the browser or logs, and signed URLs are redacted from logs.
 - **Storage.** All buckets, including the CSV import area, are private. Members read files through short-lived signed URLs, and writes go only through upload intents.
 
-**T-10.** Every command appends its domain event to `audit.activity_log` in the same transaction as its writes (D-45, D-47). The `work.tasks` rows are derived from that event in the same transaction, and so are the `work.outbox` rows that queue WhatsApp messages (T-16). A committed command therefore always has its audit record, its tasks and its delivery-queue entries; a rolled-back command has none of them. The WhatsApp sender delivers at least once and deduplicates by task. Round counts also derive from activity-log events.
+**T-10.** Every command appends its domain event to `audit.activity_log` in the same transaction as its writes (D-45, D-47). The `work.tasks` rows are derived from that event in the same transaction, and so are the `work.outbox` rows that queue Telegram messages (T-16). A committed command therefore always has its audit record, its tasks and its delivery-queue entries; a rolled-back command has none of them. The Telegram sender delivers at least once and deduplicates by task and channel. Round counts also derive from activity-log events.
 
 Logs record the correlation ID, command or job type, latency, retries and outcome. Monitoring covers:
 - job age and sync lag;
 - quarantined rows;
 - Untracked and Mismatched counts;
 - Ads live without approval;
-- WhatsApp failures;
+- Telegram send failures and the bot's state;
 - Meta API errors;
 - database pool saturation.
 
 A job failure is reported separately from a Meta permission or rate-limit condition.
 
-**T-16. Notifications** follow D-44 and D-56. Every task and notification comes from an activity-log event. The outbox is only the WhatsApp delivery queue.
+**T-16. Notifications** follow D-44, D-56 and D-82. Every task and notification comes from an activity-log event. The outbox is only the message delivery queue.
 - **Routing.** A routing function maps each activity-log event to its recipients (the D-56 table in PRD §11.1).
   - It inserts the `work.tasks` rows in the same transaction as the event, one per personal recipient, unique by event and member.
   - Time-based events (Variant overdue, plan check date) are appended by `emit_due_events` and routed the same way.
@@ -882,19 +888,22 @@ A job failure is reported separately from a Meta permission or rate-limit condit
   - At most one open team task of kind `untracked_ads` exists. A new Untracked Ad updates it rather than adding another.
   - It appears in every Marketing Team member's My Tasks.
   - It is done when no Untracked Ad remains.
-  - It never sends WhatsApp.
+  - It never sends a message.
 - **Read and done.** Read is tracked per person in `work.task_reads`. Done is set when the required action commits (proposed defaults):
   - a Review decision closes "review this Version";
   - the next submission closes "make the requested changes";
   - a Creative Owner's hand-off task closes when they submit a Version for that Brief or move a Creative up to its new version.
   Approval and withdrawal notices stay open until a later step defines their action.
-- **WhatsApp.** Routing enqueues one `work.outbox` row for each personal task that needs a message. The sender Edge Function sends it, triggered by outbox inserts or a scheduled job, through the official WhatsApp Cloud API from the dedicated business number (O-02).
-  - Messages use Meta-approved WhatsApp templates with a deep link.
-  - Messages go only to members with a verified number and a recorded opt-in.
-  - The outbox is unique per task, so each task gets at most one message.
-  - Transient errors are retried with backoff. A permanent failure is recorded, the task stays in My Tasks, and the Admin sees the failure.
-- **Delivery status.** Status reports arrive at a webhook Edge Function. It verifies Meta's signature, deduplicates by WhatsApp message ID, and calls `record_whatsapp_status`.
-- **Not used:** WhatsApp groups (D-44), email and Slack.
+- **Telegram (D-82).** A Telegram bot sends one private message per personal task to a recipient who has connected Telegram. The built pieces:
+  - **Routing.** `app.notify` inserts one `work.outbox` row per personal task whose recipient is an active member with a connected chat: channel `telegram`, the chat ID as the address. The outbox is unique per task and channel, so each task gets at most one Telegram message. Team tasks have no member recipient and never queue one (D-56).
+  - **Connecting.** `start_telegram_connection` issues a one-time code (24 random bytes as 32 base64url characters) that works for 15 minutes, keeping only its SHA-256. Settings' Connect Telegram opens `https://t.me/<bot>?start=<code>`; pressing Start sends the bot `/start <code>`, and the worker passes it to `worker.connect_telegram`, which links that chat to the code's member if they are still active. The outcome is `connected` (also when Telegram repeats the update), `used`, `expired`, `unknown` or `inactive`, and the bot replies in plain words. Connecting ends the member's other chat and the chat's other member (`replaced`).
+  - **Disconnecting.** In Settings (`disconnect_telegram`), by sending `/stop`, or by blocking the bot, which Telegram reports as a `my_chat_member` update with status `kicked` or as a 403 when sending. Each ends the connection and cancels the messages still waiting for that chat. Members read who has connected, never a chat ID.
+  - **Sending.** `worker.claim_telegram_messages` leases due messages like jobs do, first cancelling those whose recipient disconnected or was deactivated, or whose task is done. The worker sends each with `sendMessage` (`parse_mode` HTML, link previews off): the task's action in bold, which already names the code ("Review GML-0007-B v2"), the Brief or reason when there is one, and a link to `/tasks/<task>` under `APP_BASE_URL`. Everything people typed is HTML-escaped. `record_message_sent` keeps Telegram's message ID. `record_message_failed` retries a 429 after Telegram's `retry_after`, and a 5xx or network failure after 30 seconds doubling with jitter up to 6 hours; after 8 attempts, or at once for another refusal, the message fails, the task stays in My Tasks and shows the failure, and the Admin sees it in Settings. A 403 also disconnects the chat. A 401 means the token itself was rejected, so the message waits.
+  - **Bot status.** Each run calls `getMe`, which proves the token, and records the state and username in `core.telegram_bot` for the Connect link and the Admin's Telegram settings (D-49 as amended by D-82). Without a token the function records `not_configured` and answers `telegram_not_configured`.
+  - **Receiving updates.** Telegram allows one way at a time. Locally there is no public URL, so each run polls `getUpdates` (`allowed_updates`: `message`, `my_chat_member`), confirming each batch with the next offset only once it is handled. On a hosted project, `setWebhook` points Telegram at the function with a `secret_token`; Telegram then sends it in the `X-Telegram-Bot-Api-Secret-Token` header, the function compares it in constant time, and runs stop polling. Only private chats count; groups are ignored.
+- **Configuration.** The `telegram-worker` Edge Function is run with the project's secret key by the schedule (B1, every minute or so) or an operator (`verify_jwt` is off and the function checks the key or, for the webhook, the secret token). It reads function secrets documented in `supabase/functions/.env.example`: `TELEGRAM_BOT_TOKEN` from @BotFather, written without showing it by `node scripts/save-telegram-token.ts`, which checks it with `getMe`; `APP_BASE_URL`, the web app's address for links; and, hosted only, `TELEGRAM_WEBHOOK_SECRET`. Locally they live in the gitignored `supabase/functions/.env`, loaded when the stack starts. Error text never includes the token. Tests and journeys play the worker through `tests/support/telegram.ts` and a fake Telegram, and never call Telegram. `pnpm telegram:smoke` resets the local database, prints a Connect link for the owner, waits for their Start, then sends one real message from a real task.
+- **WhatsApp later.** D-44's WhatsApp messages are deferred, not dropped. A WhatsApp sender would add channel `whatsapp` rows for members with a verified number and a recorded opt-in, using Meta-approved templates with a deep link, and `record_whatsapp_status` from a verified webhook (O-02).
+- **Not used:** group chats (D-44), email and Slack.
 
 ## 10. Proposed nonfunctional acceptance budgets
 
@@ -907,7 +916,7 @@ These are engineering targets to validate on a provisioned Supabase environment.
 | Command functions | p95 under 2 s, excluding file transfer |
 | Results views | p95 under 5 s at the stated load; a pending refresh is shown while a materialised view rebuilds |
 | My Tasks | Task visible at commit, and within 60 s for time-based events |
-| WhatsApp | Message handed to the Cloud API within 5 min of commit; Meta's delivery is not controlled |
+| Telegram | Message handed to the Bot API within 5 min of commit once the schedule runs the worker (B1); Telegram's delivery is not controlled |
 | Meta sync | A 6-hourly run over all connected accounts finishes within 30 min; the daily re-pull within 2 h |
 | Worker recovery | An expired lease is recovered within 5 min, with no duplicated logical effects |
 | Files | Limits as in §7; a metadata mismatch never produces a ready file |
@@ -947,7 +956,7 @@ Deployment prerequisites:
 - Vault secrets.
 - Supabase scheduled jobs for the SQL jobs and the Edge Function triggers.
 - Deployed Edge Functions.
-- The Meta system user, and the WhatsApp business number with approved templates (O-02).
+- The Meta system user (O-02). The Telegram bot from @BotFather, its token and webhook secret set as Edge Function secrets, `setWebhook` pointed at the `telegram-worker`, and the worker scheduled (T-16). The WhatsApp business number with approved templates only once WhatsApp is added (D-82).
 - Claude's read access (§9): `claude_reporting` added to the Data API's exposed schemas, and a way to mint Claude's token. Supabase's signing keys can't be extracted, so the token is signed with an imported key the project accepts or the legacy JWT secret; check the current signing-key documentation before choosing. On the hosted project, also confirm which platform defaults (the HTTP extension's grants, database-level settings) any role can see.
 - Database backups plus the Storage copy.
 - Health checks for scheduled jobs.
@@ -962,7 +971,7 @@ Launch and results features stay behind flags until their acceptance tests pass.
 
 ## 12. Verification and release matrix
 
-**T-12.** Commands, RLS and concurrency are tested as integration tests against a local Supabase stack (Supabase CLI). The tests call the RPC functions directly and never use mocks or SQLite (D-48). The concurrent-decision race uses two sessions. Reporting uses fixed fixtures with known totals. A real-account smoke test of the read-only Meta path must pass before automatic feedback is claimed. WhatsApp is tested with the Cloud API test number before the production number.
+**T-12.** Commands, RLS and concurrency are tested as integration tests against a local Supabase stack (Supabase CLI). The tests call the RPC functions directly and never use mocks or SQLite (D-48). The concurrent-decision race uses two sessions. Reporting uses fixed fixtures with known totals. A real-account smoke test of the read-only Meta path must pass before automatic feedback is claimed. Telegram is tested against a fake Bot API, and a live smoke test (`pnpm telegram:smoke`) sends one real message from a real task to the owner.
 
 | Test group | Required evidence | PRD acceptance |
 |---|---|---|
@@ -977,7 +986,7 @@ Launch and results features stay behind flags until their acceptance tests pass.
 | Metric semantics | Fixtures for lifetime, combined scope, Reach, attribution, currency, null vs zero, summed-ratio Cost per Result, spend shares (Variant shares plus Dynamic, Untracked and Mismatched slices = 100%) and Label view pooling | AC-09, AC-20, AC-21 |
 | Authorization | Team and flag checks in every `api.*` function; RLS for `authenticated`; Storage policies. Cross-tenant tests removed in 1.1 (D-01) | AC-13 |
 | Data access | No browser access to `ingest`; Claude's role limited to read-only copies of the curated `reporting` views | AC-27 |
-| Notifications | Tasks derived from activity-log events in the command transaction; one WhatsApp message per personal task; the team task never sends WhatsApp; a failure leaves the task; webhook signature and deduplication | AC-01, AC-18, AC-22 |
+| Notifications | Tasks derived from activity-log events in the command transaction; one Telegram message per personal task to a connected recipient; the team task never sends one; one-time, expiring connect codes; disconnecting in Settings, by /stop or by blocking; retries with backoff and `retry_after`; a failure leaves the task; webhook secret token | AC-01, AC-18, AC-22 |
 | Files | Brief attachment upload or link and its size limit; Launch thumbnail added while the Variant is live; CSV in the private import area; never-attached purge after 30 days through the Storage API from an Edge Function, never selecting Drive files | AC-06, AC-23, AC-26 |
 | Video annotations | Measured duration; transcript states; SRT/WebVTT import starts as a draft; non-overlapping primary sections; append-only annotation revisions; a recut gets its own annotations; `save_video_annotations` returns a conflict on a stale prior revision; Evidence keeps the cited annotation revision | AC-29, AC-30 |
 | Drive Version files | Registration from a Drive link records identity and duration; the processing delay; working-file links, folders, shortcuts, editor files and files already used by another Version are rejected; change, trash and access-loss flags; a flagged file blocks submission, approval and Launch planning; no Drive writes | AC-32 |
@@ -1012,7 +1021,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | FR-07 Meta ingestion and data health | T-06, T-07, T-10; sync runs, raw responses, Breakdowns, CSV and manual entry, data health view |
 | FR-08 Reading results | T-06, T-08; scopes, definitions, Cost per Result |
 | FR-09 Optimization Plans | T-08, T-17, T-18; frozen Evidence (including cited annotation revisions), actions, Verdicts and automatic Verdicts; AC-30 |
-| FR-10 Notifications and activity log | T-03, T-10, T-16; activity log, derived My Tasks, team task, WhatsApp outbox |
+| FR-10 Notifications and activity log | T-03, T-10, T-16; activity log, derived My Tasks, team task, message outbox, Telegram connections |
 | FR-11 Access and files | T-05, T-09, T-11, T-19; Supabase Auth, RLS, `SECURITY DEFINER` commands, file kinds, Drive registration and change checks, D-59 purge, Storage policies, Claude's role |
 | FR-12 Usability | T-04, T-12; RLS reads, deep links, end-to-end tests |
 | FR-13 Labels and label lock | T-13 |
@@ -1036,7 +1045,7 @@ A mock UI with synthetic metrics does not satisfy connector acceptance.
 | Codes | D-11, ADR 0002 |
 | System boundary | D-05, ADR 0003 |
 | Sync cadence and backfill | D-33, D-34 |
-| Notifications | D-44 |
+| Notifications | D-44, D-82 |
 | Engineering rules | D-47 |
 | Where domain commands run: Postgres functions through Supabase RPC, Edge Functions for external calls, no API server (formerly O-01) | D-48, ADR 0006 |
 | The workstation owner is the Admin | D-49 |
@@ -1074,7 +1083,7 @@ The D-58 technical defaults are:
 - sizing and operations numbers, which stay proposed.
 
 **Open:**
-- O-02, the setup facts: the dedicated WhatsApp number, the Business Manager admin, the list of ad accounts, Pages and Instagram accounts, and the Drive folder for Version files and its owner account. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70.
+- O-02, the setup facts: the dedicated WhatsApp number (deferred by D-82), the Business Manager admin, the list of ad accounts, Pages and Instagram accounts, and the Drive folder for Version files and its owner account. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70.
 
 Which Meta capabilities each connected account supports is verified during integration; it is not a product decision. The Shared Drive vs My Drive question is closed by D-62.
 
@@ -1083,6 +1092,7 @@ References (check against current provider documentation during implementation):
 - PostgreSQL [constraints](https://www.postgresql.org/docs/current/ddl-constraints.html) and [row security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html), including the exemptions for table owners and `BYPASSRLS`.
 - Supabase [row level security](https://supabase.com/docs/guides/database/postgres/row-level-security), [database functions](https://supabase.com/docs/guides/database/functions), [Storage](https://supabase.com/docs/guides/storage), [Cron](https://supabase.com/docs/guides/cron), [Edge Functions](https://supabase.com/docs/guides/functions), [Vault](https://supabase.com/docs/guides/database/vault) and [local development](https://supabase.com/docs/guides/local-development).
 - Google Drive API [files](https://developers.google.com/workspace/drive/api/reference/rest/v3/files) and [revisions](https://developers.google.com/workspace/drive/api/reference/rest/v3/revisions) resources: checksum, revision and video metadata availability, and revision retention.
+- Telegram [Bot API](https://core.telegram.org/bots/api) (sendMessage and HTML formatting, getUpdates, setWebhook and `secret_token`, ResponseParameters `retry_after`) and [deep linking](https://core.telegram.org/bots/features#deep-linking).
 - Meta [Marketing API Insights](https://developers.facebook.com/docs/marketing-api/insights) and the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api). Field presence in Meta's SDKs does not establish availability for a given account or query.
 
 This TRD and PRD 1.1 supersede the exploratory designs in `docs/superpowers/specs/2026-10-10-*`. Production cost analysis is not a V1 requirement, and recording a Launch does not imply any publishing capability.

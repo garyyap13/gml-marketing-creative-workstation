@@ -24,7 +24,7 @@ Vocabulary follows CONTEXT.md. If this document conflicts with the decision log,
 - **Meta data.** Read-only system user; 6-hourly sync plus a daily 28-day re-pull; 6-month backfill with Legacy Creatives; configurable Breakdowns; CSV or manual entry for other platforms; data health page (D-32–D-38).
 - **Reading results.** Result and Cost per Result as the final judge; Combination view and Label view; spend share; Controlled Test (D-39–D-41; new FR-15).
 - **Learning.** v1.0 performance reviews fold into the Optimization Plan, which carries frozen Evidence and a Verdict (D-42, D-43, D-57).
-- **Notifications.** One-to-one WhatsApp plus in-app My Tasks, with Untracked Ads as one Marketing Team task. Activity log. Archive, never delete, except files that were never attached (D-44–D-46, D-56, D-59).
+- **Notifications.** One-to-one WhatsApp plus in-app My Tasks, with Untracked Ads as one Marketing Team task. Activity log. Archive, never delete, except files that were never attached (D-44–D-46, D-56, D-59). *Since D-82 the one-to-one messages go by Telegram, and WhatsApp is deferred.*
 - **Separate system.** No import bridge from the Video Orchestrator (D-05, ADR 0003).
 - **Confirmed defaults (second pass).** The first draft's proposed defaults PD-01…PD-18 are now decisions D-49–D-59. The owner changed several:
   - Brief attachments may be uploaded (D-52).
@@ -102,7 +102,7 @@ Each person is Marketing or Creative. One or more Marketing Team members carry t
 | Record which Footage a Variant uses, before go-live (D-71) | No | Yes | — | — |
 | Write an Optimization Plan | Yes | Yes | — | — |
 | Archive a record (D-61): a Brief by its Marketing Owner; a Creative by its Creative Owner or the Brief's Marketing Owner; an Optimization Plan by its owner or an Approver; a label item by its owning team; Footage by the member who added it (D-79) | When owner | When owner | Any Optimization Plan | Any record |
-| Manage members and flags, the team time zone (D-78), the Meta connection, WhatsApp settings and Breakdown settings | — | — | — | Yes |
+| Manage members and flags, the team time zone (D-78), the Meta connection, Telegram settings (D-82) and Breakdown settings | — | — | — | Yes |
 
 One Approver's decision approves a Version (D-50); multi-approver chains are later scope. Changes of owner, role or flag are logged (D-45).
 
@@ -119,7 +119,7 @@ One Approver's decision approves a Version (D-50); multi-approver chains are lat
 - Read-only Meta sync (Marketing API plus Page and Instagram insights) with a 6-month backfill, Breakdowns and a data health page. Manual entry and validated CSV import for other platforms.
 - Results by Variant, Combination and label, with Cost per Result as the final judge.
 - Optimization Plans with frozen Evidence and Verdicts.
-- One-to-one WhatsApp notifications, My Tasks, an activity log, and a read-only reporting role for Claude.
+- One-to-one Telegram notifications (D-82; WhatsApp deferred), My Tasks, an activity log, and a read-only reporting role for Claude.
 
 ### Later scope
 
@@ -148,7 +148,7 @@ The main navigation is My Tasks, Briefs, Creatives, Footage, Results, Optimizati
 | Results | Combination view (per ad set and period), Label view, Variant results, Breakdowns |
 | Optimization | Creative Retrospective (复盘): video, transcript, Content Sections, scoped results, team findings and Plans with Evidence, owner, priority, due date, check date, state and Verdict |
 | Data health | Last sync, coverage, errors, Untracked Ads, Mismatched Ads, Ads live without approval, Legacy Creatives awaiting labels, Version files changed or unreadable in Drive |
-| Settings | Team label lists; members and flags, the team time zone that "today" follows for due and check dates (Asia/Kuala_Lumpur, D-78), Meta connection, WhatsApp and Breakdowns (Admin, D-49) |
+| Settings | Team label lists; each member's own Connect Telegram (D-82); members and flags, the team time zone that "today" follows for due and check dates (Asia/Kuala_Lumpur, D-78), Meta connection, Telegram and Breakdowns (Admin, D-49 as amended by D-82) |
 
 Records can be found by Creative Code, Variant code, Legacy Code or title, and filtered by label, owner, state and due date. A Creative shows each Variant's state and each Launch's status independently.
 
@@ -291,13 +291,15 @@ Completing a plan requires its actions to be linked, and cancelling it requires 
 
 Every action is recorded in an activity log with actor, time, entity and reason. My Tasks items, notifications and review round counts all derive from that log's events (D-45).
 
-Each handoff notifies the person who must act, in two ways (D-44; routing D-56 in §11.1; number O-02):
-- a My Tasks item in the workstation;
-- one one-to-one WhatsApp message through the official WhatsApp Cloud API, from the dedicated business number.
+Each handoff notifies the person who must act, in two ways (D-44, D-82; routing D-56 in §11.1):
+- a My Tasks item in the workstation, which stays the full list;
+- one private Telegram message from the workstation's bot, naming the action and its code in plain words, with a link to that task in My Tasks.
 
-Untracked Ads are the exception. They form one task addressed to the whole Marketing Team, shown in every Marketing Team member's My Tasks, with no WhatsApp message (D-56).
+Each member connects their own Telegram in Settings: Connect Telegram opens the bot through a one-time link that works for 15 minutes, and pressing Start links that chat to them; the bot replies to confirm. Only active members can connect, and only once the Admin has set up the bot. A member who hasn't connected gets the task only. A member disconnects in Settings, by sending /stop to the bot, or by blocking it; any message still waiting for them is then not sent. Connecting again from another chat moves their messages there.
 
-Each task links to the exact record and Version, and read and done are tracked separately. A retried event never duplicates a task or a message. If a WhatsApp send fails, the task stays in My Tasks and shows the failure. WhatsApp groups are not used, and email and Slack are out of scope.
+Untracked Ads are the exception. They form one task addressed to the whole Marketing Team, shown in every Marketing Team member's My Tasks, with no message (D-56).
+
+Each task links to the exact record and Version, and read and done are tracked separately. A retried event never duplicates a task or a message. A message whose task is done before it goes out is not sent. If a send fails for good, the task stays in My Tasks and shows the failure, and the Admin sees it in Settings. Group chats are not used, and email and Slack are out of scope. WhatsApp messages (D-44) are deferred, not dropped: the delivery queue is channel-neutral, so WhatsApp can be added as a second channel later.
 
 ### FR-11 — Access, files and data access
 
@@ -487,14 +489,14 @@ These targets are proposed for the pilot. They are not measured achievements or 
 | Review rounds | Rounds per approved Variant, from the activity log; never optimised at the expense of quality |
 | Match coverage | Matched Ads ÷ synced Ads in connected ad accounts; Untracked and Mismatched Ads always visible; 100% on the release fixture |
 | Learning closure | Plans past their check date that have a Verdict ÷ all plans past their check date |
-| Notification integrity | No duplicated task or WhatsApp message, and no contradictory review decision, in release tests |
+| Notification integrity | No duplicated task or Telegram message, and no contradictory review decision, in release tests |
 | Usability | One Marketing Team member and one Creative Team member each complete the six-step pilot without database access |
 
 Proposed technical budgets, sized for about seven users (they stay proposed, D-58):
 - operational commands: p95 under 2 seconds;
 - a 90-day results view: p95 under 5 seconds on the TRD's pilot dataset;
 - a My Tasks item within 60 seconds of a committed handoff;
-- a WhatsApp message handed to the Cloud API within 5 minutes.
+- a Telegram message handed to the Bot API within 5 minutes, once the hosted schedule runs the worker (B1).
 
 The Meta sync runs every 6 hours (D-33). Meta's availability and rate limits are shown to users but are not controlled by this product.
 
@@ -502,7 +504,7 @@ The Meta sync runs every 6 hours (D-33). Meta's availability and rate limits are
 
 | ID | Scenario and required result | Requirements |
 |---|---|---|
-| AC-01 | Hand off a complete Brief with one Creative. The Creative Owner gets a My Tasks item and a WhatsApp message, and sees the exact Brief version and its attachments | FR-01, FR-02, FR-10 |
+| AC-01 | Hand off a complete Brief with one Creative. The Creative Owner gets a My Tasks item and, with Telegram connected, a Telegram message, and sees the exact Brief version and its attachments | FR-01, FR-02, FR-10 |
 | AC-02 | Submit a video Version and a static Version. Each previews correctly and follows its Production Stages, and the Variant keeps its working-file link | FR-03, FR-11 |
 | AC-03 | Leave a Blocking Comment and a suggestion on Version 1, request changes, and submit Version 2. The anchors stay on Version 1; the open Blocking Comment carries forward and blocks approval, and the suggestion does not | FR-04 |
 | AC-04 | Open a Review and leave no Comment and no decision. The Variant stays awaiting review | FR-04 |
@@ -519,11 +521,11 @@ The Meta sync runs every 6 hours (D-33). Meta's availability and rate limits are
 | AC-15 | Rebrief a handed-off Brief. Existing Creatives keep the Brief version they followed. A Creative that has never been live may move to the new version, and one that has been live cannot | FR-02, FR-03, FR-13 |
 | AC-16 | Withdraw an approval. No new Launch of that Version can be planned, and its planned Post cannot be confirmed. An Ad for it that Meta shows running is still recorded live and flagged (D-54). Existing live Posts and Ads are still reported | FR-05, FR-06 |
 | AC-17 | Before go-live, a Variant's hook type, length and aspect ratio can be set and changed. After a Variant goes live, editing its Creative's or its Variants' labels is rejected. Renaming or merging a label item keeps history and results | FR-13 |
-| AC-18 | Sync an Ad named `[GML-0007-B] …`: it matches and records the video ID. A second `GML-0007-B` Ad with another video becomes a Mismatched Ad. An ad with no code becomes an Untracked Ad and appears in one task for the whole Marketing Team, with no WhatsApp message. A backfilled `GML-TESTI-0007` ad creates a Legacy Creative whose Variant `-A` starts live | FR-07, FR-10, FR-14 |
+| AC-18 | Sync an Ad named `[GML-0007-B] …`: it matches and records the video ID. A second `GML-0007-B` Ad with another video becomes a Mismatched Ad. An ad with no code becomes an Untracked Ad and appears in one task for the whole Marketing Team, with no Telegram message. A backfilled `GML-TESTI-0007` ad creates a Legacy Creative whose Variant `-A` starts live | FR-07, FR-10, FR-14 |
 | AC-19 | A Dynamic Ad appears at ad level only and is excluded from single-Variant ranking. A carousel ad carrying one Variant code is matched normally, not as a Dynamic Ad | FR-14, FR-15 |
 | AC-20 | For an ad set with three Live Variants and a Dynamic Ad, the Combination view shows blended Cost per Result, label diversity, and spend shares that add up to 100% of the ad set's spend for the period: one share per Variant plus Dynamic, Untracked and Mismatched slices. Comparisons without a Meta A/B test are labelled observational | FR-08, FR-15 |
 | AC-21 | The Label view pools across ad sets only for matching Result type, currency and attribution setting. Age × gender and placement Breakdowns are on by default, and turning another Breakdown on in Settings adds it from the next sync | FR-07, FR-08, FR-15 |
-| AC-22 | Request changes. Exactly one WhatsApp message goes to the Creative Owner and one My Tasks item appears; a retried event sends nothing new; a failed send leaves the task visible with the failure | FR-10 |
+| AC-22 | Request changes. Exactly one Telegram message goes to the Creative Owner, who has connected Telegram, and one My Tasks item appears; a retried event sends nothing new; a failed send leaves the task visible with the failure | FR-10 |
 | AC-23 | Import a TikTok CSV with one invalid row. Valid rows import with provenance and the invalid row is rejected with a reason. Then enter one Xiaohongshu result by hand, which records the actor. Nothing is labelled as API data | FR-07 |
 | AC-24 | Cancel a never-live Variant with a reason; cancelling a Live or Retired Variant is rejected. The Brief's Marketing Owner archives the Brief, and a non-owner who is not the Admin is refused (D-61). Nothing is hard-deleted, and history and results stay reachable | FR-03, FR-11 |
 | AC-25 | Meta shows an Ad named `[GML-0009-A] …` running while that Variant is still awaiting review. The sync records an unplanned live Launch, moves the Variant to live, and flags it on data health | FR-06, FR-14 |
@@ -546,7 +548,7 @@ No milestone's exit condition depends on a capability from a later milestone.
 
 | Milestone | Scope | Exit condition |
 |---|---|---|
-| M1: Team workflow | Sign-in, roles, labels, Briefs and attachments, Creatives/Variants/Versions with Version files registered from Drive, Review loop, My Tasks and WhatsApp | AC-01–04, AC-12, AC-13, AC-22, AC-26, AC-28, AC-29, AC-32 and AC-33 pass; Version files verified on the real Drive folder |
+| M1: Team workflow | Sign-in, roles, labels, Briefs and attachments, Creatives/Variants/Versions with Version files registered from Drive, Review loop, My Tasks and Telegram | AC-01–04, AC-12, AC-13, AC-22, AC-26, AC-28, AC-29, AC-32 and AC-33 pass; Version files verified on the real Drive folder |
 | M2: Launches and results | Approval integrity, Launches and the observed-live path, Meta sync and matching, Legacy backfill, CSV and manual entry, Combination and Label views, data health, archiving | AC-05–09, AC-14–21 and AC-23–25 pass; system-user access verified on real accounts |
 | M3: Learning loop and release | Optimization Plans, frozen Evidence and Verdicts, Claude's reporting role, restore and load checks | AC-10, AC-11, AC-27, AC-30, AC-31 and all regression and operational checks pass; both teams finish the full pilot |
 
@@ -560,7 +562,7 @@ No duration or cost estimate is committed until staffing, the Supabase plan (re-
 |---|---|---|
 | Users and tenancy | One company, one brand, about seven people; no multi-tenancy; everyone sees everything | D-01, D-02, ADR 0005 |
 | Roles and sign-in | Marketing or Creative plus an Approver flag; Google sign-in with personal Gmail for invited members, with a magic-link backup | D-03, D-04, D-70 |
-| Admin | The workstation owner holds the Admin flag, which manages members and flags, the Meta connection, WhatsApp settings and Breakdown settings | D-49 |
+| Admin | The workstation owner holds the Admin flag, which manages members and flags, the Meta connection, Telegram settings and Breakdown settings | D-49, D-82 |
 | System boundary | Separate from the Video Orchestrator; no import bridge in V1 | D-05, ADR 0003 |
 | Platform | New Supabase project (Postgres, Auth, Storage, scheduled jobs). The paid-plan expectation rested on video size and is re-evaluated, since Version files stay in Drive | D-06, D-65, ADR 0001 |
 | Where commands run | Postgres functions called through Supabase RPC; Edge Functions only for external calls; no API server | D-48, ADR 0006 |
@@ -579,7 +581,7 @@ No duration or cost estimate is committed until staffing, the Supabase plan (re-
 | Meta data | System user; 6-hourly sync plus a daily 28-day re-pull; 6-month backfill; Breakdowns; CSV for other platforms; metric rules; data health | D-32–D-38 |
 | Reading results | Result and Cost per Result; Combination and Label views; Controlled Test | D-39–D-41 |
 | Learning | Optimization Plan with frozen Evidence and a Verdict; the minimum spend counts linked Launches between acceptance and the check date | D-42, D-43, D-57 |
-| Notifications and history | One-to-one WhatsApp plus My Tasks, routed as below; Untracked Ads form one Marketing Team task; activity log; archive only | D-44–D-46, D-56 |
+| Notifications and history | One-to-one Telegram messages plus My Tasks, routed as below, with WhatsApp deferred; Untracked Ads form one Marketing Team task; activity log; archive only | D-44–D-46, D-56, D-82 |
 | Deletion exception | Files never attached to any record are hard-deleted after 30 days by an Edge Function through the Storage API. This is the only exception to D-46 | D-59, D-62 |
 | Video content metadata | Each video Version stores its measured duration, Transcript and Content Sections; the annotation model is confirmed, with SRT/WebVTT import | D-60, D-68 |
 | Creative Retrospective | 复盘 inside Optimization Plans, extending the existing learning loop; the FR-17 / T-18 design is confirmed | D-63, D-68 |
@@ -621,7 +623,7 @@ Notification routing (D-56):
 | Version approved | The Marketing Owner |
 | Approval withdrawn | Both owners |
 | Mismatched Ad | The Marketing Owner |
-| Untracked Ads | One task addressed to the whole Marketing Team, with no WhatsApp message |
+| Untracked Ads | One task addressed to the whole Marketing Team, with no message |
 | Variant overdue | The Creative Owner |
 | Plan check date reached | The plan owner and the Approvers |
 | Sync failure | The Admin |
@@ -630,7 +632,7 @@ Notification routing (D-56):
 
 | ID | Question | Needed by |
 |---|---|---|
-| O-02 | Setup facts: the dedicated WhatsApp number; the Business Manager admin; the list of ad accounts, Pages and Instagram accounts; the Google Drive folder for Version files and the account that owns it. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70 | Before integration (the WhatsApp number and Drive folder in M1, Meta access in M2) |
+| O-02 | Setup facts: the dedicated WhatsApp number (deferred by D-82, not needed before launch); the Business Manager admin; the list of ad accounts, Pages and Instagram accounts; the Google Drive folder for Version files and the account that owns it. The team uses personal Gmail, not Google Workspace (answered 2026-10-12); sign-in follows D-70 | Before integration (the Drive folder in M1, answered 2026-10-20; Meta access in M2) |
 
 The former O-01 (where domain commands run) is decided as D-48 / ADR 0006. The Shared Drive vs My Drive question is closed by D-62.
 
